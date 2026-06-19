@@ -1,6 +1,6 @@
 {
   "name": "apple-fm",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "Command-line and programmatic access to Apple's on-device Foundation Models (Apple Intelligence) on macOS 26+.",
   "type": "module",
   "license": "MIT",
