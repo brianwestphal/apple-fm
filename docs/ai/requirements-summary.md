@@ -21,7 +21,7 @@ Keep status markers in sync with the implementation.
 - **FR-9 CLI surface** — Shipped. `cliArgs.ts`.
 - **FR-10 Programmatic API** — Shipped. `index.ts`.
 - **FR-11 Helper discovery** — Shipped. `APPLE_FM_BIN` → bundled binary → PATH.
-- **FR-12 Persistent live session** — Deferred. AF-3.
+- **FR-12 Persistent live session** — Shipped. `--session` helper mode (`runSession`) + Node `LiveSession`; `ChatSession` uses it as its backend, replacing transcript-replay. See `docs/7-live-session.md`.
 - **FR-13 Homebrew distribution** — Dropped. npm is sufficient; descoped.
 
 ## Non-functional
@@ -37,5 +37,5 @@ Keep status markers in sync with the implementation.
 ## Tracked follow-ups
 
 AF-2 (automated on-device test in CI — CI now compiles the helper, on-device run
-pending), AF-3 (live session), AF-12 (signing/notarization CI — pipeline
-implemented, pending secrets/first release).
+pending), AF-12 (signing/notarization CI — pipeline implemented, pending
+secrets/first release).

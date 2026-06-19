@@ -96,16 +96,33 @@ private func emit(_ json: String) {
     FileHandle.standardOutput.write(Data((json + "\n").utf8))
 }
 
-private func emitResult(_ content: String) {
-    emit("{\"type\":\"result\",\"content\":\(encodeString(content))}")
+// Events carry an optional `id` so the persistent `--session` mode can correlate
+// each event with the command that produced it; `--probe`/`--generate` omit it.
+private func idField(_ id: String?) -> String {
+    guard let id else { return "" }
+    return ",\"id\":\(encodeString(id))"
 }
 
-private func emitDelta(_ text: String) {
-    emit("{\"type\":\"delta\",\"text\":\(encodeString(text))}")
+private func emitResult(_ content: String, id: String? = nil) {
+    emit("{\"type\":\"result\"\(idField(id)),\"content\":\(encodeString(content))}")
 }
 
+private func emitDelta(_ text: String, id: String? = nil) {
+    emit("{\"type\":\"delta\"\(idField(id)),\"text\":\(encodeString(text))}")
+}
+
+private func emitReady(_ id: String?) {
+    emit("{\"type\":\"ready\"\(idField(id))}")
+}
+
+/// Emit an error event without exiting (used per-turn in `--session`).
+private func emitError(_ code: String, _ message: String, id: String?) {
+    emit("{\"type\":\"error\"\(idField(id)),\"code\":\(encodeString(code)),\"message\":\(encodeString(message))}")
+}
+
+/// Emit an error event and exit non-zero (one-shot `--probe`/`--generate`).
 private func failEvent(_ code: String, _ message: String) -> Never {
-    emit("{\"type\":\"error\",\"code\":\(encodeString(code)),\"message\":\(encodeString(message))}")
+    emitError(code, message, id: nil)
     exit(1)
 }
 
@@ -324,6 +341,91 @@ private func errorCode(_ error: LanguageModelSession.GenerationError) -> String 
     }
 }
 
+// MARK: - Session (persistent live session)
+
+/// One command read on stdin in `--session` mode: either a turn (has `prompt`) or
+/// a `reset` (`type == "reset"`). See docs/4-protocol.md / docs/7-live-session.md.
+struct SessionCommand: Decodable {
+    let type: String?
+    let id: String?
+    let system: String?
+    let seed: [WireMessage]?
+    let prompt: String?
+    let options: WireOptions?
+    let stream: Bool?
+}
+
+/// Compose session instructions from a system prompt plus any seed turns, folded
+/// in as a labeled recap so a `reset` preserves recent context without re-running
+/// it as live turns. Mirrors `userPrompt` / `flattenMessages` labeling.
+private func sessionInstructions(system: String?, seed: [WireMessage]?) -> String? {
+    var parts: [String] = []
+    if let system, !system.isEmpty { parts.append(system) }
+    if let seed, !seed.isEmpty {
+        let transcript = seed
+            .map { "\($0.role == "assistant" ? "Assistant" : "User"): \($0.content)" }
+            .joined(separator: "\n\n")
+        parts.append("Conversation so far:\n\(transcript)")
+    }
+    return parts.isEmpty ? nil : parts.joined(separator: "\n\n")
+}
+
+/// Run one turn against the held session, emitting id-tagged events.
+private func sessionTurn(_ session: LanguageModelSession, _ command: SessionCommand) async {
+    let prompt = command.prompt ?? ""
+    let options = generationOptions(command.options)
+    do {
+        if command.stream == true {
+            var emitted = ""
+            for try await partial in session.streamResponse(to: prompt, options: options) {
+                let full = partial.content
+                if full.count > emitted.count {
+                    emitDelta(String(full.dropFirst(emitted.count)), id: command.id)
+                    emitted = full
+                }
+            }
+            emitResult(emitted, id: command.id)
+        } else {
+            let response = try await session.respond(to: prompt, options: options)
+            emitResult(response.content, id: command.id)
+        }
+    } catch let error as LanguageModelSession.GenerationError {
+        emitError(errorCode(error), String(describing: error), id: command.id)
+    } catch {
+        emitError("inferenceFailed", String(describing: error), id: command.id)
+    }
+}
+
+/// Hold one `LanguageModelSession` across many turns (KV-cache reuse). Reads one
+/// command per stdin line, serially, and exits 0 on EOF. A turn error is reported
+/// per-turn and does not end the loop; a `reset` recreates the session with new
+/// instructions + seed and acks with `ready`.
+private func runSession() async -> Never {
+    guard case .available = SystemLanguageModel.default.availability else {
+        failEvent("unavailable", "Apple Foundation Models unavailable")
+    }
+    var session = LanguageModelSession()
+    do {
+        for try await line in FileHandle.standardInput.bytes.lines {
+            if line.trimmingCharacters(in: .whitespaces).isEmpty { continue }
+            guard let command = try? JSONDecoder().decode(SessionCommand.self, from: Data(line.utf8)) else {
+                emitError("badRequest", "malformed session command", id: nil)
+                continue
+            }
+            if command.type == "reset" {
+                session = LanguageModelSession(
+                    instructions: sessionInstructions(system: command.system, seed: command.seed))
+                emitReady(command.id)
+            } else {
+                await sessionTurn(session, command)
+            }
+        }
+    } catch {
+        failEvent("inferenceFailed", "session input error: \(String(describing: error))")
+    }
+    exit(0)
+}
+
 // MARK: - Entry
 
 private func readRequest() -> GenerateRequest {
@@ -341,7 +443,10 @@ if args.contains("--probe") {
     let request = readRequest()
     Task { await generate(request) }
     dispatchMain()
+} else if args.contains("--session") {
+    Task { await runSession() }
+    dispatchMain()
 } else {
-    FileHandle.standardError.write(Data("usage: apple-fm-helper --probe | --generate\n".utf8))
+    FileHandle.standardError.write(Data("usage: apple-fm-helper --probe | --generate | --session\n".utf8))
     exit(64)
 }

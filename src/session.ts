@@ -10,10 +10,11 @@
  * coherent without the caller managing any of it.
  */
 import { generate as helperGenerate } from './helper.js';
+import { type ChatBackend,LiveSession } from './liveSession.js';
 import { estimateConversationTokens, flattenMessages } from './protocol.js';
 import type { DeltaHandler, GenerateOptions, HelperOptions, Message } from './types.js';
 
-/** Pluggable generation function (real helper by default; a stub in tests). */
+/** Pluggable one-shot generation, used for summarization (a stub in tests). */
 export type GenerateFn = (
   system: string,
   messages: Message[],
@@ -34,9 +35,11 @@ export interface ChatSessionConfig {
   compactAtTokens?: number;
   /** Number of most-recent turns kept verbatim through a compaction (default 4). */
   keepRecentTurns?: number;
-  /** Helper discovery / timeout options (ignored when `generateFn` is given). */
+  /** Helper discovery / timeout options (used for the default backend + summarizer). */
   helper?: HelperOptions;
-  /** Override the generation backend (tests inject a stub here). */
+  /** Override the live-session backend (tests inject a fake here). */
+  backend?: ChatBackend;
+  /** Override the one-shot summarization backend (tests inject a stub here). */
   generateFn?: GenerateFn;
 }
 
@@ -48,28 +51,35 @@ const SUMMARIZE_SYSTEM =
   'summary that preserves facts, decisions, names, and open questions needed to ' +
   'continue the conversation. Output only the summary prose.';
 
-/** Default generation backend: spawn the real Swift helper. */
+/** Default one-shot backend (summarization): spawn the real Swift helper. */
 function defaultGenerateFn(helper: HelperOptions | undefined, options: GenerateOptions | undefined): GenerateFn {
   return (system, messages, onDelta) =>
     helperGenerate({ system, messages, options, stream: onDelta !== undefined }, helper, onDelta);
 }
 
-/** A stateful, auto-compacting conversation with the on-device model. */
+/**
+ * A stateful, auto-compacting conversation with the on-device model. Turns run
+ * against a persistent {@link LiveSession} (one `LanguageModelSession` reused
+ * across turns, FR-12) rather than replaying the transcript each turn; the
+ * transcript is still held here to drive compaction, history, and reseed.
+ */
 export class ChatSession {
   private system: string;
-  private readonly options: GenerateOptions | undefined;
   private readonly compactAtTokens: number;
   private readonly keepRecentTurns: number;
+  private readonly backend: ChatBackend;
   private readonly generateFn: GenerateFn;
   private messages: Message[] = [];
   /** Recap of turns dropped by compaction; folded into the system prompt. */
   private summary: string | undefined;
+  /** Instructions the backend was last `reset` with (`undefined` ⇒ needs reset). */
+  private backendInstructions: string | undefined;
 
   constructor(config: ChatSessionConfig = {}) {
     this.system = config.system ?? '';
-    this.options = config.options;
     this.compactAtTokens = config.compactAtTokens ?? DEFAULT_COMPACT_AT;
     this.keepRecentTurns = config.keepRecentTurns ?? DEFAULT_KEEP_RECENT;
+    this.backend = config.backend ?? new LiveSession({ ...config.helper, options: config.options });
     this.generateFn = config.generateFn ?? defaultGenerateFn(config.helper, config.options);
   }
 
@@ -93,10 +103,40 @@ export class ChatSession {
   /** Send a user turn and return the assistant's reply (streamed via `onDelta`). */
   async send(text: string, onDelta?: DeltaHandler): Promise<string> {
     if (this.shouldCompact()) await this.compact();
+    // Re-establish the backend's context (first turn, or after a compaction
+    // changed the effective system prompt) *before* recording the new turn, so the
+    // reseed carries only prior turns.
+    await this.ensureStarted();
     this.messages.push({ role: 'user', content: text });
-    const reply = await this.generateFn(this.effectiveSystem(), this.messages, onDelta);
+    let reply: string;
+    try {
+      reply = await this.backend.send(text, onDelta);
+    } catch (error) {
+      if (!recoverable(error)) {
+        this.messages.pop();
+        throw error;
+      }
+      // The helper died mid-turn. Reseed a fresh session from the transcript so far
+      // (excluding the in-flight turn) and try once more.
+      this.messages.pop();
+      this.backendInstructions = undefined;
+      await this.ensureStarted();
+      this.messages.push({ role: 'user', content: text });
+      reply = await this.backend.send(text, onDelta);
+    }
     this.messages.push({ role: 'assistant', content: reply });
     return reply;
+  }
+
+  /**
+   * Reset the backend's session whenever the effective system prompt changes (the
+   * first turn, or after a compaction), seeding it with the transcript so far.
+   */
+  private async ensureStarted(): Promise<void> {
+    const system = this.effectiveSystem();
+    if (this.backendInstructions === system) return;
+    await this.backend.reset(system, this.messages);
+    this.backendInstructions = system;
   }
 
   /**
@@ -125,5 +165,17 @@ export class ChatSession {
     if (system !== undefined) this.system = system;
     this.messages = [];
     this.summary = undefined;
+    // Force a backend reset on the next turn (the live session is recreated then).
+    this.backendInstructions = undefined;
   }
+
+  /** Tear down the underlying live session (kills the helper process). */
+  close(): void {
+    this.backend.close();
+  }
+}
+
+/** A backend failure is recoverable when the live-session helper merely exited. */
+function recoverable(error: unknown): boolean {
+  return error instanceof Error && error.message.includes('[sessionClosed]');
 }

@@ -10,7 +10,8 @@ src/
   types.ts        # shared types: Message, GenerateRequest, ProbeResult, HelperEvent, HelperOptions
   protocol.ts     # pure NDJSON: encodeRequest, splitLines, parseEvent, flattenMessages, estimateTokens, estimateConversationTokens
   helper.ts       # process layer: resolveHelperPath, probe, generate (spawn helper, stream, timeout)
-  session.ts      # ChatSession (multi-turn history + auto-compaction); GenerateFn
+  liveSession.ts  # LiveSession: one long-lived `--session` helper; ChatBackend (turn/reset/close, id-correlated)
+  session.ts      # ChatSession (multi-turn over a LiveSession backend + auto-compaction); GenerateFn
   cliArgs.ts      # parseArgs() + USAGE
   repl.ts         # interactive chat loop (runRepl) — readline over ChatSession
   cli.ts          # apple-fm bin (thin)
@@ -23,8 +24,9 @@ tests/            # protocol, cliArgs, session, helper (+ fixtures/stub-helper.j
 
 - Process: `probe(options?)`, `generate(request, options?, onDelta?)`,
   `resolveHelperPath(options?)`, `HELPER_BIN_ENV`.
-- Chat: `ChatSession` (`send`, `compact`, `shouldCompact`, `history`, `reset`);
-  types `ChatSessionConfig`, `GenerateFn`.
+- Chat: `ChatSession` (`send`, `compact`, `shouldCompact`, `history`, `reset`,
+  `close`); `LiveSession` (`send`, `reset`, `close`); types `ChatSessionConfig`,
+  `GenerateFn`, `ChatBackend`, `LiveSessionConfig`.
 - Protocol: `encodeRequest`, `splitLines`, `parseEvent`, `flattenMessages`,
   `estimateTokens`, `estimateConversationTokens`.
 - Types: `Message`, `Role`, `GenerateRequest`, `GenerateOptions`, `ProbeResult`,
@@ -36,9 +38,9 @@ tests/            # protocol, cliArgs, session, helper (+ fixtures/stub-helper.j
 | --- | --- |
 | change the wire protocol (events, framing) | `protocol.ts` + `docs/4-protocol.md` + `apple-fm-helper/main.swift` |
 | change how the helper binary is found/spawned | `helper.ts` (`resolveHelperPath`, `runHelper`) |
+| change the persistent live-session process/protocol | `liveSession.ts` (`LiveSession`) + `apple-fm-helper/main.swift` (`runSession`) |
 | change chat behavior or compaction policy | `session.ts` (`ChatSession`, `SUMMARIZE_SYSTEM`) |
 | change guided generation (`--schema` → native) | `apple-fm-helper/main.swift` (`dynamicSchema`, `compileSchema`, `generate`) |
-| add a persistent live-session mode (AF-3) | `apple-fm-helper/main.swift` + a new `session.ts` backend |
 | add/change a CLI flag | `cliArgs.ts` (+ wire in `cli.ts`) |
 | change interactive REPL commands | `repl.ts` |
 | change the on-device calls (probe/respond/stream) | `apple-fm-helper/main.swift` |

@@ -89,4 +89,6 @@ export async function runRepl(opts: ReplOptions): Promise<void> {
   }
 
   rl.close();
+  // Tear down the persistent live-session helper process.
+  session.close();
 }

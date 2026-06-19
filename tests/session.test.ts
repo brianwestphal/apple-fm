@@ -1,96 +1,164 @@
 import { describe, expect, it } from 'vitest';
 
+import type { ChatBackend } from '../src/liveSession.js';
 import { ChatSession, type GenerateFn } from '../src/session.js';
 import type { Message } from '../src/types.js';
 
-interface Call {
-  system: string;
-  messages: Message[];
-  isSummarize: boolean;
+type BackendCall =
+  | { kind: 'reset'; system: string; seed: Message[] }
+  | { kind: 'send'; text: string }
+  | { kind: 'close' };
+
+/**
+ * A fake live-session backend: records reset/send/close, streams one "chunk",
+ * and replies `reply:<text>`. `crashOnce` makes the first send throw a
+ * `[sessionClosed]` error (to exercise ChatSession's reseed-and-retry).
+ */
+function recordingBackend(opts: { crashOn?: string } = {}): { backend: ChatBackend; calls: BackendCall[] } {
+  const calls: BackendCall[] = [];
+  let crashArmed = opts.crashOn !== undefined;
+  const backend: ChatBackend = {
+    reset(system, seed) {
+      calls.push({ kind: 'reset', system, seed: seed.map((m) => ({ ...m })) });
+      return Promise.resolve();
+    },
+    send(text, onDelta) {
+      calls.push({ kind: 'send', text });
+      if (crashArmed && text === opts.crashOn) {
+        crashArmed = false;
+        return Promise.reject(new Error('[sessionClosed] live session helper exited'));
+      }
+      onDelta?.('chunk');
+      return Promise.resolve(`reply:${text}`);
+    },
+    close() {
+      calls.push({ kind: 'close' });
+    },
+  };
+  return { backend, calls };
 }
 
-/** A recording stub generator: summarization returns "SUMMARY", else "reply:<lastUser>". */
-function recordingGen(): { gen: GenerateFn; calls: Call[] } {
-  const calls: Call[] = [];
-  const gen: GenerateFn = (system, messages, onDelta) => {
-    const isSummarize = system.includes('compress conversations');
-    calls.push({ system, messages: messages.map((m) => ({ ...m })), isSummarize });
-    if (isSummarize) return Promise.resolve('SUMMARY');
-    onDelta?.('chunk');
-    const lastUser = [...messages].reverse().find((m) => m.role === 'user');
-    return Promise.resolve(`reply:${lastUser?.content ?? ''}`);
+/** A one-shot summarizer stub: returns "SUMMARY" and records its calls. */
+function recordingSummarizer(): { gen: GenerateFn; calls: { system: string; messages: Message[] }[] } {
+  const calls: { system: string; messages: Message[] }[] = [];
+  const gen: GenerateFn = (system, messages) => {
+    calls.push({ system, messages: messages.map((m) => ({ ...m })) });
+    return Promise.resolve('SUMMARY');
   };
   return { gen, calls };
 }
 
 describe('ChatSession.send', () => {
-  it('appends the user turn and the reply to history', async () => {
-    const { gen, calls } = recordingGen();
-    const session = new ChatSession({ system: 'sys', generateFn: gen, compactAtTokens: 1e9 });
-    const reply = await session.send('hi');
-    expect(reply).toBe('reply:hi');
+  it('resets the backend once, then sends turns; appends to history', async () => {
+    const { backend, calls } = recordingBackend();
+    const session = new ChatSession({ system: 'sys', backend, compactAtTokens: 1e9 });
+
+    expect(await session.send('hi')).toBe('reply:hi');
+    expect(await session.send('again')).toBe('reply:again');
+
     expect(session.history()).toEqual([
       { role: 'user', content: 'hi' },
       { role: 'assistant', content: 'reply:hi' },
+      { role: 'user', content: 'again' },
+      { role: 'assistant', content: 'reply:again' },
     ]);
-    expect(calls[0]).toMatchObject({ system: 'sys', isSummarize: false });
-    expect(calls[0]?.messages).toEqual([{ role: 'user', content: 'hi' }]);
+    // One reset (first turn, empty seed); the second turn reuses the live session.
+    expect(calls).toEqual([
+      { kind: 'reset', system: 'sys', seed: [] },
+      { kind: 'send', text: 'hi' },
+      { kind: 'send', text: 'again' },
+    ]);
   });
 
   it('forwards streamed deltas', async () => {
-    const { gen } = recordingGen();
-    const session = new ChatSession({ generateFn: gen, compactAtTokens: 1e9 });
+    const { backend } = recordingBackend();
+    const session = new ChatSession({ backend, compactAtTokens: 1e9 });
     const chunks: string[] = [];
     await session.send('hi', (c) => chunks.push(c));
     expect(chunks).toEqual(['chunk']);
   });
 
+  it('reseeds and retries once when the helper dies mid-turn', async () => {
+    const { backend, calls } = recordingBackend({ crashOn: 'two' });
+    const session = new ChatSession({ system: 'sys', backend, compactAtTokens: 1e9 });
+
+    await session.send('one'); // succeeds: reset + send
+    const reply = await session.send('two'); // send throws [sessionClosed], reseed + resend
+    expect(reply).toBe('reply:two');
+
+    // The retry reseeds from the transcript so far (the prior completed turn),
+    // excluding the in-flight 'two', then resends.
+    expect(calls).toEqual([
+      { kind: 'reset', system: 'sys', seed: [] },
+      { kind: 'send', text: 'one' },
+      { kind: 'send', text: 'two' }, // crashes
+      {
+        kind: 'reset',
+        system: 'sys',
+        seed: [
+          { role: 'user', content: 'one' },
+          { role: 'assistant', content: 'reply:one' },
+        ],
+      },
+      { kind: 'send', text: 'two' }, // succeeds
+    ]);
+    expect(session.history().at(-1)).toEqual({ role: 'assistant', content: 'reply:two' });
+  });
+
   it('history() returns a defensive copy', async () => {
-    const { gen } = recordingGen();
-    const session = new ChatSession({ generateFn: gen, compactAtTokens: 1e9 });
+    const { backend } = recordingBackend();
+    const session = new ChatSession({ backend, compactAtTokens: 1e9 });
     await session.send('hi');
-    const h = session.history();
-    h.pop();
+    session.history().pop();
     expect(session.history()).toHaveLength(2);
   });
 });
 
 describe('ChatSession compaction', () => {
-  it('folds older turns into a summary and keeps recent ones', async () => {
-    const { gen, calls } = recordingGen();
+  it('summarizes older turns and reseeds the backend with the recap + recent turns', async () => {
+    const { backend, calls } = recordingBackend();
+    const summarizer = recordingSummarizer();
     const session = new ChatSession({
-      generateFn: gen,
+      backend,
+      generateFn: summarizer.gen,
       compactAtTokens: 0, // any non-empty transcript triggers compaction
       keepRecentTurns: 1,
     });
     await session.send('first'); // no compaction (transcript empty at entry)
     await session.send('second'); // compaction fires before this turn
 
-    const summarize = calls.filter((c) => c.isSummarize);
-    expect(summarize).toHaveLength(1);
-
-    // The post-compaction generation carries the recap in its system prompt.
-    const mainCalls = calls.filter((c) => !c.isSummarize);
-    expect(mainCalls.at(-1)?.system).toContain('Conversation so far:\nSUMMARY');
+    expect(summarizer.calls).toHaveLength(1);
+    // The post-compaction reset carries the recap and the one kept recent turn.
+    const lastReset = [...calls].reverse().find((c) => c.kind === 'reset');
+    expect(lastReset?.system).toContain('Conversation so far:\nSUMMARY');
+    expect(lastReset?.seed).toEqual([{ role: 'assistant', content: 'reply:first' }]);
   });
 
   it('compact() is a no-op when there is nothing older than keepRecentTurns', async () => {
-    const { gen, calls } = recordingGen();
-    const session = new ChatSession({ generateFn: gen, keepRecentTurns: 4, compactAtTokens: 1e9 });
+    const { backend } = recordingBackend();
+    const summarizer = recordingSummarizer();
+    const session = new ChatSession({ backend, generateFn: summarizer.gen, keepRecentTurns: 4, compactAtTokens: 1e9 });
     await session.send('hi');
     await session.compact();
-    expect(calls.some((c) => c.isSummarize)).toBe(false);
+    expect(summarizer.calls).toHaveLength(0);
   });
 });
 
-describe('ChatSession.reset', () => {
-  it('clears history and optionally replaces the system prompt', async () => {
-    const { gen, calls } = recordingGen();
-    const session = new ChatSession({ system: 'old', generateFn: gen, compactAtTokens: 1e9 });
+describe('ChatSession.reset / close', () => {
+  it('clears history and resets the backend with a new system prompt on the next turn', async () => {
+    const { backend, calls } = recordingBackend();
+    const session = new ChatSession({ system: 'old', backend, compactAtTokens: 1e9 });
     await session.send('hi');
     session.reset('new');
     expect(session.history()).toEqual([]);
     await session.send('again');
-    expect(calls.at(-1)?.system).toBe('new');
+    const lastReset = [...calls].reverse().find((c) => c.kind === 'reset');
+    expect(lastReset?.system).toBe('new');
+  });
+
+  it('close() tears down the backend', () => {
+    const { backend, calls } = recordingBackend();
+    new ChatSession({ backend }).close();
+    expect(calls).toEqual([{ kind: 'close' }]);
   });
 });

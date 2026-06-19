@@ -26,7 +26,7 @@ gaps noted — including code that needs on-device verification), **Deferred**
 | FR-9 | CLI surface: `probe` / `generate` / `chat`, `--help`, `--version` | **Shipped** | `cliArgs.ts` (+ `cli.ts`). |
 | FR-10 | Programmatic API | **Shipped** | `index.ts`: `probe`, `generate`, `ChatSession`, protocol helpers, types. |
 | FR-11 | Helper discovery | **Shipped** | `resolveHelperPath`: `APPLE_FM_BIN` → bundled `bin/apple-fm-helper` → `PATH`. |
-| FR-12 | Persistent live session (KV-cache reuse) | **Deferred** | AF-3. Designed — see [7-live-session.md](7-live-session.md): a `--session` helper mode holding one `LanguageModelSession` across turns, **replacing** transcript-replay for `chat`. Compaction policy stays in Node. |
+| FR-12 | Persistent live session (KV-cache reuse) | **Shipped** | The `--session` helper mode holds one `LanguageModelSession` across turns (`runSession`); the Node `LiveSession` (`liveSession.ts`) drives it and `ChatSession` uses it as its backend, **replacing** transcript-replay for `chat`. Compaction stays in Node (summarize → reset + reseed); crash → respawn + reseed. Smoke-verified on-device. See [7-live-session.md](7-live-session.md). |
 | FR-13 | Homebrew distribution | **Dropped** | npm distribution is sufficient; a signed + notarized Homebrew tap is descoped. Revisit if there's demand. |
 
 ## Non-functional requirements
@@ -46,6 +46,5 @@ gaps noted — including code that needs on-device verification), **Deferred**
 - **AF-2** *automated* on-device smoke test in CI (manual smoke test done). CI
   now *compiles* the helper on a macOS 26 runner (`ci.yml` `helper-build` job),
   catching Swift/API regressions; running the model on-device is still pending.
-- **AF-3** persistent live-session helper mode.
 - **AF-12** signing + notarization CI — pipeline implemented (`release.yml`),
   pending secrets + first release; see [5-releasing.md](5-releasing.md).

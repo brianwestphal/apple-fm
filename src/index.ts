@@ -21,6 +21,8 @@
  * @packageDocumentation
  */
 export { generate, HELPER_BIN_ENV, probe, resolveHelperPath } from './helper.js';
+export type { ChatBackend, LiveSessionConfig } from './liveSession.js';
+export { LiveSession } from './liveSession.js';
 export {
   encodeRequest,
   estimateConversationTokens,

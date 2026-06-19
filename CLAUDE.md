@@ -33,9 +33,13 @@ Two layers, talking NDJSON (see [docs/4-protocol.md](docs/4-protocol.md)):
     `estimateConversationTokens`).
   - `helper.ts` — process layer (`resolveHelperPath`, `probe`, `generate`):
     spawns the helper, streams deltas, bounds it with a timeout, surfaces errors.
+  - `liveSession.ts` — `LiveSession` (the `ChatBackend`): one long-lived
+    `apple-fm-helper --session` process held across turns (KV-cache reuse),
+    id-correlated commands, lazy respawn. See [docs/7-live-session.md](docs/7-live-session.md).
   - `session.ts` — `ChatSession`: multi-turn history + automatic context
     compaction (summarize older turns past `compactAtTokens`, keep
-    `keepRecentTurns` verbatim). Generation is injectable (`GenerateFn`) for
+    `keepRecentTurns` verbatim) over a `LiveSession` backend. The summarizer is
+    injectable (`GenerateFn`) and the backend is injectable (`ChatBackend`) for
     tests.
   - `cliArgs.ts` — `parseArgs()` + `USAGE` (pure, testable).
   - `repl.ts` — interactive chat loop (`runRepl`).

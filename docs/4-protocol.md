@@ -1,7 +1,8 @@
 # 4. Wire Protocol
 
 The Node layer and the Swift helper communicate over **line-delimited JSON
-(NDJSON)** on stdin/stdout. The helper has two modes, selected by a flag.
+(NDJSON)** on stdin/stdout. The helper has three modes, selected by a flag:
+`--probe`, the one-shot `--generate`, and the long-lived `--session`.
 
 ## `--probe`
 
@@ -57,7 +58,38 @@ guided output, the JSON string.
 `badRequest`, `unsupportedSchema`, `unavailable`, `contextWindowExceeded`,
 `guardrailViolation`, `generationError`, `inferenceFailed`. The Node layer raises
 these as thrown errors (`[code] message`); `ChatSession` may act on
-`contextWindowExceeded` by compacting and retrying (AF-3).
+`contextWindowExceeded` by compacting and retrying.
+
+## `--session`
+
+A **long-lived** mode (FR-12; see [7-live-session.md](7-live-session.md)) that holds
+one `LanguageModelSession` across many turns so its KV-cache is reused — instead of
+replaying the whole transcript each turn. It reads **one command per stdin line**,
+processes them serially, and exits 0 on EOF.
+
+Because many commands flow over one process, each command may carry an `id` that the
+helper echoes on every event it produces, so the Node side can correlate them.
+
+Commands:
+
+| Command | Shape | Effect |
+| --- | --- | --- |
+| turn | `{"id":"7","prompt":"…","options":{…}?,"stream":bool?}` | Respond on the held session; emits `delta`* (when `stream`) then `result`, or `error` — all tagged with the `id`. The session is **not** reset, so prior turns remain in context. |
+| reset | `{"type":"reset","id":"8","system":"…"?,"seed":[{"role","content"}]?}` | Recreate the session with `system` as instructions and `seed` folded in as a labeled recap (used for `/reset` / `/clear` and for compaction reseed). Acks with `{"type":"ready","id":"8"}`. |
+
+Events are the same vocabulary as `--generate` (`delta` / `result` / `error`) plus
+`ready` for a reset ack, each with the optional `id`:
+
+```json
+{"type":"ready","id":"8"}
+{"type":"delta","id":"7","text":"…"}
+{"type":"result","id":"7","content":"…"}
+{"type":"error","id":"7","code":"contextWindowExceeded","message":"…"}
+```
+
+A turn `error` is reported **per-turn** and does not end the session — the loop
+keeps running for the next command (`contextWindowExceeded` lets the Node side
+compact, `reset`, and retry). Only stdin EOF (or a fatal read error) stops it.
 
 ## Notes
 

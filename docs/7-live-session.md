@@ -2,14 +2,22 @@
 
 Design + requirements for holding one `LanguageModelSession` across chat turns
 instead of replaying the whole transcript each turn. Tracked by **FR-12** in
-[3-requirements.md](3-requirements.md); implementation is **AFM-12**.
+[3-requirements.md](3-requirements.md); designed under **AFM-12**, implemented
+under **AFM-17**.
 
-## Today
+> **Status: Shipped.** The helper's `--session` mode (`runSession`) holds one
+> `LanguageModelSession`; the Node `LiveSession` (`src/liveSession.ts`) drives it
+> with id-correlated commands and lazy respawn; `ChatSession` uses it as its
+> backend (`ChatBackend`), and the REPL closes it on exit. Smoke-verified
+> on-device (multi-turn memory, streaming, reset, exit). The sections below are
+> the design; the shipped behavior matches them.
 
-`chat` is stateless under the hood. Each turn, `ChatSession` (`src/session.ts`)
-calls the one-shot `generate` path, which spawns the helper, builds a **fresh**
-`LanguageModelSession`, and replays the **entire** transcript as labeled turns
-([4-protocol.md](4-protocol.md), FR-4). Every turn re-encodes all prior tokens —
+## Previously
+
+`chat` was stateless under the hood. Each turn, `ChatSession` (`src/session.ts`)
+called the one-shot `generate` path, which spawned the helper, built a **fresh**
+`LanguageModelSession`, and replayed the **entire** transcript as labeled turns
+([4-protocol.md](4-protocol.md), FR-4). Every turn re-encoded all prior tokens —
 quadratic work and no KV-cache reuse.
 
 ## Goal (FR-12)
