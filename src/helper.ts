@@ -8,7 +8,7 @@ import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 import { encodeRequest, parseEvent, splitLines } from './protocol.js';
-import type { DeltaHandler, GenerateRequest, HelperOptions, ProbeResult } from './types.js';
+import type { DeltaHandler, GenerateRequest, HelperOptions, ProbeResult, SnapshotHandler } from './types.js';
 
 /** Environment variable that pins the helper binary path. */
 export const HELPER_BIN_ENV = 'APPLE_FM_BIN';
@@ -120,14 +120,17 @@ export async function probe(options: HelperOptions = {}): Promise<ProbeResult> {
 }
 
 /**
- * Run one generation. Streamed `delta` chunks are forwarded to `onDelta` (when
- * `request.stream` is set); the resolved value is always the full text (or, for
- * guided generation, the JSON string).
+ * Run one generation. When `request.stream` is set, freeform text is forwarded to
+ * `onDelta` (append the suffix) and guided/structured output to `onSnapshot` (the
+ * full partial JSON each time — replace, since structured partials are not
+ * append-only). The resolved value is always the full text (or, for guided
+ * generation, the complete JSON string).
  */
 export async function generate(
   request: GenerateRequest,
   options: HelperOptions = {},
   onDelta?: DeltaHandler,
+  onSnapshot?: SnapshotHandler,
 ): Promise<string> {
   let content: string | undefined;
   await runHelper(['--generate'], options, encodeRequest(request), (line) => {
@@ -135,6 +138,9 @@ export async function generate(
     switch (event.type) {
       case 'delta':
         onDelta?.(event.text);
+        break;
+      case 'snapshot':
+        onSnapshot?.(event.content);
         break;
       case 'result':
         content = event.content;

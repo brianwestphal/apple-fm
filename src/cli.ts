@@ -53,8 +53,18 @@ async function main(): Promise<void> {
       if (args.maxTokens !== undefined) options.maxTokens = args.maxTokens;
       const request: GenerateRequest = { prompt, system: args.system, options, stream: args.stream };
       if (args.schemaFile !== undefined) request.schema = JSON.parse(await readFile(args.schemaFile, 'utf8'));
-      const text = await generate(request, {}, args.stream ? (chunk) => process.stdout.write(chunk) : undefined);
-      if (!args.stream) process.stdout.write(text);
+      const structured = args.schemaFile !== undefined;
+      // Freeform streaming appends text deltas; structured streaming gets full
+      // snapshots (replace) — on a TTY redraw the line live, otherwise print the
+      // final JSON once.
+      const onDelta = args.stream && !structured ? (chunk: string) => process.stdout.write(chunk) : undefined;
+      const onSnapshot =
+        args.stream && structured && process.stdout.isTTY
+          ? (json: string) => process.stdout.write(`\r\x1b[2K${json}`)
+          : undefined;
+      const text = await generate(request, {}, onDelta, onSnapshot);
+      if (onSnapshot !== undefined) process.stdout.write('\r\x1b[2K'); // clear the last live snapshot
+      if (onDelta === undefined) process.stdout.write(text); // print the final (every non-text-stream case)
       process.stdout.write('\n');
       return;
     }

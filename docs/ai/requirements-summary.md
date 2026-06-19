@@ -17,7 +17,7 @@ Keep status markers in sync with the implementation.
 - **FR-5 Interactive chat REPL** — Shipped. `repl.ts` (`/reset`, `/system`, `/clear`, `/compact`, `/help`, `/quit`; `/exit` alias).
 - **FR-6 Auto-compaction** — Shipped. `session.ts:ChatSession` (`compactAtTokens`, `keepRecentTurns`). Unit-tested.
 - **FR-7 Guided output (`--schema`)** — Shipped. Native guided generation (schema compiled to a `GenerationSchema`); output guaranteed to conform. See FR-8.
-- **FR-8 Native `DynamicGenerationSchema`** — Shipped. Helper compiles the JSON Schema → `GenerationSchema`, `respond(to:schema:)`; strict (`unsupportedSchema` on an unsupported construct, `badRequest` on `schema`+`stream`). See `docs/6-guided-generation.md`.
+- **FR-8 Native `DynamicGenerationSchema`** — Shipped. Helper compiles the JSON Schema → `GenerationSchema`, `respond(to:schema:)`; strict (`unsupportedSchema` on an unsupported construct). Numeric min/max enforced; `schema`+`stream` emits full-JSON `snapshot` events. See `docs/6-guided-generation.md`.
 - **FR-9 CLI surface** — Shipped. `cliArgs.ts`.
 - **FR-10 Programmatic API** — Shipped. `index.ts`.
 - **FR-11 Helper discovery** — Shipped. `APPLE_FM_BIN` → bundled binary → PATH.

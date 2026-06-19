@@ -42,5 +42,6 @@ export type {
   Message,
   ProbeResult,
   Role,
+  SnapshotHandler,
   UnavailableReason,
 } from './types.js';

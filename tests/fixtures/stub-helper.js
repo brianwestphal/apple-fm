@@ -110,16 +110,20 @@ if (process.env.STUB_HANG === '1') {
       process.exit(1);
     }
     if (req.schema !== undefined) {
-      if (req.stream === true) {
-        write({ type: 'error', code: 'badRequest', message: 'streaming is not supported with a schema (structured streaming is not yet implemented)' });
-        process.exit(1);
-      }
       const err = schemaError(req.schema);
       if (err) {
         write({ type: 'error', code: 'unsupportedSchema', message: err });
         process.exit(1);
       }
-      write({ type: 'result', content: JSON.stringify(sampleFromSchema(req.schema)) });
+      const full = JSON.stringify(sampleFromSchema(req.schema));
+      if (req.stream === true) {
+        // Structured streaming: full partial snapshots (replace), then the result.
+        write({ type: 'snapshot', content: '{}' });
+        write({ type: 'snapshot', content: full });
+        write({ type: 'result', content: full });
+      } else {
+        write({ type: 'result', content: full });
+      }
       process.exit(0);
     }
     if (req.stream === true) {

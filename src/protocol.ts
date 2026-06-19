@@ -38,6 +38,9 @@ export function parseEvent(line: string): HelperEvent {
     case 'delta':
       if (typeof event.text !== 'string') break;
       return { type: 'delta', text: event.text };
+    case 'snapshot':
+      if (typeof event.content !== 'string') break;
+      return { type: 'snapshot', content: event.content };
     case 'result':
       if (typeof event.content !== 'string') break;
       return { type: 'result', content: event.content };

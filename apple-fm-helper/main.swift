@@ -115,6 +115,11 @@ private func emitReady(_ id: String?) {
     emit("{\"type\":\"ready\"\(idField(id))}")
 }
 
+/// A full partial value for guided streaming (replace semantics, not a suffix).
+private func emitSnapshot(_ content: String, id: String? = nil) {
+    emit("{\"type\":\"snapshot\"\(idField(id)),\"content\":\(encodeString(content))}")
+}
+
 /// Emit an error event without exiting (used per-turn in `--session`).
 private func emitError(_ code: String, _ message: String, id: String?) {
     emit("{\"type\":\"error\"\(idField(id)),\"code\":\(encodeString(code)),\"message\":\(encodeString(message))}")
@@ -324,9 +329,6 @@ private func generate(_ request: GenerateRequest) async -> Never {
     // Native guided generation: guaranteed structure, or a clear error. Strict —
     // no prompt-guided fallback (see docs/6-guided-generation.md).
     if let schema = request.schema {
-        if request.stream == true {
-            failEvent("badRequest", "streaming is not supported with a schema (structured streaming is not yet implemented)")
-        }
         let compiled: GenerationSchema
         do {
             compiled = try compileSchema(from: schema)
@@ -336,8 +338,21 @@ private func generate(_ request: GenerateRequest) async -> Never {
             failEvent("unsupportedSchema", "could not build a generation schema: \(String(describing: error))")
         }
         do {
-            let response = try await session.respond(to: prompt, schema: compiled, options: options)
-            emitResult(response.content.jsonString)
+            if request.stream == true {
+                // Structured partials are NOT append-only (keys reorder, values
+                // grow in place), so each partial is emitted as a full `snapshot`
+                // (replace semantics) rather than a `delta` suffix; the final
+                // `result` carries the complete JSON. See docs/4-protocol.md.
+                var last = ""
+                for try await partial in session.streamResponse(to: prompt, schema: compiled, options: options) {
+                    last = partial.content.jsonString
+                    emitSnapshot(last)
+                }
+                emitResult(last)
+            } else {
+                let response = try await session.respond(to: prompt, schema: compiled, options: options)
+                emitResult(response.content.jsonString)
+            }
             exit(0)
         } catch let error as LanguageModelSession.GenerationError {
             failEvent(errorCode(error), String(describing: error))

@@ -37,21 +37,25 @@ Reads **one** request object on stdin:
 - `schema`, when present, requests **native guided generation**: the helper
   compiles the JSON Schema to a `GenerationSchema` and the model output is
   guaranteed to conform (see [6-guided-generation.md](6-guided-generation.md)).
-  A schema the native path can't express fails with `unsupportedSchema`; combining
-  `schema` with `"stream":true` fails with `badRequest` (structured streaming is
-  not yet implemented).
+  A schema the native path can't express fails with `unsupportedSchema`. Combining
+  `schema` with `"stream":true` streams `snapshot` events (see below) instead of
+  `delta`s.
 
 Writes a stream of NDJSON **events** to stdout:
 
 | Event | When | Shape |
 | --- | --- | --- |
-| `delta` | streaming only (`"stream":true`), zero or more | `{"type":"delta","text":"…"}` |
+| `delta` | freeform streaming (`"stream":true`, no schema), zero or more | `{"type":"delta","text":"…"}` |
+| `snapshot` | guided streaming (`"stream":true` + `schema`), zero or more | `{"type":"snapshot","content":"…"}` |
 | `result` | exactly one, on success | `{"type":"result","content":"…"}` |
 | `error` | on failure (exit ≠ 0) | `{"type":"error","code":"…","message":"…"}` |
 
-`delta.text` is the newly-appended suffix (the helper diffs the cumulative
-partials from `streamResponse`). `result.content` is the full text — or, for
-guided output, the JSON string.
+`delta.text` is the newly-appended suffix (the helper diffs the cumulative text
+partials from `streamResponse`). `snapshot.content` is the **full current partial
+JSON** — structured partials are not append-only (keys reorder, values grow in
+place), so each snapshot **replaces** the last rather than appending.
+`result.content` is the full text — or, for guided output, the complete JSON
+string.
 
 ### Error codes
 

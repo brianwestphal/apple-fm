@@ -60,12 +60,15 @@ export interface ProbeResult {
 }
 
 /**
- * One line of helper output (NDJSON). `delta` events appear only when streaming;
- * every successful generation ends with exactly one `result`. Failures emit a
- * single `error`.
+ * One line of helper output (NDJSON). When streaming, freeform text emits `delta`
+ * events (append the suffix) while guided/structured output emits `snapshot`
+ * events (the full partial value — replace, since structured partials are not
+ * append-only). Every successful generation ends with exactly one `result`.
+ * Failures emit a single `error`.
  */
 export type HelperEvent =
   | { type: 'delta'; text: string }
+  | { type: 'snapshot'; content: string }
   | { type: 'result'; content: string }
   | { type: 'error'; code: string; message: string };
 
@@ -77,5 +80,12 @@ export interface HelperOptions {
   timeoutMs?: number;
 }
 
-/** Callback fired for each streamed text chunk. */
+/** Callback fired for each streamed text chunk (append the suffix). */
 export type DeltaHandler = (text: string) => void;
+
+/**
+ * Callback fired for each full partial value during guided/structured streaming.
+ * Each call carries the complete current JSON (replace, not append) — structured
+ * partials are not append-only.
+ */
+export type SnapshotHandler = (content: string) => void;

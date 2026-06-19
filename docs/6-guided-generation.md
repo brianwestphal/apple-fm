@@ -90,21 +90,23 @@ Changes:
   express; `message` names the offending keyword/path.
 - `result.content` is unchanged: the JSON string, now guaranteed valid against the
   schema.
-- **`schema` + `stream` is rejected in v1** (`badRequest`). Structured *streaming*
-  (partial objects via `streamResponse(generating:)`) is a separate follow-up.
+- **`schema` + `stream`** streams `snapshot` events — the **full current partial
+  JSON** each time (replace, not append), since structured partials are not
+  append-only (AFM-16). The final `result` carries the complete JSON.
 
 ## Implementation surface
 
 - **`apple-fm-helper/main.swift`** — translate the request JSON Schema into a
-  `DynamicGenerationSchema` / `GenerationSchema`; call `respond(to:schema:)`;
-  serialize `GeneratedContent` → JSON. Throw a structured error for unsupported
-  constructs (→ `unsupportedSchema`) and for `schema` + `stream`.
-- **`src/helper.ts` / `src/protocol.ts`** — pass-through already exists; add
-  `unsupportedSchema` to the error-code mapping/types. Node stays thin and does
-  **not** re-validate the schema (the helper is authoritative).
-- **`tests/fixtures/stub-helper.js`** — emulate: for a supported schema return
-  schema-shaped JSON; for an unsupported one (and for `schema`+`stream`) emit the
-  matching error. Keeps the suite device-free.
+  `DynamicGenerationSchema` / `GenerationSchema`; call `respond(to:schema:)` (or
+  `streamResponse(to:schema:)` + `snapshot` events when streaming); serialize
+  `GeneratedContent` → JSON. Throw a structured error for unsupported constructs
+  (→ `unsupportedSchema`).
+- **`src/helper.ts` / `src/protocol.ts`** — pass-through; `parseEvent` handles the
+  `snapshot` event and `generate` forwards it to an optional `onSnapshot`. Node
+  stays thin and does **not** re-validate the schema (the helper is authoritative).
+- **`tests/fixtures/stub-helper.js`** — emulate: a supported schema returns
+  schema-shaped JSON (snapshots then result when streaming); an unsupported one
+  emits `unsupportedSchema`. Keeps the suite device-free.
 - **Docs** — flip FR-7 → Shipped (native) and FR-8 → Shipped in
   [3-requirements.md](3-requirements.md) + [ai/requirements-summary.md](ai/requirements-summary.md);
   update the `schema` row in [4-protocol.md](4-protocol.md).
@@ -112,8 +114,8 @@ Changes:
 ## Testing
 
 - Unit (device-free, stub): supported schema → valid JSON; unsupported construct →
-  `unsupportedSchema`; `schema`+`stream` → `badRequest`; error-code mapping in
-  `helper.ts`.
+  `unsupportedSchema`; `schema`+`stream` → `snapshot` events then the final result;
+  error-code mapping in `helper.ts`.
 - On-device smoke (AF-2): `respond(to:schema:)` returns conforming JSON for a
   representative nested object/array/enum schema.
 
@@ -130,7 +132,8 @@ Changes:
 
 ## Follow-up tickets
 
-- **AFM-16** — structured streaming (`schema` + `--stream`), explicitly deferred.
+- **AFM-16** (done) — structured streaming: `schema` + `--stream` emits full-JSON
+  `snapshot` events (replace), since structured partials aren't append-only.
 - **AFM-19** (done) — numeric `minimum` / `maximum` enforcement. `pattern` and the
   remaining value constraints stay best-effort (see Constraints above); revisit
   `pattern` if a future model accepts regex guides.

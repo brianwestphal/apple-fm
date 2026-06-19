@@ -102,10 +102,19 @@ describe('generate with a schema (native guided generation)', () => {
     ).rejects.toThrow(/\[unsupportedSchema\]/);
   });
 
-  it('rejects streaming combined with a schema', async () => {
-    await expect(
-      generate({ prompt: 'x', schema, stream: true }, { binPath: STUB }),
-    ).rejects.toThrow(/\[badRequest\]/);
+  it('streams structured output as snapshots and returns the final JSON', async () => {
+    const snapshots: string[] = [];
+    const content = await generate(
+      { prompt: 'a task', schema, stream: true },
+      { binPath: STUB },
+      undefined, // no text deltas for structured output
+      (json) => snapshots.push(json),
+    );
+    // Snapshots are full partial values (replace, not append); the last equals the result.
+    expect(snapshots.length).toBeGreaterThanOrEqual(1);
+    expect(snapshots[0]).toBe('{}');
+    expect(snapshots.at(-1)).toBe(content);
+    expect(JSON.parse(content)).toHaveProperty('title');
   });
 
   it('accepts numeric min/max constraints', async () => {
