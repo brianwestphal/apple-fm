@@ -22,7 +22,7 @@ tests/            # protocol, cliArgs, session, helper (+ fixtures/stub-helper.j
 
 ## Public API (`src/index.ts`)
 
-- Process: `probe(options?)`, `generate(request, options?, onDelta?)`,
+- Process: `probe(options?)`, `generate(request, options?, onDelta?, onSnapshot?)`,
   `resolveHelperPath(options?)`, `HELPER_BIN_ENV`.
 - Chat: `ChatSession` (`send`, `compact`, `shouldCompact`, `history`, `reset`,
   `close`); `LiveSession` (`send`, `reset`, `close`); types `ChatSessionConfig`,
@@ -30,7 +30,8 @@ tests/            # protocol, cliArgs, session, helper (+ fixtures/stub-helper.j
 - Protocol: `encodeRequest`, `splitLines`, `parseEvent`, `flattenMessages`,
   `estimateTokens`, `estimateConversationTokens`.
 - Types: `Message`, `Role`, `GenerateRequest`, `GenerateOptions`, `ProbeResult`,
-  `UnavailableReason`, `HelperEvent`, `HelperOptions`, `DeltaHandler`.
+  `UnavailableReason`, `HelperEvent`, `HelperOptions`, `DeltaHandler`,
+  `SnapshotHandler`.
 
 ## Where do I look to…
 

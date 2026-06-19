@@ -97,9 +97,9 @@ compact, `reset`, and retry). Only stdin EOF (or a fatal read error) stops it.
 
 ## Notes
 
-- The protocol is intentionally uniform: one-shot, streaming, and (future) chat
-  all use the same event vocabulary, so adding a persistent-session mode (AF-3)
-  needs no new wire types.
+- One-shot and the persistent `--session` chat mode share the same event
+  vocabulary (`delta` / `result` / `error`); the session mode adds `ready` (a reset
+  ack) and id-correlation, and guided streaming adds `snapshot`.
 - `protocol.ts` implements the Node side of every line above and is unit-tested
   directly; `tests/fixtures/stub-helper.js` is a reference implementation of this
   document used by the test suite.

@@ -51,13 +51,14 @@ Two layers, talking NDJSON (see [docs/4-protocol.md](docs/4-protocol.md)):
 ```ts
 import {
   probe, generate, resolveHelperPath, HELPER_BIN_ENV,
-  ChatSession,
+  ChatSession, LiveSession,
   encodeRequest, splitLines, parseEvent, flattenMessages,
   estimateTokens, estimateConversationTokens,
 } from 'apple-fm';
 import type {
   Message, Role, GenerateRequest, GenerateOptions, ProbeResult, UnavailableReason,
-  HelperEvent, HelperOptions, DeltaHandler, ChatSessionConfig, GenerateFn,
+  HelperEvent, HelperOptions, DeltaHandler, SnapshotHandler,
+  ChatSessionConfig, GenerateFn, ChatBackend, LiveSessionConfig,
 } from 'apple-fm';
 ```
 
