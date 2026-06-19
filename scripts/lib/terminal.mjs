@@ -107,9 +107,9 @@ export function chatFrameHtml({ title, body, height }) {
   .prompt-sym{color:#7ee787;margin-right:9px;font-weight:600}
   .cmd{display:inline-block;min-width:1px}
   .cin{display:inline-block;min-width:1px}
+  .shellcur{display:inline-block;min-width:1px;height:${LINE_H}px}
   .welcome{margin-top:${CMD_GAP}px}
   .line{height:${LINE_H}px;line-height:${LINE_H}px;white-space:pre}
-  .reveal{opacity:0}
   .prompt{color:#e6edf3}
   .psym{color:#7ee787;font-weight:600}
   .json{color:#a5d6ff}
