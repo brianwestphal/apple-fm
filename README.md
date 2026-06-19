@@ -134,6 +134,15 @@ on-device model at runtime, OS and model updates are picked up without a rebuild
   [Requirements](docs/3-requirements.md) · [Protocol](docs/4-protocol.md) ·
   [Releasing](docs/5-releasing.md)
 
+## Disclaimer
+
+apple-fm is an independent, unofficial project and is **not affiliated with,
+endorsed by, or sponsored by Apple Inc.** It simply provides command-line and
+programmatic access to Apple's on-device Foundation Models on machines that
+already support them (macOS 26+ on Apple Silicon with Apple Intelligence enabled).
+Apple, Apple Intelligence, Apple Silicon, Foundation Models, and macOS are
+trademarks of Apple Inc.
+
 ## License
 
 MIT © Brian Westphal

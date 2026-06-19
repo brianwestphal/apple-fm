@@ -4,7 +4,7 @@
 Foundation Models** (Apple Intelligence) on macOS 26+. Apple ships the
 `FoundationModels` framework as Swift-only API with no command-line front-end;
 apple-fm fills that gap with a tiny Swift helper plus a tested, typed Node layer,
-distributed via npm (and, planned, Homebrew).
+distributed via npm.
 
 ## Goal
 

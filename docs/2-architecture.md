@@ -61,5 +61,6 @@ macOS 26 device.
 
 - **npm** — `apple-fm` ships the compiled `bin/apple-fm-helper` (force-included in
   package `files`); the Node layer resolves it relative to the package, or via
-  `APPLE_FM_BIN`, or from `PATH`.
-- **Homebrew** — planned; a signed + notarized binary tap (AF-13).
+  `APPLE_FM_BIN`, or from `PATH`. This is the sole distribution channel (a
+  Homebrew tap was considered and dropped — see FR-13 in
+  [3-requirements.md](3-requirements.md)).

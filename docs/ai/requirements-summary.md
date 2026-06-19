@@ -5,8 +5,8 @@ Keep status markers in sync with the implementation.
 
 > The Swift helper compiles against the macOS 26 SDK and is **smoke-verified
 > on-device** (probe/generate/stream/schema/chat all work). Remaining: an
-> automated device test in CI (AF-2) and a golden-output drift suite (AF-4). The
-> unit suite runs device-free via the stub helper.
+> automated device test in CI (AF-2). The unit suite runs device-free via the
+> stub helper.
 
 ## Functional
 
@@ -22,7 +22,7 @@ Keep status markers in sync with the implementation.
 - **FR-10 Programmatic API** — Shipped. `index.ts`.
 - **FR-11 Helper discovery** — Shipped. `APPLE_FM_BIN` → bundled binary → PATH.
 - **FR-12 Persistent live session** — Deferred. AF-3.
-- **FR-13 Homebrew distribution** — Deferred. AF-13.
+- **FR-13 Homebrew distribution** — Dropped. npm is sufficient; descoped.
 
 ## Non-functional
 
@@ -31,12 +31,11 @@ Keep status markers in sync with the implementation.
 - **NFR-3 Pure unit-tested, native stub-tested** — Shipped (`tests/fixtures/stub-helper.js`).
 - **NFR-4 Strict TS / ESM / lint-clean / zero deps** — Shipped.
 - **NFR-5 Forward-compatible with OS/model updates** — Shipped by design (runtime `SystemLanguageModel.default`).
-- **NFR-6 Surface model drift** — Deferred. AF-4 (golden-output suite).
+- **NFR-6 Surface model drift** — Dropped. Golden-output suite (AF-4) descoped.
 - **NFR-7 Signed + notarized release binary** — Partial. AF-12: `release.yml` `apple-fm` job signs + notarizes the helper on macOS 26 and bundles it; awaiting secrets + first release (see `docs/5-releasing.md`).
 
 ## Tracked follow-ups
 
 AF-1 (native guided gen), AF-2 (automated on-device test in CI — CI now compiles
-the helper, on-device run pending), AF-3 (live session), AF-4 (drift suite),
-AF-12 (signing/notarization CI — pipeline implemented, pending secrets/first
-release), AF-13 (Homebrew).
+the helper, on-device run pending), AF-3 (live session), AF-12
+(signing/notarization CI — pipeline implemented, pending secrets/first release).

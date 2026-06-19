@@ -9,7 +9,7 @@ Foundation Models** (Apple Intelligence) on macOS 26+. Apple ships
 `FoundationModels` as Swift-only API with no CLI; apple-fm provides one. A tiny
 Swift helper owns all contact with the framework; a tested, typed Node layer
 drives it over line-delimited JSON. Ships as a library and a CLI (`apple-fm`),
-distributed via npm (Homebrew planned).
+distributed via npm.
 
 > **Status:** the Swift helper compiles against the macOS 26 `FoundationModels`
 > API and is **smoke-verified on-device** — `probe`, `generate`, `--stream`,
@@ -114,6 +114,8 @@ and `repl.ts` are excluded as thin I/O.
 - [docs/3-requirements.md](docs/3-requirements.md) — FR/NFR requirements with status.
 - [docs/4-protocol.md](docs/4-protocol.md) — the helper ⇄ Node wire protocol.
 - [docs/5-releasing.md](docs/5-releasing.md) — release flow + one-time CI signing/notarization setup.
+- [docs/6-guided-generation.md](docs/6-guided-generation.md) — design for native guided generation (FR-8 / AFM-11).
+- [docs/7-live-session.md](docs/7-live-session.md) — design for the persistent live-session helper (FR-12 / AFM-12).
 - [docs/ai/code-summary.md](docs/ai/code-summary.md) — AI-oriented code map.
 - [docs/ai/requirements-summary.md](docs/ai/requirements-summary.md) — AI-oriented requirements digest.
 

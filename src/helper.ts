@@ -18,7 +18,7 @@ const DEFAULT_TIMEOUT_MS = 120_000;
 /**
  * Resolve the helper binary path: `APPLE_FM_BIN`, then the prebuilt binary
  * bundled with the package (`bin/apple-fm-helper`), then bare `apple-fm-helper`
- * to be found on `PATH` (e.g. a Homebrew install).
+ * to be found on `PATH`.
  */
 export function resolveHelperPath(options: HelperOptions = {}): string {
   if (options.binPath !== undefined && options.binPath.length > 0) return options.binPath;
