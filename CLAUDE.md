@@ -22,8 +22,10 @@ distributed via npm.
 
 Two layers, talking NDJSON (see [docs/4-protocol.md](docs/4-protocol.md)):
 
-- **Native** — `apple-fm-helper/main.swift`: the only code importing
-  `FoundationModels`. Modes `--probe` and `--generate`. Built by
+- **Native** — `apple-fm-helper/*.swift` (entry point in `main.swift`,
+  guided-generation schema translation in `GuidedGeneration.swift`): the only code
+  importing `FoundationModels`. Modes `--probe`, `--generate`, and the long-lived
+  `--session`. All `.swift` files compile into one binary via
   `scripts/build-apple-fm-helper.sh` (guarded: no-ops on non-macOS / missing SDK).
 - **Node (`src/`)**
   - `types.ts` — shared types (`Message`, `GenerateRequest`, `ProbeResult`,

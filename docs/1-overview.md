@@ -33,9 +33,10 @@ if ((await probe()).available) {
 
 - **No API key, no network.** Everything runs on-device; the model is whatever
   Apple Intelligence has installed. apple-fm never sends data off the machine.
-- **Thin native surface, tested logic.** Only `apple-fm-helper/main.swift` touches
-  `FoundationModels`. All policy — argument parsing, the wire protocol, chat
-  history, auto-compaction — lives in strict TypeScript and is unit-tested
+- **Thin native surface, tested logic.** Only the Swift helper
+  (`apple-fm-helper/*.swift`) touches `FoundationModels`. All policy — argument
+  parsing, the wire protocol, chat history, auto-compaction — lives in strict
+  TypeScript and is unit-tested
   against a stub helper, so the suite runs on any platform.
 - **One binary, three shapes.** Probe, one-shot generation (freeform, chat, or
   guided), and interactive chat are modes of a single tool, not separate

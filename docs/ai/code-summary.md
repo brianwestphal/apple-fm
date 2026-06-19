@@ -16,7 +16,9 @@ src/
   repl.ts         # interactive chat loop (runRepl) — readline over ChatSession
   cli.ts          # apple-fm bin (thin)
   index.ts        # public API surface
-apple-fm-helper/main.swift   # Swift FoundationModels CLI (--probe / --generate; built by scripts/build-apple-fm-helper.sh)
+apple-fm-helper/             # Swift FoundationModels CLI (--probe / --generate / --session); all *.swift compiled into one binary by scripts/build-apple-fm-helper.sh
+  main.swift                 # entry point, output/emit, probe, generate, session loop
+  GuidedGeneration.swift     # JSON Schema -> DynamicGenerationSchema/GenerationSchema (compileSchema)
 tests/            # protocol, cliArgs, session, helper (+ fixtures/stub-helper.js)
 ```
 
@@ -41,7 +43,7 @@ tests/            # protocol, cliArgs, session, helper (+ fixtures/stub-helper.j
 | change how the helper binary is found/spawned | `helper.ts` (`resolveHelperPath`, `runHelper`) |
 | change the persistent live-session process/protocol | `liveSession.ts` (`LiveSession`) + `apple-fm-helper/main.swift` (`runSession`) |
 | change chat behavior or compaction policy | `session.ts` (`ChatSession`, `SUMMARIZE_SYSTEM`) |
-| change guided generation (`--schema` → native) | `apple-fm-helper/main.swift` (`dynamicSchema`, `compileSchema`, `generate`) |
+| change guided generation (`--schema` → native) | `apple-fm-helper/GuidedGeneration.swift` (`dynamicSchema`, `compileSchema`) + `main.swift` (`generate`) |
 | add/change a CLI flag | `cliArgs.ts` (+ wire in `cli.ts`) |
 | change interactive REPL commands | `repl.ts` |
 | change the on-device calls (probe/respond/stream) | `apple-fm-helper/main.swift` |

@@ -26,13 +26,16 @@ apple-fm (bin)  ── parseArgs (cliArgs.ts)
 | `cli.ts` | The `apple-fm` bin (thin: parse → I/O → delegate). |
 | `index.ts` | Public API surface. |
 
-## Native helper (`apple-fm-helper/main.swift`)
+## Native helper (`apple-fm-helper/*.swift`)
 
 A standalone Swift executable (built by `scripts/build-apple-fm-helper.sh`, not by
-any package manager). It exposes two modes — `--probe` and `--generate` — over the
-NDJSON protocol in [4-protocol.md](4-protocol.md). It is the only code that
-imports `FoundationModels`, so the rest of the system is testable without a
-macOS 26 device.
+any package manager). Its sources are split for readability — `main.swift` (entry
+point, probe, generate, the session loop) and `GuidedGeneration.swift` (JSON
+Schema → `GenerationSchema`) — and compiled together into one binary. It exposes
+three modes — `--probe`, `--generate`, and the long-lived `--session` — over the
+NDJSON protocol in [4-protocol.md](4-protocol.md). It is the only code that imports
+`FoundationModels`, so the rest of the system is testable without a macOS 26
+device.
 
 ## Data flow
 

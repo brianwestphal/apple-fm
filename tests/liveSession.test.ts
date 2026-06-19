@@ -99,6 +99,17 @@ describe('LiveSession', () => {
     }
   });
 
+  it('ignores malformed / non-object / mis-id-ed / unknown-type lines and still resolves', async () => {
+    const session = new LiveSession({ binPath: STUB });
+    try {
+      await session.reset('');
+      const content = await session.send('JUNK'); // stub emits junk lines then a real result
+      expect(JSON.parse(content)).toEqual({ ok: true });
+    } finally {
+      session.close();
+    }
+  });
+
   it('times out a hung turn', async () => {
     const session = new LiveSession({ binPath: STUB, timeoutMs: 150 });
     try {

@@ -172,6 +172,16 @@ if (process.env.STUB_HANG === '1') {
       return;
     }
     if (prompt === 'CRASH') process.exit(1);
+    if (prompt === 'JUNK') {
+      // Exercise the demux's defensive branches, then resolve normally.
+      process.stdout.write('not json\n'); // malformed -> JSON.parse throws
+      process.stdout.write('5\n'); // valid JSON but not an object
+      write({ type: 'result', content: 'no id' }); // missing id
+      write({ type: 'result', id: 'no-such-id', content: 'stale' }); // unknown id
+      write({ type: 'mystery', id: cmd.id }); // unknown event type
+      write({ type: 'result', id: cmd.id, content: JSON.stringify({ ok: true }) });
+      return;
+    }
     turns += 1;
     if (cmd.stream === true) {
       write({ type: 'delta', id: cmd.id, text: 'Hello ' });
