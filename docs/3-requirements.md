@@ -39,12 +39,16 @@ gaps noted — including code that needs on-device verification), **Deferred**
 | NFR-4 | Strict TypeScript, ESM, lint-clean | **Shipped** | `strictTypeChecked`; `.js` import extensions; zero runtime deps. |
 | NFR-5 | Forward-compatible with OS/model updates | **Shipped** (by design) | Helper resolves `SystemLanguageModel.default` at runtime; deployment target is a floor (`arm64-apple-macos26`). New models/OSes need no rebuild. |
 | NFR-6 | Behavioral drift across model updates surfaced | **Deferred** | AF-4. A golden-output regression suite to run after OS updates (the on-device model can't be pinned). |
-| NFR-7 | Signed + notarized prebuilt helper in releases | **Deferred** | AF-12. macOS CI job (Developer ID sign + `notarytool`), mirroring gitgist's `release.yml` `apple-fm` job. |
+| NFR-7 | Signed + notarized prebuilt helper in releases | **Partial** | AF-12. CI pipeline implemented: `.github/workflows/release.yml` `apple-fm` job Developer-ID-signs (`build:helper` + `CODESIGN_IDENTITY`) and notarizes (`notarytool`) the helper on a macOS 26 runner, then bundles it into the npm tarball. Awaiting one-time secrets setup + first tagged release to verify — see [5-releasing.md](5-releasing.md). |
 
 ## Open items / tracked follow-ups
 
 - **AF-1** native guided generation (`DynamicGenerationSchema`).
-- **AF-2** *automated* on-device smoke test in CI (manual smoke test done).
+- **AF-2** *automated* on-device smoke test in CI (manual smoke test done). CI
+  now *compiles* the helper on a macOS 26 runner (`ci.yml` `helper-build` job),
+  catching Swift/API regressions; running the model on-device is still pending.
 - **AF-3** persistent live-session helper mode.
 - **AF-4** golden-output drift suite.
-- **AF-12** signing + notarization CI; **AF-13** Homebrew tap.
+- **AF-12** signing + notarization CI — pipeline implemented (`release.yml`),
+  pending secrets + first release; see [5-releasing.md](5-releasing.md).
+- **AF-13** Homebrew tap.

@@ -32,9 +32,11 @@ Keep status markers in sync with the implementation.
 - **NFR-4 Strict TS / ESM / lint-clean / zero deps** — Shipped.
 - **NFR-5 Forward-compatible with OS/model updates** — Shipped by design (runtime `SystemLanguageModel.default`).
 - **NFR-6 Surface model drift** — Deferred. AF-4 (golden-output suite).
-- **NFR-7 Signed + notarized release binary** — Deferred. AF-12.
+- **NFR-7 Signed + notarized release binary** — Partial. AF-12: `release.yml` `apple-fm` job signs + notarizes the helper on macOS 26 and bundles it; awaiting secrets + first release (see `docs/5-releasing.md`).
 
 ## Tracked follow-ups
 
-AF-1 (native guided gen), AF-2 (automated on-device test in CI), AF-3 (live
-session), AF-4 (drift suite), AF-12 (signing/notarization CI), AF-13 (Homebrew).
+AF-1 (native guided gen), AF-2 (automated on-device test in CI — CI now compiles
+the helper, on-device run pending), AF-3 (live session), AF-4 (drift suite),
+AF-12 (signing/notarization CI — pipeline implemented, pending secrets/first
+release), AF-13 (Homebrew).

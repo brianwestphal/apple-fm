@@ -54,6 +54,8 @@
     "lint": "eslint src/ tests/",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist coverage node_modules/.cache",
+    "release": "bash scripts/release.sh",
+    "release:beta": "bash scripts/release.sh --beta",
     "prepublishOnly": "npm run build"
   },
   "devDependencies": {

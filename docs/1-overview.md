@@ -56,6 +56,7 @@ can depend on.
 - [2-architecture.md](2-architecture.md) — module layout and data flow.
 - [3-requirements.md](3-requirements.md) — FR/NFR requirements with status.
 - [4-protocol.md](4-protocol.md) — the helper ⇄ Node wire protocol.
+- [5-releasing.md](5-releasing.md) — release flow + CI signing/notarization setup.
 - [ai/code-summary.md](ai/code-summary.md) — AI-oriented code map.
 - [ai/requirements-summary.md](ai/requirements-summary.md) — AI-oriented
   requirements digest.

@@ -88,9 +88,13 @@ npm run build       # tsup → dist/ (index + cli, with .d.ts)
 npm run build:helper # compile apple-fm-helper (macOS 26; guarded no-op elsewhere)
 npm run dev         # tsup --watch
 npm run clean       # rm -rf dist coverage node_modules/.cache
+npm run release      # interactive release (bump, changelog, tag); CI publishes
+npm run release:beta # beta tag-only flow (npm install apple-fm@beta)
 ```
 
-`prepublishOnly` (runs `build`) fires automatically on `npm publish`.
+`prepublishOnly` (runs `build`) fires automatically on `npm publish`. The
+release flow and its one-time CI signing setup are documented in
+[docs/5-releasing.md](docs/5-releasing.md).
 
 ## Testing
 
@@ -108,6 +112,7 @@ and `repl.ts` are excluded as thin I/O.
 - [docs/2-architecture.md](docs/2-architecture.md) — module layout and data flow.
 - [docs/3-requirements.md](docs/3-requirements.md) — FR/NFR requirements with status.
 - [docs/4-protocol.md](docs/4-protocol.md) — the helper ⇄ Node wire protocol.
+- [docs/5-releasing.md](docs/5-releasing.md) — release flow + one-time CI signing/notarization setup.
 - [docs/ai/code-summary.md](docs/ai/code-summary.md) — AI-oriented code map.
 - [docs/ai/requirements-summary.md](docs/ai/requirements-summary.md) — AI-oriented requirements digest.
 

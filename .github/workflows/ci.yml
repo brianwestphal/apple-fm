@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '22'
+
+# apple-fm is a macOS-only package (`"os": ["darwin"]` in package.json), so CI
+# runs on macOS runners. The unit suite is device-free — it exercises the
+# process layer against tests/fixtures/stub-helper.js — so these jobs do NOT
+# need Apple Intelligence or the macOS 26 SDK; the helper compile lives in its
+# own job below.
+jobs:
+  # Unit suite on every supported major. The package targets Node 20+, so the
+  # floor (20) and current (22) both run; coverage is collected on each.
+  test:
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['20', '22']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ matrix.node }}', cache: npm }
+      - run: npm ci
+      - run: npm test
+
+  lint:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ env.NODE_VERSION }}', cache: npm }
+      - run: npm ci
+      - run: npm run lint
+
+  typecheck:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ env.NODE_VERSION }}', cache: npm }
+      - run: npm ci
+      - run: npm run typecheck
+
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ env.NODE_VERSION }}', cache: npm }
+      - run: npm ci
+      - run: npm run build
+      - run: npm pack --dry-run
+
+  # Compile the Swift helper on a macOS 26 runner to catch FoundationModels API
+  # / Swift regressions. This does NOT run the model (`--probe`/`--generate`
+  # need Apple Intelligence, which the runner may not have enabled) — an
+  # automated on-device smoke test is tracked separately as AF-2.
+  helper-build:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm run build:helper
+      - name: Assert the helper compiled
+        run: test -x bin/apple-fm-helper || { echo "helper did not build — runner needs the macOS 26 SDK / Xcode 26"; exit 1; }

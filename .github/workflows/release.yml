@@ -1,0 +1,241 @@
+name: Release
+
+# Triggered by either tag pattern (created by scripts/release.sh):
+#   v{X}.{Y}.{Z}             — stable. Publishes to npm under `latest`; GitHub
+#                              Release flagged as the latest stable.
+#   v{X}.{Y}.{Z}-beta.{N}    — beta. Publishes to npm under `beta`; GitHub
+#                              Release flagged `prerelease: true`.
+#
+# A single workflow handles both flows because npm allows only one trusted
+# publisher connection per package — both stable and beta publishes must run
+# from the same workflow filename. The `detect` job sets `is_beta` and every
+# downstream job/step branches on it.
+#
+# One-time setup (npm trusted publishing + Apple signing secrets) is documented
+# step-by-step in docs/5-releasing.md.
+
+permissions:
+  contents: write
+  id-token: write   # npm OIDC trusted publishing
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+      - 'v[0-9]+.[0-9]+.[0-9]+-beta.[0-9]+'
+
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: '22'
+
+jobs:
+  # ─── Phase 1: validation (parallel) ─────────────────────────────────
+  # macOS runners because apple-fm is a darwin-only package; the unit suite is
+  # device-free (stub helper), so these need no Apple Intelligence / macOS 26.
+
+  test:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ env.NODE_VERSION }}', cache: npm }
+      - run: npm ci
+      - run: npm test
+
+  lint:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ env.NODE_VERSION }}', cache: npm }
+      - run: npm ci
+      - run: npm run lint
+
+  typecheck:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ env.NODE_VERSION }}', cache: npm }
+      - run: npm ci
+      - run: npm run typecheck
+
+  npm-dry-run:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ env.NODE_VERSION }}', cache: npm }
+      - run: npm ci
+      - run: npm run build
+      - run: npm pack --dry-run
+
+  # ─── Detect: is this a stable tag or a beta tag? ────────────────────
+
+  detect:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.extract.outputs.version }}
+      is_beta: ${{ steps.extract.outputs.is_beta }}
+    steps:
+      - id: extract
+        run: |
+          # GITHUB_REF_NAME = "v0.2.0" or "v0.2.0-beta.1" → strip leading "v"
+          VERSION="${GITHUB_REF_NAME#v}"
+          if [[ "$VERSION" == *-beta.* ]]; then
+            IS_BETA=true
+          else
+            IS_BETA=false
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "is_beta=$IS_BETA" >> "$GITHUB_OUTPUT"
+          echo "Releasing v$VERSION (beta: $IS_BETA)"
+
+  # ─── Build + sign + notarize the on-device Apple Foundation Models helper ──
+  #
+  # Produces a Developer-ID-signed + notarized arm64 binary so users on macOS 26+
+  # Apple Silicon get a ready-to-run helper with no Swift toolchain. Requires a
+  # macOS 26 runner (Xcode 26 / FoundationModels SDK). If the secrets are unset
+  # or notarization fails, this job fails — but the publish job still ships the
+  # package (helper as source + build script), so a release is never blocked.
+  apple-fm:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ env.NODE_VERSION }}' }
+      - name: Import Developer ID certificate
+        env:
+          APPLE_CERT_P12_BASE64: ${{ secrets.APPLE_CERT_P12_BASE64 }}
+          APPLE_CERT_PASSWORD: ${{ secrets.APPLE_CERT_PASSWORD }}
+        run: |
+          KEYCHAIN="$RUNNER_TEMP/build.keychain-db"
+          KEYCHAIN_PWD="$(openssl rand -base64 24)"
+          security create-keychain -p "$KEYCHAIN_PWD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PWD" "$KEYCHAIN"
+          echo "$APPLE_CERT_P12_BASE64" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security import "$RUNNER_TEMP/cert.p12" -k "$KEYCHAIN" -P "$APPLE_CERT_PASSWORD" -T /usr/bin/codesign
+          security list-keychains -d user -s "$KEYCHAIN" login.keychain-db
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PWD" "$KEYCHAIN"
+      - name: Build + sign the helper
+        env:
+          CODESIGN_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+        run: |
+          npm run build:helper
+          test -x bin/apple-fm-helper || { echo "helper did not build — runner needs the macOS 26 SDK / Xcode 26"; exit 1; }
+          codesign --verify --strict --verbose=2 bin/apple-fm-helper
+      - name: Notarize (app-specific password)
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          ditto -c -k --keepParent bin/apple-fm-helper "$RUNNER_TEMP/apple-fm-helper.zip"
+          xcrun notarytool submit "$RUNNER_TEMP/apple-fm-helper.zip" \
+            --apple-id "$APPLE_ID" --password "$APPLE_APP_PASSWORD" --team-id "$APPLE_TEAM_ID" --wait
+      - uses: actions/upload-artifact@v4
+        with:
+          name: apple-fm-helper
+          path: bin/apple-fm-helper
+          if-no-files-found: error
+
+  # ─── Phase 2: GitHub Release ────────────────────────────────────────
+
+  create-release:
+    needs: [test, lint, typecheck, npm-dry-run, detect]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extract release notes from CHANGELOG (stable)
+        if: needs.detect.outputs.is_beta == 'false'
+        run: |
+          VERSION="${{ needs.detect.outputs.version }}"
+          # Pull the section between "## [VERSION]" and the next "## [" header.
+          awk -v v="$VERSION" '
+            $0 ~ "^## \\[" v "\\]" { f=1; next }
+            f && /^## \[/ { exit }
+            f { print }
+          ' CHANGELOG.md > release-notes.md
+          if [ ! -s release-notes.md ]; then
+            echo "Release v$VERSION" > release-notes.md
+          fi
+      - name: Compose release body (beta)
+        if: needs.detect.outputs.is_beta == 'true'
+        run: |
+          {
+            echo "**Beta / pre-release** — install with \`npm install apple-fm@beta\`."
+            echo
+            echo "GitHub's \`releases/latest\` ignores prereleases, so this beta does not affect anyone tracking the stable channel."
+            echo
+            echo "---"
+            echo
+            echo "Full annotated tag message follows:"
+            echo
+            git tag -l --format='%(contents)' "$GITHUB_REF_NAME"
+          } > release-notes.md
+      - name: Create GitHub Release (stable)
+        if: needs.detect.outputs.is_beta == 'false'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: v${{ needs.detect.outputs.version }}
+          body_path: release-notes.md
+          prerelease: false
+          make_latest: 'true'
+      - name: Create GitHub Release (beta)
+        if: needs.detect.outputs.is_beta == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: v${{ needs.detect.outputs.version }}
+          body_path: release-notes.md
+          prerelease: true
+          make_latest: 'false'  # defence-in-depth
+
+  # ─── Phase 3: npm publish ───────────────────────────────────────────
+
+  npm-publish:
+    # Wait for apple-fm so its notarized artifact is ready, but don't require it:
+    # if the macOS build/notarize failed, still publish — the package always ships
+    # the helper source + scripts/build-apple-fm-helper.sh, so users can fall back
+    # to `npm run build:helper`. A release is never blocked on notarization.
+    needs: [create-release, detect, apple-fm]
+    if: |
+      always() &&
+      needs.create-release.result == 'success' &&
+      needs.detect.result == 'success'
+    runs-on: macos-latest
+    environment: npm-publish
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '${{ env.NODE_VERSION }}'
+          cache: npm
+          registry-url: 'https://registry.npmjs.org/'
+      - run: npm install -g npm@latest   # trusted publishing OIDC needs npm ≥ 11.5.1
+      - run: npm ci
+      - name: Download notarized Apple FM helper (if the macOS job produced one)
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: apple-fm-helper
+          path: bin
+      - name: Make the helper executable (if present)
+        run: chmod +x bin/apple-fm-helper 2>/dev/null || true
+      - name: Bump package.json to beta version (ephemeral, not committed)
+        if: needs.detect.outputs.is_beta == 'true'
+        run: |
+          VERSION="${{ needs.detect.outputs.version }}"
+          npm version "$VERSION" --no-git-tag-version --allow-same-version
+      - run: npm run build
+      - name: Publish to npm@latest (stable)
+        if: needs.detect.outputs.is_beta == 'false'
+        run: npm publish --provenance --access public
+      - name: Publish to npm@beta (beta)
+        if: needs.detect.outputs.is_beta == 'true'
+        run: npm publish --tag beta --provenance --access public

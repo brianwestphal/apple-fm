@@ -74,7 +74,8 @@ on-device model at runtime, OS and model updates are picked up without a rebuild
 ## Documentation
 
 - [Overview](docs/1-overview.md) · [Architecture](docs/2-architecture.md) ·
-  [Requirements](docs/3-requirements.md) · [Protocol](docs/4-protocol.md)
+  [Requirements](docs/3-requirements.md) · [Protocol](docs/4-protocol.md) ·
+  [Releasing](docs/5-releasing.md)
 
 ## License
 
