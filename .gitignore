@@ -1,0 +1,17 @@
+node_modules
+dist
+coverage/
+.coverage-tmp/
+.DS_Store
+.hotsheet/
+.glassbox/
+.cursor/
+.claude/settings.local.json
+*.tsbuildinfo
+.mcp.json
+
+# Compiled Apple Foundation Models helper binary (build with `npm run build:helper`)
+bin/
+
+# Scratch directories created by tests / manual runs
+tmp/

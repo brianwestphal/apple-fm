@@ -1,0 +1,74 @@
+{
+  "name": "apple-fm",
+  "version": "0.0.1",
+  "description": "Command-line and programmatic access to Apple's on-device Foundation Models (Apple Intelligence) on macOS 26+.",
+  "type": "module",
+  "license": "MIT",
+  "author": "Brian Westphal",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/brianwestphal/apple-fm.git"
+  },
+  "keywords": [
+    "apple",
+    "apple-intelligence",
+    "foundation-models",
+    "on-device",
+    "llm",
+    "ai",
+    "macos",
+    "cli",
+    "chat"
+  ],
+  "os": [
+    "darwin"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "apple-fm": "dist/cli.js"
+  },
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "!dist/*.map",
+    "apple-fm-helper",
+    "scripts/build-apple-fm-helper.sh",
+    "bin/apple-fm-helper"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "build:helper": "bash scripts/build-apple-fm-helper.sh",
+    "dev": "tsup --watch",
+    "test": "vitest run --coverage",
+    "test:watch": "vitest",
+    "lint": "eslint src/ tests/",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist coverage node_modules/.cache",
+    "prepublishOnly": "npm run build"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^25.9.3",
+    "@vitest/coverage-v8": "^4.1.9",
+    "eslint": "^10.5.0",
+    "eslint-plugin-import-x": "^4.16.2",
+    "eslint-plugin-simple-import-sort": "^12.1.1",
+    "eslint-plugin-tsdoc": "^0.5.2",
+    "tsup": "^8.5.1",
+    "tsx": "^4.22.4",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.61.1",
+    "vitest": "^4.1.9"
+  },
+  "dependencies": {}
+}

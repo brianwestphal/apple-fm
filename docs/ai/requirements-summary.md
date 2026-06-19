@@ -1,0 +1,40 @@
+# AI Requirements Summary
+
+Compact digest of [../3-requirements.md](../3-requirements.md) for AI agents.
+Keep status markers in sync with the implementation.
+
+> The Swift helper compiles against the macOS 26 SDK and is **smoke-verified
+> on-device** (probe/generate/stream/schema/chat all work). Remaining: an
+> automated device test in CI (AF-2). The unit suite runs device-free via the
+> stub helper.
+
+## Functional
+
+- **FR-1 Probe availability** — Shipped. `helper.ts:probe` + Swift `--probe`; reasons mapped. Stub-tested + smoke-verified on-device.
+- **FR-2 One-shot generate** — Shipped. `helper.ts:generate` + Swift `--generate`. Stub-tested + smoke-verified on-device.
+- **FR-3 Streaming (`--stream`)** — Shipped. NDJSON `delta` events; helper diffs cumulative partials. Smoke-verified on-device.
+- **FR-4 Conversation input** — Shipped. `protocol.ts:flattenMessages`.
+- **FR-5 Interactive chat REPL** — Shipped. `repl.ts` (`/reset`, `/system`, `/help`, `/exit`).
+- **FR-6 Auto-compaction** — Shipped. `session.ts:ChatSession` (`compactAtTokens`, `keepRecentTurns`). Unit-tested.
+- **FR-7 Guided output (`--schema`)** — Partial. Prompt-guided (schema injected into instructions), returns schema-valid JSON on-device; native path is AF-1.
+- **FR-8 Native `DynamicGenerationSchema`** — Deferred. AF-1.
+- **FR-9 CLI surface** — Shipped. `cliArgs.ts`.
+- **FR-10 Programmatic API** — Shipped. `index.ts`.
+- **FR-11 Helper discovery** — Shipped. `APPLE_FM_BIN` → bundled binary → PATH.
+- **FR-12 Persistent live session** — Deferred. AF-3.
+- **FR-13 Homebrew distribution** — Deferred. AF-13.
+
+## Non-functional
+
+- **NFR-1 On-device only, no key/network** — Shipped.
+- **NFR-2 Bounded/diagnosable subprocess** — Shipped (timeout + stderr + error codes).
+- **NFR-3 Pure unit-tested, native stub-tested** — Shipped (`tests/fixtures/stub-helper.js`).
+- **NFR-4 Strict TS / ESM / lint-clean / zero deps** — Shipped.
+- **NFR-5 Forward-compatible with OS/model updates** — Shipped by design (runtime `SystemLanguageModel.default`).
+- **NFR-6 Surface model drift** — Deferred. AF-4 (golden-output suite).
+- **NFR-7 Signed + notarized release binary** — Deferred. AF-12.
+
+## Tracked follow-ups
+
+AF-1 (native guided gen), AF-2 (automated on-device test in CI), AF-3 (live
+session), AF-4 (drift suite), AF-12 (signing/notarization CI), AF-13 (Homebrew).
