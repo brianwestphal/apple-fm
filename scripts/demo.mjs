@@ -173,9 +173,9 @@ const DEMOS = [
     slug: 'schema',
     title: {
       eyebrow: 'Structured output',
-      headline: 'Guided JSON output',
+      headline: 'Guaranteed JSON output',
       subtitle:
-        'Pass a JSON Schema with --schema and apple-fm returns data shaped to it — ready to pipe into the rest of your tooling.',
+        'Pass a JSON Schema with --schema and the output is guaranteed to conform — native guided generation, ready to pipe into the rest of your tooling.',
     },
     cmd: 'apple-fm generate "Recommend a classic sci-fi novel." --schema novel.json',
     capture: async () => {

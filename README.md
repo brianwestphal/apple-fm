@@ -5,18 +5,18 @@ the on-device **Foundation Models** on **macOS 26+ / Apple Silicon** — free,
 private, and fully offline. No API key, no network, nothing leaves your Mac.
 
 Apple ships `FoundationModels` as a Swift-only framework with no command-line
-front-end. apple-fm provides one: a tiny signed Swift helper does the model work,
-and a tested, **zero-runtime-dependency** Node layer gives you a CLI and a
-library.
+front-end. apple-fm provides one: a tiny Swift helper does the model work, and a
+tested, **zero-runtime-dependency** Node layer gives you a CLI and a library.
 
 <p align="center">
   <img src="assets/demos/generate.svg" alt="apple-fm generate &quot;Explain a closure in one sentence.&quot; runs Apple's on-device model and prints the answer — fully offline, no API key." width="820">
 </p>
 
-> ⚠️ **Early scaffold.** The Node layer is fully unit-tested; the Swift helper is
-> smoke-verified on a macOS 26 / Apple Intelligence machine (probe, generate,
-> stream, schema, chat all work). Native guaranteed-structure output and an
-> automated on-device CI test are still to come — see
+> ⚠️ **Pre-release.** The Node layer is fully unit-tested and the Swift helper is
+> smoke-verified on a macOS 26 / Apple Intelligence machine — probe, generate
+> (freeform / guided / streamed), native guaranteed-structure output, and a
+> persistent multi-turn chat all work on-device. Still in flight: an automated
+> on-device test in CI and the first signed + notarized npm release — see
 > [docs/3-requirements.md](docs/3-requirements.md).
 
 ## Why apple-fm
@@ -27,9 +27,13 @@ library.
 - **One binary, three shapes.** `probe`, one-shot `generate` (freeform, guided,
   or streamed), and an interactive `chat` — all over a single
   [NDJSON protocol](docs/4-protocol.md).
-- **Structured output.** Hand it a JSON Schema and get back data shaped to it.
-- **Long conversations stay coherent.** `chat` keeps history and automatically
-  summarizes older turns as you approach the small on-device context window.
+- **Guaranteed structured output.** Hand it a JSON Schema and the output is
+  *guaranteed* to conform — native guided generation built on Apple's
+  `DynamicGenerationSchema`, not best-effort prompting. Stream it, too.
+- **Long conversations stay coherent — and cheap.** `chat` holds one on-device
+  session across turns, reusing the model's cache instead of replaying the
+  transcript, and automatically summarizes older turns as the small context
+  window fills.
 - **Zero runtime dependencies.** The Node layer only spawns the helper and speaks
   JSON. Strict TypeScript, ESM, lint-clean.
 - **Future-proof.** The helper resolves the current on-device model at runtime,
@@ -42,8 +46,8 @@ npm install -g apple-fm     # CLI
 npm install apple-fm        # library
 ```
 
-Requires macOS 26+ on Apple Silicon with Apple Intelligence enabled. The package
-bundles a signed + notarized helper; you can also build it from source:
+Requires macOS 26+ on Apple Silicon with Apple Intelligence enabled. Releases
+bundle a signed + notarized helper; you can also build it from source:
 
 ```bash
 npm run build:helper        # → bin/apple-fm-helper (needs Xcode 26 / macOS 26 SDK)
@@ -75,8 +79,9 @@ Before generating, confirm Apple Intelligence is ready on this machine.
 
 ### Structured output
 
-Pass a JSON Schema with `--schema` and apple-fm returns JSON shaped to it —
-ready to pipe into the rest of your tooling.
+Pass a JSON Schema with `--schema` and apple-fm returns JSON **guaranteed to
+conform** to it — native guided generation, not prompt-and-hope — ready to pipe
+into the rest of your tooling.
 
 <p align="center">
   <img src="assets/demos/schema.svg" alt="apple-fm generate &quot;Recommend a classic sci-fi novel.&quot; --schema novel.json returns a JSON object with title, author, year, and why fields." width="820">
@@ -104,10 +109,10 @@ if ((await probe()).available) {
   // Streaming
   await generate({ prompt: '…', stream: true }, {}, (chunk) => process.stdout.write(chunk));
 
-  // Structured output — pass a JSON Schema
+  // Guaranteed structured output — pass a JSON Schema, get conforming JSON back
   const json = await generate({ prompt: 'A classic sci-fi novel', schema: novelSchema });
 
-  // Multi-turn chat with automatic context compaction
+  // Multi-turn chat: one persistent on-device session, auto-compacted
   const chat = new ChatSession({ system: 'You are a helpful assistant.' });
   const reply = await chat.send('Hello');
 }
@@ -122,11 +127,13 @@ A single binary, three shapes (probe / generate / chat), all over one
 line-delimited JSON protocol ([docs/4-protocol.md](docs/4-protocol.md)). Only the
 Swift helper imports `FoundationModels`; all policy — argument parsing, the wire
 protocol, chat history, auto-compaction — lives in strict TypeScript and is
-unit-tested against a stub helper, so the suite runs on any platform. The chat
-session keeps the transcript on the Node side and, when it approaches the
-on-device model's small context window, summarizes older turns and continues — so
-long conversations stay coherent. Because the helper resolves the current
-on-device model at runtime, OS and model updates are picked up without a rebuild.
+unit-tested against a stub helper, so the suite runs on any platform. For chat the
+helper holds one `LanguageModelSession` across turns (so the model's cache is
+reused instead of replaying the transcript), while the Node side keeps the
+transcript so it can summarize older turns as the small context window fills — so
+long conversations stay coherent and cheap. Because the helper resolves the
+current on-device model at runtime, OS and model updates are picked up without a
+rebuild.
 
 ## Documentation
 
