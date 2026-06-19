@@ -88,6 +88,7 @@ npm run build       # tsup → dist/ (index + cli, with .d.ts)
 npm run build:helper # compile apple-fm-helper (macOS 26; guarded no-op elsewhere)
 npm run dev         # tsup --watch
 npm run clean       # rm -rf dist coverage node_modules/.cache
+npm run demo         # re-capture the README demo SVGs (assets/demos/) — needs the on-device model
 npm run release      # interactive release (bump, changelog, tag); CI publishes
 npm run release:beta # beta tag-only flow (npm install apple-fm@beta)
 ```

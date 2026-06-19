@@ -54,6 +54,7 @@
     "lint": "eslint src/ tests/",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist coverage node_modules/.cache",
+    "demo": "npm run build && node scripts/demo.mjs",
     "release": "bash scripts/release.sh",
     "release:beta": "bash scripts/release.sh --beta",
     "prepublishOnly": "npm run build"
@@ -62,6 +63,7 @@
     "@eslint/js": "^10.0.1",
     "@types/node": "^25.9.3",
     "@vitest/coverage-v8": "^4.1.9",
+    "domotion-svg": "^0.13.3",
     "eslint": "^10.5.0",
     "eslint-plugin-import-x": "^4.16.2",
     "eslint-plugin-simple-import-sort": "^12.1.1",
