@@ -16,6 +16,37 @@ export const HELPER_BIN_ENV = 'APPLE_FM_BIN';
 const DEFAULT_TIMEOUT_MS = 120_000;
 
 /**
+ * Whether this platform can run the bundled on-device helper at all: macOS on
+ * Apple Silicon. (Whether the *model* is usable then — macOS 26+, Apple
+ * Intelligence enabled — is what {@link probe} checks.) apple-fm installs on any
+ * OS so it can be a dependency of cross-platform projects; off-platform it
+ * degrades gracefully rather than crashing — `probe` reports `unsupportedPlatform`
+ * and `generate` / `ChatSession` throw a clear `[unsupportedPlatform]` error.
+ */
+export function isPlatformSupported(): boolean {
+  return process.platform === 'darwin' && process.arch === 'arm64';
+}
+
+/**
+ * True when no override is set, so a call would spawn the *bundled* macOS helper
+ * — the only case the platform gate applies to. An explicit `binPath` /
+ * `APPLE_FM_BIN` (e.g. the test stub, or a cross-built helper) is trusted as-is.
+ */
+export function usingBundledHelper(options: HelperOptions = {}): boolean {
+  if (options.binPath !== undefined && options.binPath.length > 0) return false;
+  const fromEnv = process.env[HELPER_BIN_ENV];
+  return fromEnv === undefined || fromEnv.length === 0;
+}
+
+/** Error thrown when the bundled helper can't run on the current platform. */
+export function unsupportedPlatformError(): Error {
+  return new Error(
+    `[unsupportedPlatform] apple-fm requires macOS 26+ on Apple Silicon; the ` +
+      `on-device model cannot run on ${process.platform}/${process.arch}`,
+  );
+}
+
+/**
  * Resolve the helper binary path: `APPLE_FM_BIN`, then the prebuilt binary
  * bundled with the package (`bin/apple-fm-helper`), then bare `apple-fm-helper`
  * to be found on `PATH`.
@@ -109,6 +140,11 @@ function runHelper(
 
 /** Ask the helper whether the on-device model is available right now. */
 export async function probe(options: HelperOptions = {}): Promise<ProbeResult> {
+  // Off-platform (e.g. Linux/Windows, or an Intel Mac) the bundled macOS helper
+  // can't run — report unavailable instead of failing to spawn it.
+  if (usingBundledHelper(options) && !isPlatformSupported()) {
+    return { available: false, reason: 'unsupportedPlatform' };
+  }
   let result: ProbeResult | undefined;
   // `--probe` emits a single bare JSON line that *is* the ProbeResult (not an
   // NDJSON event); the last such line wins.
@@ -132,6 +168,7 @@ export async function generate(
   onDelta?: DeltaHandler,
   onSnapshot?: SnapshotHandler,
 ): Promise<string> {
+  if (usingBundledHelper(options) && !isPlatformSupported()) throw unsupportedPlatformError();
   let content: string | undefined;
   await runHelper(['--generate'], options, encodeRequest(request), (line) => {
     const event = parseEvent(line);

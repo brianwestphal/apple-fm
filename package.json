@@ -20,9 +20,6 @@
     "cli",
     "chat"
   ],
-  "os": [
-    "darwin"
-  ],
   "engines": {
     "node": ">=20"
   },

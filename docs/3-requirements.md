@@ -39,12 +39,11 @@ gaps noted — including code that needs on-device verification), **Deferred**
 | NFR-4 | Strict TypeScript, ESM, lint-clean | **Shipped** | `strictTypeChecked`; `.js` import extensions; zero runtime deps. |
 | NFR-5 | Forward-compatible with OS/model updates | **Shipped** (by design) | Helper resolves `SystemLanguageModel.default` at runtime; deployment target is a floor (`arm64-apple-macos26`). New models/OSes need no rebuild. |
 | NFR-6 | Behavioral drift across model updates surfaced | **Dropped** | A golden-output regression suite (AF-4) was considered and descoped. Revisit if drift becomes a problem in practice. |
-| NFR-7 | Signed + notarized prebuilt helper in releases | **Partial** | AF-12. CI pipeline implemented: `.github/workflows/release.yml` `apple-fm` job Developer-ID-signs (`build:helper` + `CODESIGN_IDENTITY`) and notarizes (`notarytool`) the helper on a macOS 26 runner, then bundles it into the npm tarball. Awaiting one-time secrets setup + first tagged release to verify — see [5-releasing.md](5-releasing.md). |
+| NFR-7 | Signed + notarized prebuilt helper in releases | **Shipped** | `.github/workflows/release.yml` `apple-fm` job Developer-ID-signs (`build:helper` + `CODESIGN_IDENTITY`) and notarizes (`notarytool`) the helper on a macOS 26 runner, then bundles it into the published npm tarball. **Verified on the v0.1.0 release** — signing + `npm-publish` jobs green; `apple-fm@0.1.0` is on npm. See [5-releasing.md](5-releasing.md). |
 
 ## Open items / tracked follow-ups
 
 - **AF-2** *automated* on-device smoke test in CI (manual smoke test done). CI
   now *compiles* the helper on a macOS 26 runner (`ci.yml` `helper-build` job),
-  catching Swift/API regressions; running the model on-device is still pending.
-- **AF-12** signing + notarization CI — pipeline implemented (`release.yml`),
-  pending secrets + first release; see [5-releasing.md](5-releasing.md).
+  catching Swift/API regressions; running the model on-device is still pending
+  (hosted runners lack Apple Intelligence — needs a self-hosted macOS 26 runner).

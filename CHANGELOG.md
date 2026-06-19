@@ -6,6 +6,15 @@ semantic versioning.
 
 ## [Unreleased]
 
+### Changed
+
+- **Installs on any OS.** Dropped the `os: ["darwin"]` gate so apple-fm can be a
+  dependency of cross-platform projects without breaking their install on
+  Linux/Windows. The on-device model still only runs on macOS 26+ Apple Silicon;
+  off-platform it degrades gracefully — `probe()` returns
+  `{ available: false, reason: 'unsupportedPlatform' }` and `generate` / `chat`
+  throw a clear `[unsupportedPlatform]` error. New `isPlatformSupported()` export.
+
 ## [0.1.0] - 2026-06-19
 
 First tagged release.

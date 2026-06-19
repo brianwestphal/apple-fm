@@ -25,7 +25,7 @@ tests/            # protocol, cliArgs, session, helper (+ fixtures/stub-helper.j
 ## Public API (`src/index.ts`)
 
 - Process: `probe(options?)`, `generate(request, options?, onDelta?, onSnapshot?)`,
-  `resolveHelperPath(options?)`, `HELPER_BIN_ENV`.
+  `resolveHelperPath(options?)`, `isPlatformSupported()`, `HELPER_BIN_ENV`.
 - Chat: `ChatSession` (`send`, `compact`, `shouldCompact`, `history`, `reset`,
   `close`); `LiveSession` (`send`, `reset`, `close`); types `ChatSessionConfig`,
   `GenerateFn`, `ChatBackend`, `LiveSessionConfig`.

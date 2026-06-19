@@ -29,6 +29,11 @@ Swift helper on a macOS 26 runner.
 
 ## One-time setup
 
+> **Done.** This setup is complete and was **verified on the v0.1.0 release** —
+> the `apple-fm` signing/notarization job and `npm-publish` both ran green and
+> `apple-fm@0.1.0` shipped to npm. The steps below are kept as reference (e.g. for
+> rotating secrets or bootstrapping a fork).
+
 You need two things configured once: **npm trusted publishing** (so CI can
 publish without a long-lived token) and the **Apple signing secrets** (so the
 helper is Developer-ID-signed + notarized and runs on other Macs).

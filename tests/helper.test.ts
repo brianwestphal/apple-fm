@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 
-import { generate, HELPER_BIN_ENV, probe, resolveHelperPath } from '../src/helper.js';
+import { generate, HELPER_BIN_ENV, isPlatformSupported, probe, resolveHelperPath } from '../src/helper.js';
 
 const STUB = fileURLToPath(new URL('./fixtures/stub-helper.js', import.meta.url));
 
@@ -15,6 +15,46 @@ afterEach(() => {
   Reflect.deleteProperty(process.env, HELPER_BIN_ENV);
   delete process.env.STUB_UNAVAILABLE;
   delete process.env.STUB_HANG;
+});
+
+describe('platform support', () => {
+  const realPlatform = process.platform;
+  const realArch = process.arch;
+  const setPlatform = (platform: string, arch: string): void => {
+    Object.defineProperty(process, 'platform', { value: platform, configurable: true });
+    Object.defineProperty(process, 'arch', { value: arch, configurable: true });
+  };
+  afterEach(() => {
+    Object.defineProperty(process, 'platform', { value: realPlatform, configurable: true });
+    Object.defineProperty(process, 'arch', { value: realArch, configurable: true });
+  });
+
+  it('isPlatformSupported() is true only on darwin/arm64', () => {
+    setPlatform('darwin', 'arm64');
+    expect(isPlatformSupported()).toBe(true);
+    setPlatform('darwin', 'x64'); // Intel Mac
+    expect(isPlatformSupported()).toBe(false);
+    setPlatform('linux', 'x64');
+    expect(isPlatformSupported()).toBe(false);
+    setPlatform('win32', 'x64');
+    expect(isPlatformSupported()).toBe(false);
+  });
+
+  it('probe reports unsupportedPlatform off-platform without spawning', async () => {
+    setPlatform('linux', 'x64');
+    expect(await probe()).toEqual({ available: false, reason: 'unsupportedPlatform' });
+  });
+
+  it('generate throws a clear [unsupportedPlatform] error off-platform', async () => {
+    setPlatform('linux', 'x64');
+    await expect(generate({ prompt: 'hi' })).rejects.toThrow(/\[unsupportedPlatform\]/);
+  });
+
+  it('an explicit binPath bypasses the platform gate', async () => {
+    setPlatform('linux', 'x64'); // pretend we are off-platform…
+    // …but a runnable helper (here the stub) is trusted and used anyway.
+    expect(await probe({ binPath: STUB })).toEqual({ available: true });
+  });
 });
 
 describe('resolveHelperPath', () => {

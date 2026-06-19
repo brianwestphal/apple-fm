@@ -12,11 +12,12 @@ tested, **zero-runtime-dependency** Node layer gives you a CLI and a library.
   <img src="assets/demos/generate.svg" alt="apple-fm generate &quot;Explain a closure in one sentence.&quot; runs Apple's on-device model and prints the answer — fully offline, no API key." width="820">
 </p>
 
-> ⚠️ **Pre-release.** The Node layer is fully unit-tested and the Swift helper is
-> smoke-verified on a macOS 26 / Apple Intelligence machine — probe, generate
-> (freeform / guided / streamed), native guaranteed-structure output, and a
-> persistent multi-turn chat all work on-device. Still in flight: an automated
-> on-device test in CI and the first signed + notarized npm release — see
+> ℹ️ **Status.** Published to npm with a Developer-ID **signed + notarized**
+> helper, and smoke-verified on a macOS 26 / Apple Intelligence machine — probe,
+> generate (freeform / guided / streamed), native guaranteed-structure output, and
+> persistent multi-turn chat all work on-device. The one tracked gap is an
+> automated on-device *generation* test in CI: hosted runners build, sign, and
+> notarize the helper but can't run the model (it needs Apple Intelligence). See
 > [docs/3-requirements.md](docs/3-requirements.md).
 
 ## Why apple-fm
@@ -55,6 +56,25 @@ npm run build:helper        # → bin/apple-fm-helper (needs Xcode 26 / macOS 26
 
 The helper is located via `APPLE_FM_BIN`, then the bundled `bin/apple-fm-helper`,
 then `apple-fm-helper` on `PATH`.
+
+### Platform support
+
+apple-fm **installs on any OS** — so it can be a dependency of a cross-platform
+project — but the on-device model only *runs* on **macOS 26+ Apple Silicon**.
+Everywhere else it degrades gracefully instead of crashing: `probe()` returns
+`{ available: false, reason: 'unsupportedPlatform' }`, and `generate` / `chat`
+throw a clear `[unsupportedPlatform]` error. Gate on `isPlatformSupported()` or
+`probe()`:
+
+```ts
+import { isPlatformSupported, probe, generate } from 'apple-fm';
+
+if ((await probe()).available) {
+  await generate({ prompt: '…' });
+} else {
+  // fall back (cloud model, cached result, skip the feature, …)
+}
+```
 
 ## CLI
 

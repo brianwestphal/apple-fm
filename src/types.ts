@@ -45,11 +45,17 @@ export interface GenerateRequest {
   stream?: boolean;
 }
 
-/** Why the on-device model is or isn't usable right now. */
+/**
+ * Why the on-device model is or isn't usable right now. The first three +
+ * `unknown` come from the Swift helper; `unsupportedPlatform` is reported by the
+ * Node layer *without* running the helper, when the OS/CPU can't run it at all
+ * (not macOS on Apple Silicon).
+ */
 export type UnavailableReason =
   | 'deviceNotEligible'
   | 'appleIntelligenceNotEnabled'
   | 'modelNotReady'
+  | 'unsupportedPlatform'
   | 'unknown';
 
 /** Result of `apple-fm-helper --probe`. */

@@ -9,7 +9,7 @@
  */
 import { type ChildProcessWithoutNullStreams,spawn } from 'node:child_process';
 
-import { resolveHelperPath } from './helper.js';
+import { isPlatformSupported, resolveHelperPath, unsupportedPlatformError, usingBundledHelper } from './helper.js';
 import { splitLines } from './protocol.js';
 import type { DeltaHandler, GenerateOptions, HelperOptions, Message } from './types.js';
 
@@ -43,6 +43,8 @@ export class LiveSession implements ChatBackend {
   private readonly command: string;
   private readonly timeoutMs: number;
   private readonly options: GenerateOptions | undefined;
+  /** Whether we'd spawn the bundled macOS helper (subject to the platform gate). */
+  private readonly bundled: boolean;
   private child: ChildProcessWithoutNullStreams | undefined;
   private buffer = '';
   private nextId = 0;
@@ -52,6 +54,7 @@ export class LiveSession implements ChatBackend {
     this.command = resolveHelperPath(config);
     this.timeoutMs = config.timeoutMs ?? DEFAULT_TURN_TIMEOUT_MS;
     this.options = config.options;
+    this.bundled = usingBundledHelper(config);
   }
 
   /** Recreate the underlying session with new instructions + seed turns. */
@@ -161,6 +164,9 @@ export class LiveSession implements ChatBackend {
   }
 
   private dispatch(command: Record<string, unknown>, onDelta: DeltaHandler | undefined): Promise<string> {
+    // Off-platform the bundled macOS helper can't run — fail with a clear error
+    // rather than spawning it and surfacing a raw [sessionClosed].
+    if (this.bundled && !isPlatformSupported()) return Promise.reject(unsupportedPlatformError());
     const child = this.ensureChild();
     const id = String(this.nextId++);
     return new Promise<string>((resolve, reject) => {

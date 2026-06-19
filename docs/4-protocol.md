@@ -15,7 +15,10 @@ event), then exits 0:
 ```
 
 `reason` (present only when unavailable) is one of `deviceNotEligible`,
-`appleIntelligenceNotEnabled`, `modelNotReady`, `unknown`.
+`appleIntelligenceNotEnabled`, `modelNotReady`, `unknown`. The Node layer adds one
+more reason it synthesizes **without running the helper** — `unsupportedPlatform`,
+when the OS/CPU can't run the macOS helper at all (not macOS on Apple Silicon) —
+so apple-fm can be a dependency of a cross-platform project and degrade gracefully.
 
 ## `--generate`
 
