@@ -184,6 +184,38 @@ private func intField(_ object: [String: JSONValue], _ key: String) -> Int? {
     return nil
 }
 
+private func doubleField(_ object: [String: JSONValue], _ key: String) -> Double? {
+    if case .number(let value)? = object[key] { return value }
+    return nil
+}
+
+/// `minimum` / `maximum` → integer range guides (a documented range, or an open
+/// bound). A `minimum > maximum` schema is rejected so the `ClosedRange` is valid.
+private func intGuides(_ object: [String: JSONValue]) throws -> [GenerationGuide<Int>] {
+    let lo = intField(object, "minimum")
+    let hi = intField(object, "maximum")
+    if let lo, let hi {
+        guard lo <= hi else { throw UnsupportedSchema(message: "minimum (\(lo)) is greater than maximum (\(hi))") }
+        return [.range(lo...hi)]
+    }
+    if let lo { return [.minimum(lo)] }
+    if let hi { return [.maximum(hi)] }
+    return []
+}
+
+/// `minimum` / `maximum` → floating-point range guides (see `intGuides`).
+private func doubleGuides(_ object: [String: JSONValue]) throws -> [GenerationGuide<Double>] {
+    let lo = doubleField(object, "minimum")
+    let hi = doubleField(object, "maximum")
+    if let lo, let hi {
+        guard lo <= hi else { throw UnsupportedSchema(message: "minimum (\(lo)) is greater than maximum (\(hi))") }
+        return [.range(lo...hi)]
+    }
+    if let lo { return [.minimum(lo)] }
+    if let hi { return [.maximum(hi)] }
+    return []
+}
+
 /// Translate one JSON Schema node into a `DynamicGenerationSchema`. Strict: any
 /// construct outside the documented subset throws `UnsupportedSchema`. `name` is
 /// made unique across the tree by `counter` (object / enum nodes are named).
@@ -226,11 +258,16 @@ private func dynamicSchema(_ node: JSONValue, name: String, counter: inout Int) 
             }
             return DynamicGenerationSchema(name: name, description: description, anyOf: values)
         }
+        // String value constraints (pattern / minLength / maxLength / format) are
+        // not enforced: the on-device model's constrained decoding rejects a
+        // `GenerationGuide.pattern` regex (it errors at generation time), so a
+        // `pattern` guide would break any schema that uses one. Structure is still
+        // guaranteed; the constraint is documented as best-effort. See docs/6.
         return DynamicGenerationSchema(type: String.self)
     case "integer":
-        return DynamicGenerationSchema(type: Int.self)
+        return DynamicGenerationSchema(type: Int.self, guides: try intGuides(object))
     case "number":
-        return DynamicGenerationSchema(type: Double.self)
+        return DynamicGenerationSchema(type: Double.self, guides: try doubleGuides(object))
     case "boolean":
         return DynamicGenerationSchema(type: Bool.self)
     case "array":

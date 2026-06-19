@@ -57,12 +57,24 @@ against the macOS 26 SDK** during implementation; the intended mapping is:
 | nested `object` / `array` | nested schema | arbitrary nesting depth |
 | `description` (any level) | the schema element's natural-language guide | improves field semantics |
 
-**Constraints (as shipped):** array `minItems` / `maxItems` map to
-`DynamicGenerationSchema(arrayOf:minimumElements:maximumElements:)` and are
-enforced. All other value constraints — `minimum` / `maximum`, `pattern`,
-`minLength`, string `format`, etc. — are currently **accepted but not enforced**
-(structure is still guaranteed; the value bound is not). They could be mapped to
-`GenerationGuide` later — see Follow-up tickets.
+**Constraints (as shipped):**
+
+- **Array `minItems` / `maxItems`** → `DynamicGenerationSchema(arrayOf:minimumElements:maximumElements:)` — **enforced**.
+- **Integer / number `minimum` / `maximum`** → a `GenerationGuide` range (or open
+  bound) on the primitive — **enforced**. A `minimum > maximum` schema is rejected
+  with `unsupportedSchema` (the `ClosedRange` would otherwise be invalid).
+- **String `pattern`** → **not enforced.** A `GenerationGuide.pattern(regex)` was
+  tried but the on-device model's constrained decoding **errors at generation
+  time** on a regex guide (`GenerativeError 1020000`), which would break *every*
+  schema carrying a `pattern`. So `pattern` is accepted and ignored.
+- **Other value constraints** (`minLength` / `maxLength`, `format`,
+  `exclusiveMinimum` / `exclusiveMaximum`, `multipleOf`, …) are **accepted but not
+  enforced**. Structure is always guaranteed; these bounds are best-effort.
+
+The stance is deliberate: reject only what can't be *structurally* produced;
+silently honor value bounds where a guide works, and don't reject a schema just
+because a value bound isn't enforced (that would break common, otherwise-valid
+schemas).
 
 **Out of scope for v1 (reject):** `oneOf`/`allOf`/`anyOf` across object types,
 `$ref`/`$defs`, `additionalProperties` schemas, tuple `items`, conditional
@@ -110,12 +122,15 @@ Changes:
 - `DynamicGenerationSchema` exposes object / `anyOf [String]` (enum) / `arrayOf`
   (with `minimumElements` / `maximumElements`) / primitive (`init(type:guides:)`
   for `String` / `Int` / `Double` / `Bool`) constructors; `GeneratedContent` has
-  `jsonString` for serialization. `GenerationGuide` offers numeric `minimum` /
-  `maximum` / `range`, string `pattern` / `anyOf`, and array count guides — those
-  beyond array bounds are not wired up yet (see Follow-ups).
+  `jsonString` for serialization.
+- `GenerationGuide` numeric `minimum` / `maximum` / `range` **work** and are wired
+  up (AFM-19). The string `pattern` guide does **not** — `respond(to:schema:)`
+  fails with `GenerativeError 1020000` whenever a regex guide is present — so
+  `pattern` is left unenforced. (Verified on-device.)
 
 ## Follow-up tickets
 
 - **AFM-16** — structured streaming (`schema` + `--stream`), explicitly deferred.
-- Enforce the remaining value constraints (`minimum` / `maximum` / `pattern` /
-  `minLength` …) via `GenerationGuide` instead of accepting-but-ignoring them.
+- **AFM-19** (done) — numeric `minimum` / `maximum` enforcement. `pattern` and the
+  remaining value constraints stay best-effort (see Constraints above); revisit
+  `pattern` if a future model accepts regex guides.

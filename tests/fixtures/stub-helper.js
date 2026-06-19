@@ -52,7 +52,14 @@ function schemaError(schema) {
       return null;
     }
     case 'integer':
-    case 'number':
+    case 'number': {
+      // Numeric minimum/maximum map to a GenerationGuide range; min > max would
+      // be an invalid range (mirrors the Swift helper's rejection).
+      if (typeof schema.minimum === 'number' && typeof schema.maximum === 'number' && schema.minimum > schema.maximum) {
+        return `minimum (${schema.minimum}) is greater than maximum (${schema.maximum})`;
+      }
+      return null;
+    }
     case 'boolean':
       return null;
     default:

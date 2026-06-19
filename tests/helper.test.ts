@@ -107,4 +107,25 @@ describe('generate with a schema (native guided generation)', () => {
       generate({ prompt: 'x', schema, stream: true }, { binPath: STUB }),
     ).rejects.toThrow(/\[badRequest\]/);
   });
+
+  it('accepts numeric min/max constraints', async () => {
+    const constrained = {
+      type: 'object',
+      properties: { rating: { type: 'integer', minimum: 1, maximum: 5 } },
+      required: ['rating'],
+    };
+    const content = await generate({ prompt: 'rate it', schema: constrained }, { binPath: STUB });
+    expect(JSON.parse(content)).toHaveProperty('rating');
+  });
+
+  it('rejects a numeric schema whose minimum exceeds its maximum', async () => {
+    const bad = {
+      type: 'object',
+      properties: { n: { type: 'integer', minimum: 10, maximum: 1 } },
+      required: ['n'],
+    };
+    await expect(generate({ prompt: 'x', schema: bad }, { binPath: STUB })).rejects.toThrow(
+      /\[unsupportedSchema\] minimum \(10\) is greater than maximum \(1\)/,
+    );
+  });
 });
