@@ -38,9 +38,9 @@ struct GenerateRequest: Decodable {
     let system: String?
     let prompt: String?
     let messages: [WireMessage]?
-    // Guided-generation schema. Captured but, for now, applied as prompt
-    // guidance (see `instructions(for:)`). Native `DynamicGenerationSchema`
-    // guided generation is the planned enhancement — see docs/3-requirements.md.
+    // Guided-generation JSON Schema. When present, translated at runtime to a
+    // native `GenerationSchema` (see `compileSchema`) so the framework guarantees
+    // the output conforms — see docs/6-guided-generation.md.
     let schema: JSONValue?
     let options: WireOptions?
     let stream: Bool?
@@ -141,19 +141,102 @@ private func reasonString(_ reason: SystemLanguageModel.Availability.Unavailable
 
 // MARK: - Generate
 
-/// Combine the caller's system prompt with any schema guidance.
-private func instructions(for request: GenerateRequest) -> String {
-    var parts: [String] = []
-    if let system = request.system, !system.isEmpty { parts.append(system) }
-    if let schema = request.schema {
-        // Prompt-guided structured output. The richer path (native guided
-        // generation with a runtime `DynamicGenerationSchema`) is tracked in the
-        // requirements doc; until then we instruct the model to match the schema.
-        parts.append(
-            "Respond with JSON only — no prose, no code fences — matching this JSON Schema:\n"
-                + (schema.jsonString ?? "{}"))
+/// The session instructions — just the caller's system prompt. Structured output
+/// is handled natively via `respond(to:schema:)` (see `generate`), not by injecting
+/// the schema into the prompt.
+private func instructions(for request: GenerateRequest) -> String? {
+    guard let system = request.system, !system.isEmpty else { return nil }
+    return system
+}
+
+// MARK: - Guided generation
+
+/// Thrown when a request's JSON Schema uses a construct the native
+/// `DynamicGenerationSchema` can't express. Surfaced to the caller as the
+/// `unsupportedSchema` error code — strict, no prompt-guided fallback (see
+/// docs/6-guided-generation.md).
+private struct UnsupportedSchema: Error { let message: String }
+
+private func stringField(_ object: [String: JSONValue], _ key: String) -> String? {
+    if case .string(let value)? = object[key] { return value }
+    return nil
+}
+
+private func intField(_ object: [String: JSONValue], _ key: String) -> Int? {
+    if case .number(let value)? = object[key] { return Int(value) }
+    return nil
+}
+
+/// Translate one JSON Schema node into a `DynamicGenerationSchema`. Strict: any
+/// construct outside the documented subset throws `UnsupportedSchema`. `name` is
+/// made unique across the tree by `counter` (object / enum nodes are named).
+private func dynamicSchema(_ node: JSONValue, name: String, counter: inout Int) throws -> DynamicGenerationSchema {
+    guard case .object(let object) = node else {
+        throw UnsupportedSchema(message: "schema node must be a JSON object")
     }
-    return parts.joined(separator: "\n\n")
+    let description = stringField(object, "description")
+    guard let type = stringField(object, "type") else {
+        throw UnsupportedSchema(message: "schema node is missing a string \"type\" (oneOf / anyOf / allOf / $ref are not supported)")
+    }
+    switch type {
+    case "object":
+        guard case .object(let properties)? = object["properties"] else {
+            throw UnsupportedSchema(message: "object schema is missing \"properties\"")
+        }
+        var required: Set<String> = []
+        if case .array(let names)? = object["required"] {
+            for entry in names { if case .string(let key) = entry { required.insert(key) } }
+        }
+        var built: [DynamicGenerationSchema.Property] = []
+        for (key, child) in properties {
+            counter += 1
+            let childSchema = try dynamicSchema(child, name: "\(name).\(key).\(counter)", counter: &counter)
+            let childDescription: String? = {
+                if case .object(let childObject) = child { return stringField(childObject, "description") }
+                return nil
+            }()
+            built.append(.init(name: key, description: childDescription, schema: childSchema, isOptional: !required.contains(key)))
+        }
+        return DynamicGenerationSchema(name: name, description: description, properties: built)
+    case "string":
+        if case .array(let choices)? = object["enum"] {
+            var values: [String] = []
+            for choice in choices {
+                guard case .string(let value) = choice else {
+                    throw UnsupportedSchema(message: "only string enum values are supported")
+                }
+                values.append(value)
+            }
+            return DynamicGenerationSchema(name: name, description: description, anyOf: values)
+        }
+        return DynamicGenerationSchema(type: String.self)
+    case "integer":
+        return DynamicGenerationSchema(type: Int.self)
+    case "number":
+        return DynamicGenerationSchema(type: Double.self)
+    case "boolean":
+        return DynamicGenerationSchema(type: Bool.self)
+    case "array":
+        guard let items = object["items"] else {
+            throw UnsupportedSchema(message: "array schema is missing \"items\"")
+        }
+        counter += 1
+        let itemSchema = try dynamicSchema(items, name: "\(name).item.\(counter)", counter: &counter)
+        return DynamicGenerationSchema(
+            arrayOf: itemSchema,
+            minimumElements: intField(object, "minItems"),
+            maximumElements: intField(object, "maxItems"))
+    default:
+        throw UnsupportedSchema(message: "unsupported JSON Schema type: \(type)")
+    }
+}
+
+/// Build a native `GenerationSchema` from the request's JSON Schema. Nested schemas
+/// are inlined, so `dependencies` is empty.
+private func compileSchema(from schema: JSONValue) throws -> GenerationSchema {
+    var counter = 0
+    let root = try dynamicSchema(schema, name: "Output", counter: &counter)
+    return try GenerationSchema(root: root, dependencies: [])
 }
 
 /// Build the single user prompt from either `prompt` or a `messages` transcript.
@@ -183,6 +266,32 @@ private func generate(_ request: GenerateRequest) async -> Never {
     let session = LanguageModelSession(instructions: instructions(for: request))
     let prompt = userPrompt(for: request)
     let options = generationOptions(request.options)
+
+    // Native guided generation: guaranteed structure, or a clear error. Strict —
+    // no prompt-guided fallback (see docs/6-guided-generation.md).
+    if let schema = request.schema {
+        if request.stream == true {
+            failEvent("badRequest", "streaming is not supported with a schema (structured streaming is not yet implemented)")
+        }
+        let compiled: GenerationSchema
+        do {
+            compiled = try compileSchema(from: schema)
+        } catch let error as UnsupportedSchema {
+            failEvent("unsupportedSchema", error.message)
+        } catch {
+            failEvent("unsupportedSchema", "could not build a generation schema: \(String(describing: error))")
+        }
+        do {
+            let response = try await session.respond(to: prompt, schema: compiled, options: options)
+            emitResult(response.content.jsonString)
+            exit(0)
+        } catch let error as LanguageModelSession.GenerationError {
+            failEvent(errorCode(error), String(describing: error))
+        } catch {
+            failEvent("inferenceFailed", String(describing: error))
+        }
+    }
+
     do {
         if request.stream == true {
             var emitted = ""

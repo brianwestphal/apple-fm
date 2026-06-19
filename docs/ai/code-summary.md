@@ -37,7 +37,7 @@ tests/            # protocol, cliArgs, session, helper (+ fixtures/stub-helper.j
 | change the wire protocol (events, framing) | `protocol.ts` + `docs/4-protocol.md` + `apple-fm-helper/main.swift` |
 | change how the helper binary is found/spawned | `helper.ts` (`resolveHelperPath`, `runHelper`) |
 | change chat behavior or compaction policy | `session.ts` (`ChatSession`, `SUMMARIZE_SYSTEM`) |
-| add native guided generation (AF-1) | `apple-fm-helper/main.swift` (`instructions`, `generate`) |
+| change guided generation (`--schema` → native) | `apple-fm-helper/main.swift` (`dynamicSchema`, `compileSchema`, `generate`) |
 | add a persistent live-session mode (AF-3) | `apple-fm-helper/main.swift` + a new `session.ts` backend |
 | add/change a CLI flag | `cliArgs.ts` (+ wire in `cli.ts`) |
 | change interactive REPL commands | `repl.ts` |

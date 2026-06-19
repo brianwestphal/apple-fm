@@ -33,8 +33,12 @@ Reads **one** request object on stdin:
 
 - Provide **either** `prompt` **or** `messages` (a conversation, replayed as
   labeled turns). `system` is delivered as the session's instructions.
-- `schema`, when present, requests structured output (see FR-7/FR-8 in
-  [3-requirements.md](3-requirements.md)).
+- `schema`, when present, requests **native guided generation**: the helper
+  compiles the JSON Schema to a `GenerationSchema` and the model output is
+  guaranteed to conform (see [6-guided-generation.md](6-guided-generation.md)).
+  A schema the native path can't express fails with `unsupportedSchema`; combining
+  `schema` with `"stream":true` fails with `badRequest` (structured streaming is
+  not yet implemented).
 
 Writes a stream of NDJSON **events** to stdout:
 
@@ -50,10 +54,10 @@ guided output, the JSON string.
 
 ### Error codes
 
-`badRequest`, `unavailable`, `contextWindowExceeded`, `guardrailViolation`,
-`generationError`, `inferenceFailed`. The Node layer raises these as thrown
-errors (`[code] message`); `ChatSession` may act on `contextWindowExceeded` by
-compacting and retrying (AF-3).
+`badRequest`, `unsupportedSchema`, `unavailable`, `contextWindowExceeded`,
+`guardrailViolation`, `generationError`, `inferenceFailed`. The Node layer raises
+these as thrown errors (`[code] message`); `ChatSession` may act on
+`contextWindowExceeded` by compacting and retrying (AF-3).
 
 ## Notes
 

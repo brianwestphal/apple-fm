@@ -1,13 +1,21 @@
 # 6. Native Guided Generation (FR-8 / AF-1)
 
-Design + requirements for replacing today's prompt-guided `--schema` with Apple's
+Design + requirements for replacing the old prompt-guided `--schema` with Apple's
 native guaranteed-structure generation. Tracked by **FR-8** in
-[3-requirements.md](3-requirements.md); implementation is **AFM-11**.
+[3-requirements.md](3-requirements.md); designed under **AFM-11**, implemented
+under **AFM-15**.
 
-## Today (FR-7, Partial)
+> **Status: Shipped.** `apple-fm-helper` compiles the request JSON Schema to a
+> `DynamicGenerationSchema` / `GenerationSchema` (`compileSchema` /
+> `dynamicSchema`) and calls `respond(to:schema:)`; smoke-verified on-device for
+> object / string / enum / integer / number / boolean / array / nesting. The notes
+> below are the design; the "Supported subset" and "constraints" sections record
+> what actually ships.
 
-`--schema` is *prompt-guided*: `apple-fm-helper/main.swift` injects the JSON
-Schema into the model's instructions and returns the model's JSON **text**, which
+## Previously (FR-7, prompt-guided)
+
+`--schema` *used to be* prompt-guided: `apple-fm-helper/main.swift` injected the
+JSON Schema into the model's instructions and returned the model's JSON **text**, which
 the Node layer reparses. The model usually complies, but nothing **guarantees**
 the output is valid against the schema — it can drift, wrap the JSON in prose, or
 omit fields.
@@ -49,9 +57,12 @@ against the macOS 26 SDK** during implementation; the intended mapping is:
 | nested `object` / `array` | nested schema | arbitrary nesting depth |
 | `description` (any level) | the schema element's natural-language guide | improves field semantics |
 
-**Constraints** (`minimum`/`maximum`, `minItems`/`maxItems`, `pattern`, string
-`format`, etc.) are mapped **only where `GenerationGuide` supports them**; the
-implementation ticket must enumerate exactly which survive and which are rejected.
+**Constraints (as shipped):** array `minItems` / `maxItems` map to
+`DynamicGenerationSchema(arrayOf:minimumElements:maximumElements:)` and are
+enforced. All other value constraints — `minimum` / `maximum`, `pattern`,
+`minLength`, string `format`, etc. — are currently **accepted but not enforced**
+(structure is still guaranteed; the value bound is not). They could be mapped to
+`GenerationGuide` later — see Follow-up tickets.
 
 **Out of scope for v1 (reject):** `oneOf`/`allOf`/`anyOf` across object types,
 `$ref`/`$defs`, `additionalProperties` schemas, tuple `items`, conditional
@@ -94,13 +105,17 @@ Changes:
 - On-device smoke (AF-2): `respond(to:schema:)` returns conforming JSON for a
   representative nested object/array/enum schema.
 
-## Open questions
+## Resolved during implementation
 
-- Exact `GenerationGuide` constraint coverage on macOS 26 (drives the supported
-  subset table) — resolve during implementation against the real SDK.
-- Whether to expose structured **streaming** at all, or leave it out indefinitely.
+- `DynamicGenerationSchema` exposes object / `anyOf [String]` (enum) / `arrayOf`
+  (with `minimumElements` / `maximumElements`) / primitive (`init(type:guides:)`
+  for `String` / `Int` / `Double` / `Bool`) constructors; `GeneratedContent` has
+  `jsonString` for serialization. `GenerationGuide` offers numeric `minimum` /
+  `maximum` / `range`, string `pattern` / `anyOf`, and array count guides — those
+  beyond array bounds are not wired up yet (see Follow-ups).
 
 ## Follow-up tickets
 
-Implementation is tracked separately so this doc can land first — see the tickets
-created from AFM-11.
+- **AFM-16** — structured streaming (`schema` + `--stream`), explicitly deferred.
+- Enforce the remaining value constraints (`minimum` / `maximum` / `pattern` /
+  `minLength` …) via `GenerationGuide` instead of accepting-but-ignoring them.

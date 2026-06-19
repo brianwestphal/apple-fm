@@ -74,3 +74,37 @@ describe('generate', () => {
     await expect(generate({ prompt: 'BOOM' }, { binPath: STUB })).rejects.toThrow(/boom/);
   });
 });
+
+describe('generate with a schema (native guided generation)', () => {
+  const schema = {
+    type: 'object',
+    properties: {
+      title: { type: 'string' },
+      priority: { type: 'string', enum: ['low', 'high'] },
+      tags: { type: 'array', items: { type: 'string' } },
+      done: { type: 'boolean' },
+    },
+    required: ['title', 'priority', 'tags', 'done'],
+  };
+
+  it('returns JSON shaped to the schema', async () => {
+    const content = await generate({ prompt: 'a task', schema }, { binPath: STUB });
+    const value = JSON.parse(content) as Record<string, unknown>;
+    expect(Object.keys(value).sort()).toEqual(['done', 'priority', 'tags', 'title']);
+    expect(value.priority).toBe('low'); // first enum choice
+    expect(Array.isArray(value.tags)).toBe(true);
+    expect(typeof value.done).toBe('boolean');
+  });
+
+  it('rejects a schema the native path cannot express', async () => {
+    await expect(
+      generate({ prompt: 'x', schema: { oneOf: [{ type: 'string' }] } }, { binPath: STUB }),
+    ).rejects.toThrow(/\[unsupportedSchema\]/);
+  });
+
+  it('rejects streaming combined with a schema', async () => {
+    await expect(
+      generate({ prompt: 'x', schema, stream: true }, { binPath: STUB }),
+    ).rejects.toThrow(/\[badRequest\]/);
+  });
+});

@@ -21,8 +21,8 @@ gaps noted — including code that needs on-device verification), **Deferred**
 | FR-4 | Conversation input (`messages[]`) | **Shipped** | Flattened to labeled turns (`protocol.ts:flattenMessages`; Swift `userPrompt`). |
 | FR-5 | Interactive chat REPL (`chat`) | **Shipped** | `repl.ts` over `ChatSession`; slash commands `/reset`, `/system`, `/clear`, `/compact`, `/help`, `/quit` (`/exit` alias). Smoke-verified on-device. |
 | FR-6 | Automatic context compaction | **Shipped** | `session.ts:ChatSession` summarizes older turns past `compactAtTokens`, keeps `keepRecentTurns` verbatim; recap folded into the system prompt. Unit-tested. |
-| FR-7 | Guided / structured output (`--schema`) | **Partial** | Prompt-guided today: the JSON Schema is injected into the instructions and JSON text is returned (smoke-verified returning schema-valid JSON on-device). Guaranteed-structure native generation is AF-1. |
-| FR-8 | Native guided generation via `DynamicGenerationSchema` | **Deferred** | AF-1. Designed — see [6-guided-generation.md](6-guided-generation.md): build a `GenerationSchema` at runtime and use `respond(to:schema:)` for guaranteed structure; **strict** (errors on an unsupported schema, no prompt-guided fallback), replacing FR-7. |
+| FR-7 | Guided / structured output (`--schema`) | **Shipped** | Native guided generation (no longer prompt-guided): the JSON Schema is compiled to a `GenerationSchema` and the output is guaranteed to conform. Smoke-verified on-device. See FR-8 / [6-guided-generation.md](6-guided-generation.md). |
+| FR-8 | Native guided generation via `DynamicGenerationSchema` | **Shipped** | `apple-fm-helper` compiles the request JSON Schema to a `DynamicGenerationSchema`/`GenerationSchema` and uses `respond(to:schema:)` for guaranteed structure; **strict** — an unsupported construct fails with `unsupportedSchema`, `schema`+`stream` with `badRequest`, no prompt-guided fallback. Smoke-verified on-device (object/enum/array/bool). See [6-guided-generation.md](6-guided-generation.md). |
 | FR-9 | CLI surface: `probe` / `generate` / `chat`, `--help`, `--version` | **Shipped** | `cliArgs.ts` (+ `cli.ts`). |
 | FR-10 | Programmatic API | **Shipped** | `index.ts`: `probe`, `generate`, `ChatSession`, protocol helpers, types. |
 | FR-11 | Helper discovery | **Shipped** | `resolveHelperPath`: `APPLE_FM_BIN` → bundled `bin/apple-fm-helper` → `PATH`. |
@@ -43,7 +43,6 @@ gaps noted — including code that needs on-device verification), **Deferred**
 
 ## Open items / tracked follow-ups
 
-- **AF-1** native guided generation (`DynamicGenerationSchema`).
 - **AF-2** *automated* on-device smoke test in CI (manual smoke test done). CI
   now *compiles* the helper on a macOS 26 runner (`ci.yml` `helper-build` job),
   catching Swift/API regressions; running the model on-device is still pending.
