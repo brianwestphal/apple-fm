@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Interactive release flow for apple-fm. Adapted from the kerf / gitgist release
-# scripts (same family).
+# Interactive release flow for apple-fm. Adapted from the kerf release script
+# (same family).
 #
 # Usage:
 #   bash scripts/release.sh           — full stable release (bumps version,
@@ -192,20 +192,38 @@ step_release_notes() {
   last_tag=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
   local log_range="${last_tag:+${last_tag}..HEAD}"
 
-  # gitgist (https://github.com/brianwestphal/gitgist) turns the commit range
-  # into themed release notes; it drives the signed-in `claude` CLI, so gate on
-  # `claude` being available and fall back to manual entry otherwise.
+  local commit_log
+  commit_log=$(git log ${log_range:-"-30"} --format="%s" --no-decorate)
+
+  # Draft release notes with the signed-in `claude` CLI directly (`claude -p`).
+  # We deliberately do NOT use gitgist here: gitgist will soon depend on apple-fm,
+  # so apple-fm must not depend on gitgist (that would be a dependency cycle). Gate
+  # on `claude` being available and fall back to manual entry otherwise.
   local generated=""
   if command -v claude &>/dev/null; then
-    info "Drafting release notes with gitgist (commits since ${last_tag:-the start})..."
-    generated=$(npx --yes gitgist ${log_range:+"$log_range"} 2>/dev/null || true)
+    info "Drafting release notes with Claude (commits since ${last_tag:-the start})..."
+    local prompt
+    prompt=$(cat <<EOF
+Draft release notes for apple-fm, a CLI and library for Apple on-device Foundation Models (Apple Intelligence), from the commit subjects below.
+
+Rules:
+- Output ONLY markdown: group changes under Markdown section headings such as ## Features or ## Fixes, with one short user-facing bullet per change. No preamble, no closing remarks.
+- INCLUDE: new features, behavior changes, bug fixes, breaking changes — anything a user upgrading would notice.
+- EXCLUDE: ticket IDs (AFM-/AF- numbers), internal refactors, test-only changes, doc-only changes, build/CI tweaks, implementation rationale.
+- Keep it short — a handful of bullets. Fewer is better.
+
+Commits:
+${commit_log}
+EOF
+)
+    generated=$(claude -p "$prompt" 2>/dev/null || true)
     generated=$(echo "$generated" | sed -e '/^```/d' -e :a -e '/^[[:space:]]*$/{$d;N;ba' -e '}')
   fi
 
   local initial
   if [[ -n "$generated" ]]; then
-    success "gitgist draft ready — review and edit in the editor."
-    initial="# Release notes — gitgist drafted these from your own commits. Edit freely.
+    success "Claude draft ready — review and edit in the editor."
+    initial="# Release notes — Claude drafted these from your own commits. Edit freely.
 # Lines that are a lone '#' or start with '# ' are guidance and removed on save;
 # Markdown headings ('## Features') are kept.
 

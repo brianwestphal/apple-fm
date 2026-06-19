@@ -134,8 +134,8 @@ npm run release          # stable
 npm run release:beta     # beta / pre-release
 ```
 
-The script walks you through release notes (drafted by `gitgist` if the `claude`
-CLI is signed in, else a manual editor prompt), a version bump, a local
+The script walks you through release notes (drafted by `claude -p` if the
+`claude` CLI is signed in, else a manual editor prompt), a version bump, a local
 `typecheck → lint → test → build` gate, the changelog update + release commit,
 and the tag push. It is **resumable** — a `.release-state.json` (gitignored)
 remembers your progress, so a failed run picks up where it left off. Re-running
