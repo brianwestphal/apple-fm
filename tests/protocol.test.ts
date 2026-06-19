@@ -50,6 +50,9 @@ describe('parseEvent', () => {
 });
 
 describe('flattenMessages', () => {
+  // Pins the canonical labeled-turn format. The Swift helper's userPrompt and
+  // session.ts:compact must produce this same shape — changing it here is a
+  // signal to update both mirrors.
   it('labels turns and joins with blank lines', () => {
     const text = flattenMessages([
       { role: 'user', content: 'a' },

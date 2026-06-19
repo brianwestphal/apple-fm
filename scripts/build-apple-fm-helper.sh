@@ -28,10 +28,15 @@ fi
 
 mkdir -p "$(dirname "$OUT")"
 
+# Capture swiftc's diagnostics to a per-run temp file (not a hardcoded shared
+# /tmp path, which breaks where /tmp is read-only and collides across builds).
+LOG="$(mktemp "${TMPDIR:-/tmp}/apple-fm-build.XXXXXX.log")"
+trap 'rm -f "$LOG"' EXIT
+
 # Apple Intelligence is arm64-only and needs the macOS 26 SDK for FoundationModels.
-if ! swiftc -O -target arm64-apple-macos26 "$SRC" -o "$OUT" 2>/tmp/apple-fm-build.log; then
+if ! swiftc -O -target arm64-apple-macos26 "$SRC" -o "$OUT" 2>"$LOG"; then
   echo "[apple-fm] build failed (needs the macOS 26 SDK / Xcode 26) — skipping:"
-  sed 's/^/[apple-fm]   /' /tmp/apple-fm-build.log || true
+  sed 's/^/[apple-fm]   /' "$LOG" || true
   exit 0
 fi
 

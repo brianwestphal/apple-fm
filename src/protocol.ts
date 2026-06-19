@@ -54,6 +54,11 @@ export function parseEvent(line: string): HelperEvent {
  * Flatten a conversation into a single prompt with labeled turns. The helper is
  * stateless per one-shot call, so multi-turn context is replayed this way; the
  * system prompt is delivered separately as the session's instructions.
+ *
+ * This is the canonical labeled-turn format (`User:`/`Assistant:`, blank-line
+ * separated). `session.ts:compact` reuses it, and `apple-fm-helper/main.swift`
+ * (`userPrompt`) must mirror it byte-for-byte so on-device replay matches; the
+ * format is pinned by a test in `tests/protocol.test.ts`.
  */
 export function flattenMessages(messages: Message[]): string {
   return messages
@@ -61,13 +66,16 @@ export function flattenMessages(messages: Message[]): string {
     .join('\n\n');
 }
 
+/** Rough chars-per-token ratio for {@link estimateTokens}. */
+const CHARS_PER_TOKEN = 4;
+
 /**
  * Rough token estimate (~4 characters per token). Used only to decide when a
  * chat transcript should be compacted; it does not need to be exact, just
  * monotonic and cheap.
  */
 export function estimateTokens(text: string): number {
-  return Math.ceil(text.length / 4);
+  return Math.ceil(text.length / CHARS_PER_TOKEN);
 }
 
 /** Sum the estimated tokens of a system prompt plus a conversation. */

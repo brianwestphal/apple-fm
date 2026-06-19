@@ -157,6 +157,9 @@ private func instructions(for request: GenerateRequest) -> String {
 }
 
 /// Build the single user prompt from either `prompt` or a `messages` transcript.
+/// The `messages` labeling below must mirror the Node side's canonical format
+/// (`src/protocol.ts` `flattenMessages`: `User:`/`Assistant:`, blank-line
+/// separated) so replayed conversations behave identically on both sides.
 private func userPrompt(for request: GenerateRequest) -> String {
     if let prompt = request.prompt { return prompt }
     if let messages = request.messages {

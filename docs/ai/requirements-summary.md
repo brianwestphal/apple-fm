@@ -5,8 +5,8 @@ Keep status markers in sync with the implementation.
 
 > The Swift helper compiles against the macOS 26 SDK and is **smoke-verified
 > on-device** (probe/generate/stream/schema/chat all work). Remaining: an
-> automated device test in CI (AF-2). The unit suite runs device-free via the
-> stub helper.
+> automated device test in CI (AF-2) and a golden-output drift suite (AF-4). The
+> unit suite runs device-free via the stub helper.
 
 ## Functional
 

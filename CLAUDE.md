@@ -86,7 +86,11 @@ npm run lint        # eslint over src/ and tests/
 npm run typecheck   # tsc --noEmit
 npm run build       # tsup → dist/ (index + cli, with .d.ts)
 npm run build:helper # compile apple-fm-helper (macOS 26; guarded no-op elsewhere)
+npm run dev         # tsup --watch
+npm run clean       # rm -rf dist coverage node_modules/.cache
 ```
+
+`prepublishOnly` (runs `build`) fires automatically on `npm publish`.
 
 ## Testing
 
@@ -108,4 +112,9 @@ and `repl.ts` are excluded as thin I/O.
 - [docs/ai/requirements-summary.md](docs/ai/requirements-summary.md) — AI-oriented requirements digest.
 
 Keep `docs/ai/*` and the requirement status markers in sync when code changes.
-Hot Sheet tickets use the `AF-` prefix.
+
+Two ID schemes coexist, deliberately: `AF-N` are **requirement follow-up
+identifiers** used throughout `docs/` (e.g. AF-1 native guided generation); the
+Hot Sheet tracker issues its own ticket numbers with the `AFM-` prefix (AFM-1,
+AFM-2, …). They are not the same numbering — an `AF-N` doc item may be picked up
+by an `AFM-N` ticket, but the numbers need not line up.

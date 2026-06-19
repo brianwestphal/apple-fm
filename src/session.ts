@@ -10,7 +10,7 @@
  * coherent without the caller managing any of it.
  */
 import { generate as helperGenerate } from './helper.js';
-import { estimateConversationTokens } from './protocol.js';
+import { estimateConversationTokens, flattenMessages } from './protocol.js';
 import type { DeltaHandler, GenerateOptions, HelperOptions, Message } from './types.js';
 
 /** Pluggable generation function (real helper by default; a stub in tests). */
@@ -108,12 +108,14 @@ export class ChatSession {
     const cutoff = this.messages.length - this.keepRecentTurns;
     const older = this.messages.slice(0, cutoff);
     const recent = this.messages.slice(cutoff);
+    // Reuse flattenMessages so the labeled-turn format has a single source of
+    // truth (it is also what the helper replays — see flattenMessages).
     const transcript = [
-      this.summary !== undefined ? `Previous summary:\n${this.summary}\n` : '',
-      ...older.map((m) => `${m.role === 'assistant' ? 'Assistant' : 'User'}: ${m.content}`),
+      this.summary !== undefined ? `Previous summary:\n${this.summary}` : '',
+      flattenMessages(older),
     ]
       .filter((part) => part.length > 0)
-      .join('\n');
+      .join('\n\n');
     this.summary = (await this.generateFn(SUMMARIZE_SYSTEM, [{ role: 'user', content: transcript }])).trim();
     this.messages = recent;
   }
