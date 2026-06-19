@@ -4,6 +4,14 @@ All notable changes to apple-fm are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/); this project adheres to
 semantic versioning.
 
+## [1.0.0] - 2026-06-19
+
+
+### Features
+
+- apple-fm now installs on any platform — non-macOS systems install cleanly and degrade gracefully instead of failing, while the on-device model remains available on macOS 26+.
+- Helper binaries are now signed and notarized.
+
 ## [Unreleased]
 
 ### Changed
