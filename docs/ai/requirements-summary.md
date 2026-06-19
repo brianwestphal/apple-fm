@@ -14,7 +14,7 @@ Keep status markers in sync with the implementation.
 - **FR-2 One-shot generate** — Shipped. `helper.ts:generate` + Swift `--generate`. Stub-tested + smoke-verified on-device.
 - **FR-3 Streaming (`--stream`)** — Shipped. NDJSON `delta` events; helper diffs cumulative partials. Smoke-verified on-device.
 - **FR-4 Conversation input** — Shipped. `protocol.ts:flattenMessages`.
-- **FR-5 Interactive chat REPL** — Shipped. `repl.ts` (`/reset`, `/system`, `/help`, `/exit`).
+- **FR-5 Interactive chat REPL** — Shipped. `repl.ts` (`/reset`, `/system`, `/clear`, `/compact`, `/help`, `/quit`; `/exit` alias).
 - **FR-6 Auto-compaction** — Shipped. `session.ts:ChatSession` (`compactAtTokens`, `keepRecentTurns`). Unit-tested.
 - **FR-7 Guided output (`--schema`)** — Partial. Prompt-guided (schema injected into instructions), returns schema-valid JSON on-device; native path is AF-1.
 - **FR-8 Native `DynamicGenerationSchema`** — Deferred. AF-1.

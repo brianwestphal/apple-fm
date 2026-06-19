@@ -19,10 +19,12 @@ export interface ReplOptions {
 const HELP = `Commands:
   /reset [system]   Start over (optionally set new system instructions)
   /system <text>    Replace the system instructions and reset
+  /clear            Clear the conversation context (keep system instructions)
+  /compact          Compact the conversation context now
   /help             Show this help
-  /exit             Quit (or Ctrl-D)`;
+  /quit             Quit (alias /exit, or Ctrl-D)`;
 
-/** Run the interactive chat loop until EOF or `/exit`. */
+/** Run the interactive chat loop until EOF or `/quit`. */
 export async function runRepl(opts: ReplOptions): Promise<void> {
   const session = new ChatSession({
     system: opts.system,
@@ -30,7 +32,7 @@ export async function runRepl(opts: ReplOptions): Promise<void> {
     compactAtTokens: opts.compactAtTokens,
   });
   const rl = createInterface({ input: process.stdin, output: process.stdout });
-  process.stdout.write("apple-fm chat — Ctrl-D or /exit to quit, /help for commands.\n");
+  process.stdout.write("apple-fm chat — Ctrl-D or /quit to quit, /help for commands.\n");
 
   rl.setPrompt('> ');
   rl.prompt();
@@ -41,9 +43,25 @@ export async function runRepl(opts: ReplOptions): Promise<void> {
       rl.prompt();
       continue;
     }
-    if (text === '/exit') break;
+    if (text === '/quit' || text === '/exit') break;
     if (text === '/help') {
       process.stdout.write(`${HELP}\n`);
+      rl.prompt();
+      continue;
+    }
+    if (text === '/clear') {
+      session.reset();
+      process.stdout.write('(context cleared)\n');
+      rl.prompt();
+      continue;
+    }
+    if (text === '/compact') {
+      try {
+        await session.compact();
+        process.stdout.write('(compacted)\n');
+      } catch (error) {
+        process.stdout.write(`error: ${error instanceof Error ? error.message : String(error)}\n`);
+      }
       rl.prompt();
       continue;
     }

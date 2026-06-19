@@ -19,7 +19,7 @@ gaps noted — including code that needs on-device verification), **Deferred**
 | FR-2 | One-shot text generation (`generate`) | **Shipped** | `helper.ts:generate` + Swift `--generate`; `prompt` or `messages`, `system`, `temperature`/`maxTokens`. Unit-tested; smoke-verified on-device. |
 | FR-3 | Streaming output (`--stream`) | **Shipped** | Deltas over NDJSON; helper diffs cumulative partials from `streamResponse`. Unit-tested; smoke-verified on-device. |
 | FR-4 | Conversation input (`messages[]`) | **Shipped** | Flattened to labeled turns (`protocol.ts:flattenMessages`; Swift `userPrompt`). |
-| FR-5 | Interactive chat REPL (`chat`) | **Shipped** | `repl.ts` over `ChatSession`; slash commands `/reset`, `/system`, `/help`, `/exit`. Smoke-verified on-device. |
+| FR-5 | Interactive chat REPL (`chat`) | **Shipped** | `repl.ts` over `ChatSession`; slash commands `/reset`, `/system`, `/clear`, `/compact`, `/help`, `/quit` (`/exit` alias). Smoke-verified on-device. |
 | FR-6 | Automatic context compaction | **Shipped** | `session.ts:ChatSession` summarizes older turns past `compactAtTokens`, keeps `keepRecentTurns` verbatim; recap folded into the system prompt. Unit-tested. |
 | FR-7 | Guided / structured output (`--schema`) | **Partial** | Prompt-guided today: the JSON Schema is injected into the instructions and JSON text is returned (smoke-verified returning schema-valid JSON on-device). Guaranteed-structure native generation is AF-1. |
 | FR-8 | Native guided generation via `DynamicGenerationSchema` | **Deferred** | AF-1. Build a `GenerationSchema` from the request schema at runtime and use `respond(to:schema:)` for guaranteed structure (subsumes the sibling projects' `@Generable` paths). |
