@@ -4,6 +4,13 @@ All notable changes to apple-fm are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/); this project adheres to
 semantic versioning.
 
+## [1.0.1] - 2026-06-20
+
+
+### Releases
+
+No user-facing changes in this release.
+
 ## [1.0.0] - 2026-06-19
 
 
