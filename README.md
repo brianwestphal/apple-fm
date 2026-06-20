@@ -4,21 +4,13 @@
 the on-device **Foundation Models** on **macOS 26+ / Apple Silicon** — free,
 private, and fully offline. No API key, no network, nothing leaves your Mac.
 
-Apple ships `FoundationModels` as a Swift-only framework with no command-line
-front-end. apple-fm provides one: a tiny Swift helper does the model work, and a
-tested, **zero-runtime-dependency** Node layer gives you a CLI and a library.
+Apple ships these models as a Swift-only framework with no command-line
+front-end. apple-fm provides one — a fast, lightweight CLI and a TypeScript
+library, so you can use the on-device model from your terminal or your code.
 
 <p align="center">
   <img src="assets/demos/generate.svg" alt="apple-fm generate &quot;Explain a closure in one sentence.&quot; runs Apple's on-device model and prints the answer — fully offline, no API key." width="820">
 </p>
-
-> ℹ️ **Status.** Published to npm with a Developer-ID **signed + notarized**
-> helper, and smoke-verified on a macOS 26 / Apple Intelligence machine — probe,
-> generate (freeform / guided / streamed), native guaranteed-structure output, and
-> persistent multi-turn chat all work on-device. The one tracked gap is an
-> automated on-device *generation* test in CI: hosted runners build, sign, and
-> notarize the helper but can't run the model (it needs Apple Intelligence). See
-> [docs/3-requirements.md](docs/3-requirements.md).
 
 ## Why apple-fm
 
@@ -35,8 +27,8 @@ tested, **zero-runtime-dependency** Node layer gives you a CLI and a library.
   session across turns, reusing the model's cache instead of replaying the
   transcript, and automatically summarizes older turns as the small context
   window fills.
-- **Zero runtime dependencies.** The Node layer only spawns the helper and speaks
-  JSON. Strict TypeScript, ESM, lint-clean.
+- **Lightweight, nothing to audit.** Zero runtime dependencies — apple-fm just
+  talks to the on-device model and gets out of your way.
 - **Future-proof.** The helper resolves the current on-device model at runtime,
   so OS and model updates are picked up without a rebuild.
 
@@ -47,15 +39,9 @@ npm install -g apple-fm     # CLI
 npm install apple-fm        # library
 ```
 
-Requires macOS 26+ on Apple Silicon with Apple Intelligence enabled. Releases
-bundle a signed + notarized helper; you can also build it from source:
-
-```bash
-npm run build:helper        # → bin/apple-fm-helper (needs Xcode 26 / macOS 26 SDK)
-```
-
-The helper is located via `APPLE_FM_BIN`, then the bundled `bin/apple-fm-helper`,
-then `apple-fm-helper` on `PATH`.
+Requires macOS 26+ on Apple Silicon with Apple Intelligence enabled. Every
+release is Developer-ID signed and notarized, so it runs without security
+prompts.
 
 ### Platform support
 
@@ -143,23 +129,16 @@ documented in [docs/ai/code-summary.md](docs/ai/code-summary.md).
 
 ## How it works
 
-A single binary, three shapes (probe / generate / chat), all over one
-line-delimited JSON protocol ([docs/4-protocol.md](docs/4-protocol.md)). Only the
-Swift helper imports `FoundationModels`; all policy — argument parsing, the wire
-protocol, chat history, auto-compaction — lives in strict TypeScript and is
-unit-tested against a stub helper, so the suite runs on any platform. For chat the
-helper holds one `LanguageModelSession` across turns (so the model's cache is
-reused instead of replaying the transcript), while the Node side keeps the
-transcript so it can summarize older turns as the small context window fills — so
-long conversations stay coherent and cheap. Because the helper resolves the
-current on-device model at runtime, OS and model updates are picked up without a
-rebuild.
+apple-fm talks to the same on-device model that powers Apple Intelligence —
+nothing is sent to the cloud. For chat it keeps one model session alive across
+turns so replies stay fast, and automatically summarizes older messages as the
+context window fills, so long conversations stay coherent and cheap. And because
+it resolves the current on-device model at runtime, OS and model updates are
+picked up automatically — no reinstall.
 
 ## Documentation
 
-- [Overview](docs/1-overview.md) · [Architecture](docs/2-architecture.md) ·
-  [Requirements](docs/3-requirements.md) · [Protocol](docs/4-protocol.md) ·
-  [Releasing](docs/5-releasing.md)
+- [Overview](docs/1-overview.md)
 
 ## Disclaimer
 

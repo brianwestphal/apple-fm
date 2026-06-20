@@ -6,9 +6,9 @@ coverage/
 .hotsheet/
 .glassbox/
 .cursor/
-.claude/settings.local.json
 *.tsbuildinfo
 .mcp.json
+.claude
 
 # Compiled Apple Foundation Models helper binary (build with `npm run build:helper`)
 bin/
