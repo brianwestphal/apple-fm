@@ -19,7 +19,8 @@ src/
 apple-fm-helper/             # Swift FoundationModels CLI (--probe / --generate / --session); all *.swift compiled into one binary by scripts/build-apple-fm-helper.sh
   main.swift                 # entry point, output/emit, probe, generate, session loop
   GuidedGeneration.swift     # JSON Schema -> DynamicGenerationSchema/GenerationSchema (compileSchema)
-tests/            # protocol, cliArgs, session, helper (+ fixtures/stub-helper.js)
+tests/            # protocol, cliArgs, session, helper, liveSession, docs, demo (+ fixtures/stub-helper.js)
+  e2e/cli.e2e.test.ts        # spawns the real CLI (src/cli.ts via tsx) against the stub; asserts stdout/exit codes
 ```
 
 ## Public API (`src/index.ts`)
@@ -53,8 +54,15 @@ tests/            # protocol, cliArgs, session, helper (+ fixtures/stub-helper.j
 - `npm test` — vitest with coverage. The native + process paths run against
   `tests/fixtures/stub-helper.js` (a JS reimplementation of `docs/4-protocol.md`),
   so no macOS 26 device is required.
+- `tests/e2e/cli.e2e.test.ts` (AFM-25) — device-free e2e: spawns the real CLI
+  (`src/cli.ts` via `tsx`) as a child process against the stub helper and asserts
+  stdout/stderr + exit codes for `probe` / `generate` / `chat` and their error
+  paths, covering `cli.ts` / `repl.ts` end-to-end. On-device e2e (real Swift
+  helper) is still manual — AF-2.
 - Coverage thresholds (`vitest.config.ts`): statements 80, branches 75,
-  functions 80, lines 80. `cli.ts` and `repl.ts` (thin I/O) are excluded.
+  functions 80, lines 80. `cli.ts` and `repl.ts` (thin I/O) are excluded from the
+  coverage report (the e2e suite covers them in a child process, not via in-process
+  instrumentation).
 
 ## Update triggers
 

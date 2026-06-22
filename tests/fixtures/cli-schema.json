@@ -1,0 +1,8 @@
+{
+  "type": "object",
+  "properties": {
+    "title": { "type": "string" },
+    "rating": { "type": "integer", "minimum": 1, "maximum": 5 }
+  },
+  "required": ["title", "rating"]
+}
