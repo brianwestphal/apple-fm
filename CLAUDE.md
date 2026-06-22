@@ -104,16 +104,6 @@ npm run release:beta # beta tag-only flow (npm install apple-fm@beta)
 release flow and its one-time CI signing setup are documented in
 [docs/5-releasing.md](docs/5-releasing.md).
 
-## Testing
-
-Keep native/process/git-style calls thin and test the pure logic directly:
-`protocol.ts`, `cliArgs.ts`, and `session.ts` (via an injected `GenerateFn`). The
-process layer (`helper.ts`) is tested against `tests/fixtures/stub-helper.js`, a
-JS reimplementation of the NDJSON protocol — so the suite needs no macOS 26
-device. Don't call the real on-device model in unit tests. Coverage thresholds
-(`vitest.config.ts`): statements 80, branches 75, functions 80, lines 80; `cli.ts`
-and `repl.ts` are excluded as thin I/O.
-
 ## Documentation
 
 - [docs/1-overview.md](docs/1-overview.md) — what apple-fm is and its principles.
@@ -126,10 +116,59 @@ and `repl.ts` are excluded as thin I/O.
 - [docs/ai/code-summary.md](docs/ai/code-summary.md) — AI-oriented code map.
 - [docs/ai/requirements-summary.md](docs/ai/requirements-summary.md) — AI-oriented requirements digest.
 
-Keep `docs/ai/*` and the requirement status markers in sync when code changes.
-
 Two ID schemes coexist, deliberately: `AF-N` are **requirement follow-up
 identifiers** used throughout `docs/` (e.g. AF-1 native guided generation); the
 Hot Sheet tracker issues its own ticket numbers with the `AFM-` prefix (AFM-1,
 AFM-2, …). They are not the same numbering — an `AF-N` doc item may be picked up
 by an `AFM-N` ticket, but the numbers need not line up.
+
+<!-- hotsheet:begin section=ticket-driven-work v=1 -->
+## Ticket-Driven Work
+
+When the user gives you work directly (not via the Hot Sheet channel or events), create Hot Sheet tickets before starting implementation — especially for substantial or multi-step work.
+
+- **Do create tickets** for: features, bug fixes, refactoring, multi-step tasks, anything changing code. **Don't** for: simple questions, git commits, quick lookups, trivial one-liners. **When in doubt, create them.**
+- Create via the Hot Sheet API (prefer the `hotsheet_*` MCP tools), mark Up Next, then work through them: set status `started` → implement → set `completed` with notes.
+- **Always create follow-up tickets** for incomplete work (unfinished steps, open design questions, known gaps, designed-but-unbuilt features). If it's not in a ticket, it's forgotten.
+- **Incomplete-work checklist** — before marking a ticket `completed`, file follow-ups for any: (1) UI placeholder text ("coming soon"), (2) TODO/FIXME comments, (3) documented-but-unimplemented requirements, (4) empty/stub functions returning mock data.
+- **Use FEEDBACK NEEDED before deferring or asking about follow-ups.** When about to (a) defer a ticket needing more work, (b) ask whether to file follow-ups, or (c) close with a question buried in notes — DON'T. Leave the ticket `started`, add a `FEEDBACK NEEDED:` note (per `.hotsheet/worklist.md`), signal channel done, and wait. It's the only reliable way to surface a question.
+<!-- hotsheet:end section=ticket-driven-work -->
+
+<!-- hotsheet:begin section=testing-philosophy v=1 -->
+## Testing Philosophy
+
+- **Double coverage**: every feature covered by both unit tests AND E2E tests. Unit = logic in isolation; E2E = real user flows through the running app with minimal mocking.
+- **Unit tests**: Mock external deps (filesystem, network), test real logic.
+- **E2E tests**: As much as possible, use test automation tools to run realistic, user-facing flows. Minimize mocks.
+- **Coverage**: Merge all test coverage (e.g. unit, E2E server, E2E browser) into one report. Low-coverage files should get more of both test types. Aim for 100% coverage of code lines, 100% coverage of branches, and 100% of features described in the requirements documentation.
+- **Manual test plan**: keep a manual test plan doc (e.g. `docs/manual-test-plan.md`) for features that can't be reliably automated. **Keep it up to date** — add such features there; when you add automated coverage for a previously-manual item, remove it and note it in an "Automated Coverage Summary".
+- **Always fix lint and type errors before finishing**: Fix as you go, don't batch.
+
+<!-- hotsheet:begin specifics=testing-philosophy v=1 -->
+### This project's test setup
+
+- **Unit tests** (`tests/**/*.test.ts`): [vitest](https://vitest.dev) with v8 coverage. Test the pure logic directly — `protocol.ts`, `cliArgs.ts`, and `session.ts` (the last via an injected `GenerateFn`). The process layer (`helper.ts`) runs against `tests/fixtures/stub-helper.js`, a JS reimplementation of the NDJSON protocol, so the suite needs **no macOS 26 device**. Never call the real on-device model in a unit test.
+- **E2E / on-device**: no automated E2E framework yet. Real on-device behaviour (`probe`, `generate`, `--stream`, `--schema`, `chat`) is currently verified by manual smoke testing; an automated on-device CI test is tracked as **AF-2** in [docs/3-requirements.md](docs/3-requirements.md). There is no `docs/manual-test-plan.md` yet — add one if manual-only cases start to accumulate.
+- **Commands**: unit `npm test` (`vitest run --coverage`) · lint `npm run lint` · typecheck `npm run typecheck`. Coverage is produced by `npm test`; thresholds live in `vitest.config.ts` (statements 80, branches 75, functions 80, lines 80) and `cli.ts` / `repl.ts` are excluded as thin I/O.
+<!-- hotsheet:end specifics=testing-philosophy -->
+<!-- hotsheet:end section=testing-philosophy -->
+
+<!-- hotsheet:begin section=requirements-documentation v=1 -->
+## Requirements Documentation
+
+Keep human-readable requirements documents as the source of truth for what the project does, and **keep them up to date in the same change as the code** (add/remove/modify a requirement → update its doc). Create new docs for major new functional areas. Cross-reference related docs with relative links.
+
+### AI Summaries
+
+Maintain two synthesis docs an AI assistant reads at the start of a fresh session — keep them in sync with reality (source doc/code wins on conflict), and prefer small targeted edits over rewrites:
+
+- A **codebase map** — directory tree, entry points, data schema, build, tests, settings, and a "where do I look for X" index. Update it in the same change when you add a file or directory, add a route/endpoint, change the schema, add a client module, or add a setting key.
+- A **requirements summary** — a synthesized view of every requirements doc with status markers (e.g. Shipped / Partial / Design only / Deferred). Update it in the same change when you add a requirements doc, ship a design-only feature, or defer/regress a shipped one.
+
+<!-- hotsheet:begin specifics=requirements-documentation v=1 -->
+### This project's docs layout
+
+- **Requirements docs** live in `docs/` as numbered topic files (`1-overview.md` … `7-live-session.md`). `docs/3-requirements.md` is the FR/NFR source of truth, with a status marker on each requirement.
+- **Codebase map**: [docs/ai/code-summary.md](docs/ai/code-summary.md). **Requirements summary**: [docs/ai/requirements-summary.md](docs/ai/requirements-summary.md). Keep both in sync with the code and source docs in the same change.
+<!-- hotsheet:end specifics=requirements-documentation -->
+<!-- hotsheet:end section=requirements-documentation -->
