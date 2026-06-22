@@ -62,10 +62,18 @@ string.
 
 ### Error codes
 
-`badRequest`, `unsupportedSchema`, `unavailable`, `contextWindowExceeded`,
-`guardrailViolation`, `generationError`, `inferenceFailed`. The Node layer raises
-these as thrown errors (`[code] message`); `ChatSession` may act on
-`contextWindowExceeded` by compacting and retrying.
+`badRequest`, `unsupportedSchema`, `unavailable`, `modelNotReady`,
+`contextWindowExceeded`, `guardrailViolation`, `generationError`,
+`inferenceFailed`. The Node layer raises these as thrown errors (`[code]
+message`); `ChatSession` may act on `contextWindowExceeded` by compacting and
+retrying.
+
+`modelNotReady` is emitted when generation fails because the on-device model is
+still provisioning — Apple's `ModelManagerError` 1008, which can occur even though
+`--probe` reported `available:true` (`availability` can read `.available` before
+the model assets are ready). For all other runtime failures the helper collapses
+the framework's nested `NSError` to its innermost `domain Code=n` so the message
+stays readable rather than a multi-level dump.
 
 ## `--session`
 

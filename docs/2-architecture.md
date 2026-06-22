@@ -7,10 +7,11 @@ and a **Node layer** that drives it over line-delimited JSON (NDJSON).
 apple-fm (bin)  ── parseArgs (cliArgs.ts)
    │
    ├─ probe     → probe()    ─┐
-   ├─ generate  → generate() ─┤  helper.ts ──(spawn + NDJSON)──▶ apple-fm-helper (Swift)
-   └─ chat      → runRepl()   │                                    └─ FoundationModels
-                  └ ChatSession (session.ts) ──┘                       (SystemLanguageModel)
-                        auto-compaction
+   ├─ generate  → generate() ─┤ helper.ts ──(spawn + NDJSON)──▶ apple-fm-helper (Swift)
+   └─ chat      → runRepl()   │                                   └─ FoundationModels
+                  └ ChatSession (session.ts)                          (SystemLanguageModel)
+                     ├ LiveSession (liveSession.ts) ─(--session, persistent)─┘
+                     └ auto-compaction → generate() (one-shot summary) ──────┘
 ```
 
 ## Modules (`src/`)
@@ -19,8 +20,9 @@ apple-fm (bin)  ── parseArgs (cliArgs.ts)
 | --- | --- |
 | `types.ts` | Shared types: `Message`, `GenerateRequest`, `ProbeResult`, `HelperEvent`, `HelperOptions`. |
 | `protocol.ts` | Pure NDJSON helpers: `encodeRequest`, `splitLines`, `parseEvent`, `flattenMessages`, `estimateTokens`, `estimateConversationTokens`. |
-| `helper.ts` | Process layer: `resolveHelperPath`, `probe`, `generate` (spawn the helper, stream deltas, surface errors/timeouts). |
-| `session.ts` | `ChatSession` — multi-turn history + automatic context compaction. |
+| `helper.ts` | Process layer: `resolveHelperPath`, `probe`, `generate`, `isPlatformSupported` (spawn the helper, stream deltas, surface errors/timeouts). |
+| `liveSession.ts` | `LiveSession` — one long-lived `--session` helper process (KV-cache reuse) implementing the `ChatBackend` contract; id-correlated turn/reset/close. |
+| `session.ts` | `ChatSession` — multi-turn history + automatic context compaction over a `LiveSession` backend. |
 | `cliArgs.ts` | `parseArgs()` + `USAGE` (pure, testable). |
 | `repl.ts` | Interactive chat loop (readline around `ChatSession`). |
 | `cli.ts` | The `apple-fm` bin (thin: parse → I/O → delegate). |
@@ -45,10 +47,12 @@ device.
 3. **generate** → `helper.generate()` spawns `--generate`, writes the request
    JSON on stdin, reads `delta`/`result`/`error` events; `--schema` adds guided
    output, `--stream` forwards deltas.
-4. **chat** → `repl.ts` drives a `ChatSession`. Each turn calls `generate` with
-   the full transcript; when the estimated size crosses `compactAtTokens`, the
-   session summarizes older turns (another on-device call) and continues with the
-   recap plus the most recent turns.
+4. **chat** → `repl.ts` drives a `ChatSession`. Each turn runs against a
+   persistent `LiveSession` (`liveSession.ts`) — one `--session` helper process
+   holding a single `LanguageModelSession` across turns (KV-cache reuse) rather
+   than replaying the transcript each turn. When the estimated size crosses
+   `compactAtTokens`, the session summarizes older turns via a one-shot `generate`
+   call and reseeds the live session with the recap plus the most recent turns.
 
 ## Trust boundaries
 

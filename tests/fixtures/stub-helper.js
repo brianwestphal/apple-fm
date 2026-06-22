@@ -9,6 +9,7 @@
  *
  * For --generate:
  *   prompt === "BOOM"    emit an error event and exit 1
+ *   prompt === "NOTREADY" emit a modelNotReady error and exit 1 (model provisioning)
  *   request.schema       native guided generation (see docs/6-guided-generation.md):
  *                          + stream         -> badRequest error
  *                          unsupported      -> unsupportedSchema error
@@ -107,6 +108,11 @@ if (process.env.STUB_HANG === '1') {
     const req = JSON.parse(input);
     if (req.prompt === 'BOOM') {
       write({ type: 'error', code: 'inferenceFailed', message: 'boom' });
+      process.exit(1);
+    }
+    if (req.prompt === 'NOTREADY') {
+      // Mirrors the Swift helper mapping ModelManagerError 1008 → modelNotReady.
+      write({ type: 'error', code: 'modelNotReady', message: 'the on-device model is still provisioning; try again shortly' });
       process.exit(1);
     }
     if (req.schema !== undefined) {

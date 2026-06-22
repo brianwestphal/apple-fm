@@ -230,10 +230,9 @@ private func generate(_ request: GenerateRequest) async -> Never {
                 emitResult(response.content.jsonString)
             }
             exit(0)
-        } catch let error as LanguageModelSession.GenerationError {
-            failEvent(errorCode(error), String(describing: error))
         } catch {
-            failEvent("inferenceFailed", String(describing: error))
+            let f = failure(for: error)
+            failEvent(f.code, f.message)
         }
     }
 
@@ -254,19 +253,58 @@ private func generate(_ request: GenerateRequest) async -> Never {
             emitResult(response.content)
         }
         exit(0)
-    } catch let error as LanguageModelSession.GenerationError {
-        failEvent(errorCode(error), String(describing: error))
     } catch {
-        failEvent("inferenceFailed", String(describing: error))
+        let f = failure(for: error)
+        failEvent(f.code, f.message)
     }
 }
 
-private func errorCode(_ error: LanguageModelSession.GenerationError) -> String {
-    switch error {
-    case .exceededContextWindowSize: return "contextWindowExceeded"
-    case .guardrailViolation: return "guardrailViolation"
-    default: return "generationError"
+/// Collect an NSError and every error nested under it (`NSUnderlyingErrorKey` plus
+/// the `NSMultipleUnderlyingErrorsKey` array), breadth-first, outermost first.
+/// Bounded so a pathological cycle can't spin forever.
+private func errorChain(_ error: Error) -> [NSError] {
+    var collected: [NSError] = []
+    var queue: [NSError] = [error as NSError]
+    while let next = queue.first, collected.count < 50 {
+        queue.removeFirst()
+        collected.append(next)
+        if let underlying = next.userInfo[NSUnderlyingErrorKey] as? NSError {
+            queue.append(underlying)
+        }
+        if let multiple = next.userInfo[NSMultipleUnderlyingErrorsKey] as? [Error] {
+            queue.append(contentsOf: multiple.map { $0 as NSError })
+        }
     }
+    return collected
+}
+
+/// Reduce a thrown error to a wire `(code, message)`. The framework wraps the real
+/// cause in nested NSErrors, so: recognize "model still provisioning"
+/// (`ModelManagerError` 1008 — which can occur even though `availability` reported
+/// `.available`); honor the typed `GenerationError` cases; otherwise collapse the
+/// chain to its innermost `domain Code=n` rather than emitting the whole multi-level
+/// NSError dump. See docs/4-protocol.md (error codes).
+private func failure(for error: Error) -> (code: String, message: String) {
+    let chain = errorChain(error)
+    if chain.contains(where: { $0.domain.contains("ModelManagerError") && $0.code == 1008 }) {
+        return ("modelNotReady", "the on-device model is still provisioning; try again shortly")
+    }
+    if let generation = error as? LanguageModelSession.GenerationError {
+        switch generation {
+        case .exceededContextWindowSize:
+            return ("contextWindowExceeded", "the model's context window was exceeded")
+        case .guardrailViolation:
+            return ("guardrailViolation", "the request was blocked by the model's safety guardrails")
+        default:
+            break
+        }
+    }
+    let innermost = chain.last ?? (error as NSError)
+    let summary = "\(innermost.domain) Code=\(innermost.code)"
+    // A typed-but-unmatched generation error is still a generation-side failure;
+    // anything else is a generic inference failure.
+    let code = error is LanguageModelSession.GenerationError ? "generationError" : "inferenceFailed"
+    return (code, summary)
 }
 
 // MARK: - Session (persistent live session)
@@ -317,10 +355,9 @@ private func sessionTurn(_ session: LanguageModelSession, _ command: SessionComm
             let response = try await session.respond(to: prompt, options: options)
             emitResult(response.content, id: command.id)
         }
-    } catch let error as LanguageModelSession.GenerationError {
-        emitError(errorCode(error), String(describing: error), id: command.id)
     } catch {
-        emitError("inferenceFailed", String(describing: error), id: command.id)
+        let f = failure(for: error)
+        emitError(f.code, f.message, id: command.id)
     }
 }
 

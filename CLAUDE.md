@@ -13,10 +13,11 @@ distributed via npm.
 
 > **Status:** the Swift helper compiles against the macOS 26 `FoundationModels`
 > API and is **smoke-verified on-device** — `probe`, `generate`, `--stream`,
-> `--schema`, and `chat` all work. Remaining work is tracked in
-> [docs/3-requirements.md](docs/3-requirements.md): an automated on-device test in
-> CI (AF-2), native guided generation (AF-1), and signing/notarization (AF-12).
-> The Node layer is fully unit-tested against a stub helper (device-free).
+> `--schema`, and `chat` all work. Native guided generation (FR-8) and a signed +
+> notarized release binary (NFR-7) have shipped. The one remaining item tracked in
+> [docs/3-requirements.md](docs/3-requirements.md) is an **automated** on-device
+> test in CI (AF-2); the Node layer is fully unit-tested against a stub helper
+> (device-free).
 
 ## Architecture
 
@@ -52,7 +53,7 @@ Two layers, talking NDJSON (see [docs/4-protocol.md](docs/4-protocol.md)):
 
 ```ts
 import {
-  probe, generate, resolveHelperPath, HELPER_BIN_ENV,
+  probe, generate, resolveHelperPath, isPlatformSupported, HELPER_BIN_ENV,
   ChatSession, LiveSession,
   encodeRequest, splitLines, parseEvent, flattenMessages,
   estimateTokens, estimateConversationTokens,
@@ -72,8 +73,9 @@ import type {
   `tests/fixtures/stub-helper.js` so the suite still covers it.
 - **New CLI flag**: `cliArgs.ts` (+ wire in `cli.ts`); add a `cliArgs.test.ts` case.
 - **New chat behavior**: `session.ts`; test with an injected `GenerateFn`.
-- Keep the layering: only the Swift helper imports `FoundationModels`; only
-  `helper.ts` spawns; pure logic stays pure.
+- Keep the layering: only the Swift helper imports `FoundationModels`; only the
+  process layer (`helper.ts` for one-shot, `liveSession.ts` for the persistent
+  session) spawns; pure logic stays pure.
 
 ## Conventions
 

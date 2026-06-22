@@ -113,6 +113,12 @@ describe('generate', () => {
   it('surfaces helper error events', async () => {
     await expect(generate({ prompt: 'BOOM' }, { binPath: STUB })).rejects.toThrow(/boom/);
   });
+
+  it('surfaces a friendly modelNotReady error while the model is provisioning', async () => {
+    await expect(generate({ prompt: 'NOTREADY' }, { binPath: STUB })).rejects.toThrow(
+      /\[modelNotReady\] the on-device model is still provisioning/,
+    );
+  });
 });
 
 describe('generate with a schema (native guided generation)', () => {
