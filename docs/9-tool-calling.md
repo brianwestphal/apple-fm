@@ -7,12 +7,13 @@ the investigation/design doc [8-tool-support.md](8-tool-support.md). Tracked by
 **FR-14** in [3-requirements.md](3-requirements.md); the build is phased under
 **AF-5** (tickets AFM-31…34).
 
-> **Status: phases 1–2 shipped.** The generic round-trip plumbing (protocol, Swift
-> `DynamicTool`, Node `ToolRegistry` + dispatcher), the `read` built-in, and the
-> **per-call permission gate** ([10-permissions.md](10-permissions.md)) are
-> implemented, unit + e2e tested device-free, and **on-device verified** (the real
-> model called `read` when allowed, and was told — and recovered — when denied).
-> `bash` (phase 3) and `web` (phase 4) are not built — see the status table below.
+> **Status: phases 1–3 shipped.** The generic round-trip plumbing (protocol, Swift
+> `DynamicTool`, Node `ToolRegistry` + dispatcher), the `read` and `bash` built-ins
+> ([11-builtin-tools.md](11-builtin-tools.md)), and the **per-call permission gate**
+> ([10-permissions.md](10-permissions.md)) are implemented, unit + e2e tested
+> device-free, and **on-device verified** (the real model called `read` and `bash`,
+> and recovered gracefully when a call was denied). `web` (phase 4) is not built —
+> see the status table below.
 
 ## What it is
 
@@ -30,9 +31,9 @@ TypeScript.
 | TC-1 | Generic tool round-trip across the Node ⇄ Swift boundary | **Shipped** (phase 1) | `tool_call`/`tool_result`/`tool_error` extend the `--session` protocol ([4-protocol.md](4-protocol.md)); Swift `DynamicTool` (`apple-fm-helper/Tools.swift`) suspends on `call` and resumes on the reply; the Node dispatcher (`liveSession.ts`) services `tool_call` concurrently with the in-flight turn. Bound at `reset`. **On-device verified.** |
 | TC-2 | Extensible tool registry (library + CLI) | **Shipped** (phase 1) | `ToolRegistry` (`src/tools/`) is the seam: a library consumer registers their own `Tool`; the CLI enables built-ins with `chat --tools <names>` (`registryFromNames`). |
 | TC-3 | Tool argument schemas constrain the model | **Shipped** (phase 1) | A tool's `parameters` JSON Schema is compiled to a native `GenerationSchema` (reuses FR-8), so the model can only generate valid arguments. |
-| TC-4 | `read` built-in tool | **Shipped** (phase 1) | `src/tools/builtin/read.ts`: read a UTF-8 file, optional line `offset`/`limit`. Read-only; auto-runs in phase 1 (no gate yet). |
+| TC-4 | `read` built-in tool | **Shipped** (phase 1) | `src/tools/builtin/read.ts`: read a UTF-8 file, optional line `offset`/`limit`. Read-only; gated by the permission policy. See [11-builtin-tools.md](11-builtin-tools.md). |
 | TC-5 | Per-call permission policy (`ask`/`allow`/`deny`) | **Shipped** (phase 2) | `PermissionPolicy` in Node, consulted before each tool runs; keyed by tool or `tool:keyPrefix`; REPL `[y/N/a]` prompt; **deny-by-default when non-interactive**; CLI `--allow-tool`/`--deny-tool`/`--yes` + `/tools`. On-device verified. See [10-permissions.md](10-permissions.md). |
-| TC-6 | `bash` built-in tool | **Deferred** (phase 3, AFM-33) | High-risk; behind TC-5; timeout-bounded; safe arg handling. |
+| TC-6 | `bash` built-in tool | **Shipped** (phase 3) | `src/tools/builtin/bash.ts`: run a shell command via `sh -c`, report exit code + stdout/stderr. High-risk; behind the permission gate (deny-by-default non-interactive); timeout-bounded; output-capped. On-device verified. See [11-builtin-tools.md](11-builtin-tools.md). |
 | TC-7 | `web` built-in tool (fetch + search) | **Deferred** (phase 4, AFM-34) | **Breaks NFR-1** (network). Approved by the user *provided it is permission-gated*; off by default, documented as the one networked tool. User chose **fetch + a search backend** (search needs an external endpoint/key — likely its own follow-up). NFR-1 to be reworded then. |
 | TC-8 | Surface tool activity to the user | **Deferred** (phase 2+) | The REPL should show which tool ran with what arguments (today the round-trip is silent except for the final answer). |
 
@@ -82,7 +83,7 @@ TypeScript.
 
 ## Open items
 
-- `bash` (TC-6, AFM-33) and `web` (TC-7, AFM-34) — phases 3–4.
+- `web` (TC-7, AFM-34) — phase 4.
 - Tool-activity display (TC-8): the REPL doesn't yet show which tool ran / what was
   approved, only the final answer.
 - `web` search backend choice + NFR-1 rewording (rides on phase 4).

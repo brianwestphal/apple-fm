@@ -311,6 +311,34 @@ describe('apple-fm CLI (e2e)', () => {
     );
 
     it(
+      'runs a pre-authorized bash command and reports its output',
+      async () => {
+        const turn = `TOOL bash ${JSON.stringify({ command: 'echo e2e-bash-ok' })}`;
+        const { stdout, code } = await runCli(['chat', '--no-stream', '--tools', 'bash', '--allow-tool', 'bash'], {
+          input: `${turn}\n/quit\n`,
+        });
+        expect(stdout).toContain('e2e-bash-ok'); // the command's stdout, via the tool
+        expect(stdout).toMatch(/exit code: 0/);
+        expect(code).toBe(0);
+      },
+      T,
+    );
+
+    it(
+      'denies a bash command by default when non-interactive',
+      async () => {
+        const turn = `TOOL bash ${JSON.stringify({ command: 'echo should-not-run' })}`;
+        const { stdout, code } = await runCli(['chat', '--no-stream', '--tools', 'bash'], {
+          input: `${turn}\n/quit\n`,
+        });
+        expect(stdout).toMatch(/denied by the user/);
+        expect(stdout).not.toContain('should-not-run');
+        expect(code).toBe(0);
+      },
+      T,
+    );
+
+    it(
       'errors and exits 1 for an unknown --tools name',
       async () => {
         const { stderr, code } = await runCli(['chat', '--tools', 'bogus'], { input: '/quit\n' });

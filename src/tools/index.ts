@@ -3,10 +3,12 @@
  * {@link Tool} contract, the {@link ToolRegistry}, and the built-in tools, plus a
  * helper to build a registry from built-in names (used by the CLI's `--tools`).
  */
+import { bashTool } from './builtin/bash.js';
 import { readTool } from './builtin/read.js';
 import { ToolRegistry } from './registry.js';
 import type { Tool } from './types.js';
 
+export { bashTool } from './builtin/bash.js';
 export { readTool } from './builtin/read.js';
 export type {
   AskOutcome,
@@ -19,8 +21,8 @@ export { PermissionPolicy } from './permissions.js';
 export { ToolRegistry } from './registry.js';
 export type { Tool, ToolContext, ToolDefinition } from './types.js';
 
-/** The built-in tools, keyed by name. Phase 1 ships only `read`. */
-export const BUILTIN_TOOLS: Readonly<Record<string, Tool>> = { read: readTool };
+/** The built-in tools, keyed by name. */
+export const BUILTIN_TOOLS: Readonly<Record<string, Tool>> = { read: readTool, bash: bashTool };
 
 /**
  * Build a registry from built-in tool names (e.g. the CLI's `--tools read`).

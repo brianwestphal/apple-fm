@@ -116,8 +116,9 @@ release flow and its one-time CI signing setup are documented in
 - [docs/6-guided-generation.md](docs/6-guided-generation.md) — design for native guided generation (FR-8 / AFM-11).
 - [docs/7-live-session.md](docs/7-live-session.md) — design for the persistent live-session helper (FR-12 / AFM-12).
 - [docs/8-tool-support.md](docs/8-tool-support.md) — investigation + design for extensible, permission-gated tool calling (FR-14 / AFM-30).
-- [docs/9-tool-calling.md](docs/9-tool-calling.md) — tool-calling requirements (FR-14 / AF-5); phases 1–2 (`read` + generic plumbing + permission gate) shipped, bash/web pending.
+- [docs/9-tool-calling.md](docs/9-tool-calling.md) — tool-calling requirements (FR-14 / AF-5); phases 1–3 (`read` + generic plumbing + permission gate + `bash`) shipped, `web` pending.
 - [docs/10-permissions.md](docs/10-permissions.md) — tool permission policy requirements (FR-14 / AF-5 phase 2 / AFM-32).
+- [docs/11-builtin-tools.md](docs/11-builtin-tools.md) — per-tool requirements for the built-in tools (`read`, `bash`; `web` planned) (FR-14 / AF-5).
 - [docs/ai/code-summary.md](docs/ai/code-summary.md) — AI-oriented code map.
 
 > **Standing re-eval:** apple-fm's tool-support case partly rests on Apple's official

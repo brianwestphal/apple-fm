@@ -16,7 +16,7 @@ src/
   repl.ts         # interactive chat loop (runRepl) — readline over ChatSession
   cli.ts          # apple-fm bin (thin)
   index.ts        # public API surface
-  tools/          # tool calling (FR-14): Tool/ToolContext/ToolDefinition (types.ts), ToolRegistry (registry.ts), registryFromNames + BUILTIN_TOOLS (index.ts), builtin/read.ts, PermissionPolicy (permissions.ts)
+  tools/          # tool calling (FR-14): Tool/ToolContext/ToolDefinition (types.ts), ToolRegistry (registry.ts), registryFromNames + BUILTIN_TOOLS (index.ts), builtin/read.ts + builtin/bash.ts, PermissionPolicy (permissions.ts)
 apple-fm-helper/             # Swift FoundationModels CLI (--probe / --generate / --session); all *.swift compiled into one binary by scripts/build-apple-fm-helper.sh
   main.swift                 # entry point, output/emit, probe, generate, session loop (+ tool-call routing)
   GuidedGeneration.swift     # JSON Schema -> DynamicGenerationSchema/GenerationSchema (compileSchema)
@@ -32,9 +32,10 @@ tests/            # protocol, cliArgs, session, helper, liveSession, docs, demo 
 - Chat: `ChatSession` (`send`, `compact`, `shouldCompact`, `history`, `reset`,
   `close`); `LiveSession` (`send`, `reset`, `close`); types `ChatSessionConfig`,
   `GenerateFn`, `ChatBackend`, `LiveSessionConfig`.
-- Tools (FR-14): `ToolRegistry`, `registryFromNames`, `readTool`, `BUILTIN_TOOLS`,
-  `PermissionPolicy`; types `Tool`, `ToolContext`, `ToolDefinition`, `PermissionMode`,
-  `PermissionRequest`, `PermissionAsker`, `AskOutcome`, `PermissionPolicyConfig`.
+- Tools (FR-14): `ToolRegistry`, `registryFromNames`, `readTool`, `bashTool`,
+  `BUILTIN_TOOLS`, `PermissionPolicy`; types `Tool`, `ToolContext`, `ToolDefinition`,
+  `PermissionMode`, `PermissionRequest`, `PermissionAsker`, `AskOutcome`,
+  `PermissionPolicyConfig`.
 - Protocol: `encodeRequest`, `splitLines`, `parseEvent`, `flattenMessages`,
   `estimateTokens`, `estimateConversationTokens`.
 - Types: `Message`, `Role`, `GenerateRequest`, `GenerateOptions`, `ProbeResult`,
@@ -53,7 +54,7 @@ tests/            # protocol, cliArgs, session, helper, liveSession, docs, demo 
 | add/change a CLI flag | `cliArgs.ts` (+ wire in `cli.ts`) |
 | change interactive REPL commands | `repl.ts` |
 | change the on-device calls (probe/respond/stream) | `apple-fm-helper/main.swift` |
-| add or change a tool / the tool round-trip (FR-14) | `src/tools/` (registry + built-ins) + `liveSession.ts` (dispatcher) + `apple-fm-helper/Tools.swift` (`DynamicTool`) + `docs/4-protocol.md` + `docs/9-tool-calling.md`. Phases 1–2 (read + permissions) shipped; bash/web are AF-5 (`docs/8-tool-support.md`). |
+| add or change a tool / the tool round-trip (FR-14) | `src/tools/` (registry + built-ins) + `liveSession.ts` (dispatcher) + `apple-fm-helper/Tools.swift` (`DynamicTool`) + `docs/4-protocol.md` + `docs/9-tool-calling.md` + `docs/11-builtin-tools.md`. Phases 1–3 (read + permissions + bash) shipped; web is AF-5 (`docs/8-tool-support.md`). |
 | change tool permissions / the prompt | `src/tools/permissions.ts` (`PermissionPolicy`) + `liveSession.ts` (gate in `handleToolCall`) + `repl.ts` (`readlineAsker`, `/tools`) + `cliArgs.ts` (`--allow-tool`/`--deny-tool`/`--yes`) + `docs/10-permissions.md`. |
 
 ## Testing

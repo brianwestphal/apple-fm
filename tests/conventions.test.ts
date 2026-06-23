@@ -49,6 +49,7 @@ describe('project conventions', () => {
       'LiveSession',
       'PermissionPolicy',
       'ToolRegistry',
+      'bashTool',
       'encodeRequest',
       'estimateConversationTokens',
       'estimateTokens',
