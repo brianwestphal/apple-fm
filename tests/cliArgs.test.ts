@@ -59,6 +59,30 @@ describe('parseArgs', () => {
     });
   });
 
+  it('parses chat permission flags (--allow-tool / --deny-tool repeatable, --yes)', () => {
+    expect(
+      parseArgs([
+        'chat',
+        '--tools',
+        'read,bash',
+        '--allow-tool',
+        'read',
+        '--allow-tool',
+        'bash:git status',
+        '--deny-tool',
+        'bash:rm',
+        '--yes',
+      ]),
+    ).toEqual({
+      command: 'chat',
+      stream: true,
+      tools: ['read', 'bash'],
+      allowTools: ['read', 'bash:git status'],
+      denyTools: ['bash:rm'],
+      yes: true,
+    });
+  });
+
   it('rejects unknown commands and flags', () => {
     expect(() => parseArgs(['frobnicate'])).toThrow(/unknown command/);
     expect(() => parseArgs(['generate', '--nope'])).toThrow(/unknown flag/);

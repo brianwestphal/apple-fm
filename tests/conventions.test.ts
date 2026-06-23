@@ -47,6 +47,7 @@ describe('project conventions', () => {
       'ChatSession',
       'HELPER_BIN_ENV',
       'LiveSession',
+      'PermissionPolicy',
       'ToolRegistry',
       'encodeRequest',
       'estimateConversationTokens',

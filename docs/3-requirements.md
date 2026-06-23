@@ -28,7 +28,7 @@ gaps noted — including code that needs on-device verification), **Deferred**
 | FR-11 | Helper discovery | **Shipped** | `resolveHelperPath`: `APPLE_FM_BIN` → bundled `bin/apple-fm-helper` → `PATH`. |
 | FR-12 | Persistent live session (KV-cache reuse) | **Shipped** | The `--session` helper mode holds one `LanguageModelSession` across turns (`runSession`); the Node `LiveSession` (`liveSession.ts`) drives it and `ChatSession` uses it as its backend, **replacing** transcript-replay for `chat`. Compaction stays in Node (summarize → reset + reseed); crash → respawn + reseed. Smoke-verified on-device. See [7-live-session.md](7-live-session.md). |
 | FR-13 | Homebrew distribution | **Dropped** | npm distribution is sufficient; a signed + notarized Homebrew tap is descoped. Revisit if there's demand. |
-| FR-14 | Tool calling (extensible, permission-gated) | **Partial** | **Phase 1 shipped + on-device verified:** generic round-trip plumbing (a Swift `DynamicTool` adapter that suspends each call and round-trips it to Node over a `tool_call`/`tool_result` extension of `--session`), an extensible `ToolRegistry`, and the `read` built-in (`chat --tools read`). The real model called `read` and used the file content. Remaining (AF-5): per-call **permissions** (phase 2), `bash` (phase 3), `web` (phase 4 — breaks NFR-1; user-approved *if* permission-gated, fetch + search). Investigated under AFM-30; phase 1 under AFM-31. See [9-tool-calling.md](9-tool-calling.md) (requirements) and [8-tool-support.md](8-tool-support.md) (design). |
+| FR-14 | Tool calling (extensible, permission-gated) | **Partial** | **Phases 1–2 shipped + on-device verified:** generic round-trip plumbing (a Swift `DynamicTool` adapter that suspends each call and round-trips it to Node over a `tool_call`/`tool_result` extension of `--session`), an extensible `ToolRegistry`, the `read` built-in, and a **per-call permission gate** (`ask`/`allow`/`deny`, REPL `[y/N/a]` prompt, `--allow-tool`/`--deny-tool`/`--yes`/`/tools`, deny-by-default when non-interactive). The real model used `read` when allowed and recovered when denied. Remaining (AF-5): `bash` (phase 3), `web` (phase 4 — breaks NFR-1; user-approved *if* permission-gated, fetch + search). Under AFM-30/31/32. See [9-tool-calling.md](9-tool-calling.md), [10-permissions.md](10-permissions.md), [8-tool-support.md](8-tool-support.md). |
 
 ## Non-functional requirements
 
@@ -50,7 +50,8 @@ gaps noted — including code that needs on-device verification), **Deferred**
   (hosted runners lack Apple Intelligence — needs a self-hosted macOS 26 runner).
 - **AF-5** tool calling (FR-14). Designed under AFM-30
   ([8-tool-support.md](8-tool-support.md)); requirements in
-  [9-tool-calling.md](9-tool-calling.md). **Phase 1 (AFM-31) shipped** — generic
-  plumbing + `read`, on-device verified. Remaining phases: (2, AFM-32) permission
-  layer, (3, AFM-33) `bash`, (4, AFM-34) `web` (breaks NFR-1; user-approved if
-  permission-gated). An automated on-device tool test folds into AF-2.
+  [9-tool-calling.md](9-tool-calling.md) + [10-permissions.md](10-permissions.md).
+  **Phases 1 (AFM-31) + 2 (AFM-32) shipped** — generic plumbing + `read` + permission
+  gate, on-device verified. Remaining: (3, AFM-33) `bash`, (4, AFM-34) `web` (breaks
+  NFR-1; user-approved if permission-gated). An automated on-device tool test folds
+  into AF-2.

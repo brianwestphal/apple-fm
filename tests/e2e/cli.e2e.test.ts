@@ -241,17 +241,70 @@ describe('apple-fm CLI (e2e)', () => {
     );
 
     it(
-      'runs a tool round-trip end-to-end with --tools read',
+      'runs a tool round-trip end-to-end when the tool is pre-authorized',
       async () => {
         // The stub's `TOOL <name> <jsonArgs>` sentinel makes the model "call" read;
-        // the CLI's registry actually reads the fixture and feeds it back.
-        const turn = `TOOL read ${JSON.stringify({ path: READ_SAMPLE })}`;
+        // the CLI's registry actually reads the fixture and feeds it back. Piped
+        // input has no TTY, so the call must be pre-authorized (--allow-tool) or it
+        // would be denied (default policy is ask ⇒ deny without an asker).
         // --no-stream so the REPL prints the final reply (the tool turn emits a
         // single `result`, not deltas).
-        const { stdout, code } = await runCli(['chat', '--no-stream', '--tools', 'read'], {
+        const turn = `TOOL read ${JSON.stringify({ path: READ_SAMPLE })}`;
+        const { stdout, code } = await runCli(['chat', '--no-stream', '--tools', 'read', '--allow-tool', 'read'], {
           input: `${turn}\n/quit\n`,
         });
         expect(stdout).toContain('the-eagle-has-landed'); // the file content, via the tool
+        expect(code).toBe(0);
+      },
+      T,
+    );
+
+    it(
+      'denies a tool call by default when non-interactive (piped, not pre-authorized)',
+      async () => {
+        const turn = `TOOL read ${JSON.stringify({ path: READ_SAMPLE })}`;
+        const { stdout, code } = await runCli(['chat', '--no-stream', '--tools', 'read'], {
+          input: `${turn}\n/quit\n`,
+        });
+        expect(stdout).toMatch(/denied by the user/); // refusal fed back, surfaced to the user
+        expect(stdout).not.toContain('the-eagle-has-landed');
+        expect(code).toBe(0);
+      },
+      T,
+    );
+
+    it(
+      '--yes auto-approves tool calls',
+      async () => {
+        const turn = `TOOL read ${JSON.stringify({ path: READ_SAMPLE })}`;
+        const { stdout, code } = await runCli(['chat', '--no-stream', '--tools', 'read', '--yes'], {
+          input: `${turn}\n/quit\n`,
+        });
+        expect(stdout).toContain('the-eagle-has-landed');
+        expect(code).toBe(0);
+      },
+      T,
+    );
+
+    it(
+      '--deny-tool refuses even when --yes would allow (deny wins)',
+      async () => {
+        const turn = `TOOL read ${JSON.stringify({ path: READ_SAMPLE })}`;
+        const { stdout, code } = await runCli(
+          ['chat', '--no-stream', '--tools', 'read', '--yes', '--deny-tool', 'read'],
+          { input: `${turn}\n/quit\n` },
+        );
+        expect(stdout).toMatch(/denied by the user/);
+        expect(code).toBe(0);
+      },
+      T,
+    );
+
+    it(
+      '/tools lists the enabled tools',
+      async () => {
+        const { stdout, code } = await runCli(['chat', '--tools', 'read'], { input: '/tools\n/quit\n' });
+        expect(stdout).toMatch(/tools: read/);
         expect(code).toBe(0);
       },
       T,

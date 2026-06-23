@@ -37,6 +37,16 @@ export interface Tool {
    * the model. Throw to signal the call failed — the model is told and may continue.
    */
   run(args: Record<string, unknown>, ctx: ToolContext): Promise<string>;
+
+  /**
+   * Optional finer-grained permission key for a call (e.g. the file path for `read`,
+   * the command for `bash`). Used to scope allow/deny rules and "always" grants
+   * below the whole tool (FR-14 phase 2). Omitted ⇒ rules apply at the tool level.
+   */
+  permissionKey?(args: Record<string, unknown>): string | undefined;
+
+  /** Optional one-line description of a call, shown in the permission prompt. */
+  describe?(args: Record<string, unknown>): string;
 }
 
 /**

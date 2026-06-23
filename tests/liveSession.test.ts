@@ -4,8 +4,8 @@ import { fileURLToPath } from 'node:url';
 import { beforeAll, describe, expect, it } from 'vitest';
 
 import { LiveSession } from '../src/liveSession.js';
-import type { Tool } from '../src/tools/index.js';
-import { ToolRegistry } from '../src/tools/index.js';
+import type { AskOutcome, Tool } from '../src/tools/index.js';
+import { PermissionPolicy, ToolRegistry } from '../src/tools/index.js';
 
 const STUB = fileURLToPath(new URL('./fixtures/stub-helper.js', import.meta.url));
 
@@ -155,7 +155,7 @@ describe('LiveSession', () => {
       }
     });
 
-    it('surfaces a tool failure to the model as a tool_error → turn error', async () => {
+    it('feeds a tool failure back to the model as a result (turn does not abort)', async () => {
       const tool: Tool = {
         name: 'fake',
         description: 'always throws',
@@ -165,7 +165,9 @@ describe('LiveSession', () => {
       const session = new LiveSession({ binPath: STUB, tools: new ToolRegistry([tool]) });
       try {
         await session.reset('sys');
-        await expect(session.send('TOOL fake {}')).rejects.toThrow(/\[toolFailed\] disk on fire/);
+        // A thrown tool error aborts the whole turn on-device, so the dispatcher
+        // feeds failures back as the tool result instead.
+        await expect(session.send('TOOL fake {}')).resolves.toMatch(/The "fake" tool failed: disk on fire/);
       } finally {
         session.close();
       }
@@ -192,6 +194,56 @@ describe('LiveSession', () => {
       } finally {
         session.close();
       }
+    });
+
+    describe('permission gate (phase 2)', () => {
+      function withPolicy(policy: PermissionPolicy): { session: LiveSession; calls: Array<Record<string, unknown>> } {
+        const { tool, calls } = spyTool();
+        const session = new LiveSession({ binPath: STUB, tools: new ToolRegistry([tool]), permission: policy });
+        return { session, calls };
+      }
+
+      it('runs the tool when the policy allows it', async () => {
+        const { session } = withPolicy(new PermissionPolicy({ allow: ['fake'] }));
+        try {
+          await session.reset('sys');
+          await expect(session.send('TOOL fake {"path":"x"}')).resolves.toBe('tool-saw:x');
+        } finally {
+          session.close();
+        }
+      });
+
+      it('refuses a denied call and tells the model (tool never runs)', async () => {
+        const { session, calls } = withPolicy(new PermissionPolicy({ deny: ['fake'] }));
+        try {
+          await session.reset('sys');
+          // The refusal is fed back as the tool result so the model can continue.
+          await expect(session.send('TOOL fake {"path":"x"}')).resolves.toMatch(/denied by the user/);
+          expect(calls).toEqual([]); // tool never ran
+        } finally {
+          session.close();
+        }
+      });
+
+      it('denies an ask with no asker (non-interactive default)', async () => {
+        const { session } = withPolicy(new PermissionPolicy()); // default ask, no asker
+        try {
+          await session.reset('sys');
+          await expect(session.send('TOOL fake {}')).resolves.toMatch(/denied by the user/);
+        } finally {
+          session.close();
+        }
+      });
+
+      it('prompts and runs when the asker approves', async () => {
+        const { session } = withPolicy(new PermissionPolicy({ asker: () => Promise.resolve<AskOutcome>('once') }));
+        try {
+          await session.reset('sys');
+          await expect(session.send('TOOL fake {"path":"y"}')).resolves.toBe('tool-saw:y');
+        } finally {
+          session.close();
+        }
+      });
     });
   });
 });

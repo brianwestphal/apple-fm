@@ -12,7 +12,7 @@
 import { generate as helperGenerate } from './helper.js';
 import { type ChatBackend,LiveSession } from './liveSession.js';
 import { estimateConversationTokens, flattenMessages } from './protocol.js';
-import type { ToolRegistry } from './tools/index.js';
+import type { PermissionPolicy, ToolRegistry } from './tools/index.js';
 import type { DeltaHandler, GenerateOptions, HelperOptions, Message } from './types.js';
 
 /** Pluggable one-shot generation, used for summarization (a stub in tests). */
@@ -40,6 +40,8 @@ export interface ChatSessionConfig {
   helper?: HelperOptions;
   /** Tools the model may call mid-turn (FR-14). Ignored when a custom `backend` is set. */
   tools?: ToolRegistry;
+  /** Per-call permission policy for tools (FR-14 phase 2). Ignored when a custom `backend` is set. */
+  permission?: PermissionPolicy;
   /** Override the live-session backend (tests inject a fake here). */
   backend?: ChatBackend;
   /** Override the one-shot summarization backend (tests inject a stub here). */
@@ -83,7 +85,13 @@ export class ChatSession {
     this.compactAtTokens = config.compactAtTokens ?? DEFAULT_COMPACT_AT;
     this.keepRecentTurns = config.keepRecentTurns ?? DEFAULT_KEEP_RECENT;
     this.backend =
-      config.backend ?? new LiveSession({ ...config.helper, options: config.options, tools: config.tools });
+      config.backend ??
+      new LiveSession({
+        ...config.helper,
+        options: config.options,
+        tools: config.tools,
+        permission: config.permission,
+      });
     this.generateFn = config.generateFn ?? defaultGenerateFn(config.helper, config.options);
   }
 

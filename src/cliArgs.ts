@@ -17,7 +17,16 @@ export type ParsedArgs =
       temperature?: number;
       maxTokens?: number;
     }
-  | { command: 'chat'; system?: string; stream: boolean; compactAtTokens?: number; tools?: string[] };
+  | {
+      command: 'chat';
+      system?: string;
+      stream: boolean;
+      compactAtTokens?: number;
+      tools?: string[];
+      allowTools?: string[];
+      denyTools?: string[];
+      yes?: boolean;
+    };
 
 export const USAGE = `apple-fm — command-line access to Apple's on-device Foundation Models
 
@@ -38,6 +47,9 @@ Chat flags:
       --no-stream         Disable token streaming
       --compact-at <n>    Compact the transcript past <n> estimated tokens
       --tools <a,b>       Enable built-in tools the model may call (e.g. read)
+      --allow-tool <rule> Pre-approve a tool (e.g. read, or read:/path). Repeatable
+      --deny-tool <rule>  Always deny a tool (same syntax). Repeatable
+      --yes               Auto-approve every tool call (use with care)
 
 Global:
   -h, --help              Show this help
@@ -132,6 +144,15 @@ function parseChat(argv: string[]): ParsedArgs {
         break;
       case '--tools':
         result.tools = parseList(takeValue(argv, i++, arg));
+        break;
+      case '--allow-tool':
+        (result.allowTools ??= []).push(takeValue(argv, i++, arg));
+        break;
+      case '--deny-tool':
+        (result.denyTools ??= []).push(takeValue(argv, i++, arg));
+        break;
+      case '--yes':
+        result.yes = true;
         break;
       default:
         throw new Error(`unknown flag "${arg}"`);

@@ -8,6 +8,14 @@ import { ToolRegistry } from './registry.js';
 import type { Tool } from './types.js';
 
 export { readTool } from './builtin/read.js';
+export type {
+  AskOutcome,
+  PermissionAsker,
+  PermissionMode,
+  PermissionPolicyConfig,
+  PermissionRequest,
+} from './permissions.js';
+export { PermissionPolicy } from './permissions.js';
 export { ToolRegistry } from './registry.js';
 export type { Tool, ToolContext, ToolDefinition } from './types.js';
 

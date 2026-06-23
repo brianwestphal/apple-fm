@@ -3,10 +3,10 @@
  * {@link ChatSession}: it streams replies to stdout and handles a few slash
  * commands. All conversation/compaction logic lives in `session.ts`.
  */
-import { createInterface } from 'node:readline';
+import { createInterface, type Interface as ReadlineInterface } from 'node:readline';
 
 import { ChatSession } from './session.js';
-import type { ToolRegistry } from './tools/index.js';
+import { type PermissionAsker, PermissionPolicy, type ToolRegistry } from './tools/index.js';
 import type { GenerateOptions } from './types.js';
 
 /** Options for {@link runRepl}. */
@@ -17,6 +17,12 @@ export interface ReplOptions {
   options?: GenerateOptions;
   /** Tools the model may call mid-turn (FR-14). */
   tools?: ToolRegistry;
+  /** Pre-authorized tool rules (`tool` / `tool:keyPrefix`) — `--allow-tool`. */
+  allowTools?: string[];
+  /** Denied tool rules — `--deny-tool`. */
+  denyTools?: string[];
+  /** Auto-approve every tool call — `--yes` (use with care). */
+  yes?: boolean;
 }
 
 const HELP = `Commands:
@@ -24,18 +30,48 @@ const HELP = `Commands:
   /system <text>    Replace the system instructions and reset
   /clear            Clear the conversation context (keep system instructions)
   /compact          Compact the conversation context now
+  /tools            List the tools the model may call
   /help             Show this help
   /quit             Quit (alias /exit, or Ctrl-D)`;
 
+/**
+ * A permission prompt bound to readline: `Run <description>? [y/N/a(lways)]`.
+ * `y` → once, `a`/`always` → remember, anything else → deny. Exported for tests
+ * (the REPL itself is exercised via the e2e suite).
+ */
+export function readlineAsker(rl: ReadlineInterface): PermissionAsker {
+  return (request) =>
+    new Promise((resolve) => {
+      rl.question(`\nRun ${request.description}? [y/N/a(lways)] `, (answer) => {
+        const a = answer.trim().toLowerCase();
+        if (a === 'a' || a === 'always') resolve('always');
+        else resolve(a === 'y' || a === 'yes' ? 'once' : 'deny');
+      });
+    });
+}
+
 /** Run the interactive chat loop until EOF or `/quit`. */
 export async function runRepl(opts: ReplOptions): Promise<void> {
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  // Only prompt for permission on a real TTY; piped/non-interactive input gets no
+  // asker, so `ask` denies — a script never silently runs a tool.
+  const asker = process.stdin.isTTY ? readlineAsker(rl) : undefined;
+  const permission =
+    opts.tools !== undefined
+      ? new PermissionPolicy({
+          default: opts.yes === true ? 'allow' : 'ask',
+          allow: opts.allowTools,
+          deny: opts.denyTools,
+          asker,
+        })
+      : undefined;
   const session = new ChatSession({
     system: opts.system,
     options: opts.options,
     compactAtTokens: opts.compactAtTokens,
     tools: opts.tools,
+    permission,
   });
-  const rl = createInterface({ input: process.stdin, output: process.stdout });
   process.stdout.write("apple-fm chat — Ctrl-D or /quit to quit, /help for commands.\n");
 
   rl.setPrompt('> ');
@@ -66,6 +102,12 @@ export async function runRepl(opts: ReplOptions): Promise<void> {
       } catch (error) {
         process.stdout.write(`error: ${error instanceof Error ? error.message : String(error)}\n`);
       }
+      rl.prompt();
+      continue;
+    }
+    if (text === '/tools') {
+      const names = opts.tools?.names() ?? [];
+      process.stdout.write(names.length > 0 ? `tools: ${names.join(', ')}\n` : '(no tools enabled)\n');
       rl.prompt();
       continue;
     }

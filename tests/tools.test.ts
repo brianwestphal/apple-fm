@@ -51,6 +51,27 @@ describe('ToolRegistry', () => {
     expect(reg.size).toBe(1);
     expect(reg.definitions()[0]?.description).toBe('updated');
   });
+
+  it('lists tool names', () => {
+    expect(new ToolRegistry([fake]).names()).toEqual(['echo']);
+  });
+
+  it('builds a permission request (falls back to a generic description without hooks)', () => {
+    const reg = new ToolRegistry([fake]);
+    expect(reg.permissionRequest('echo', { text: 'hi' })).toEqual({
+      tool: 'echo',
+      key: undefined,
+      description: 'echo {"text":"hi"}',
+      args: { text: 'hi' },
+    });
+    expect(reg.permissionRequest('ghost', {})).toBeUndefined();
+  });
+
+  it('uses a tool’s permissionKey / describe hooks when present', () => {
+    const reg = new ToolRegistry([readTool]);
+    const request = reg.permissionRequest('read', { path: '/etc/hosts' });
+    expect(request).toMatchObject({ tool: 'read', key: '/etc/hosts', description: 'read /etc/hosts' });
+  });
 });
 
 describe('registryFromNames', () => {
@@ -105,5 +126,12 @@ describe('read tool', () => {
 
   it('rejects a non-existent file (the fs error propagates)', async () => {
     await expect(readTool.run({ path: join(dir, 'nope.txt') }, {})).rejects.toThrow();
+  });
+
+  it('exposes a path-scoped permission key + description (and tolerates a missing path)', () => {
+    expect(readTool.permissionKey?.({ path: '/a/b' })).toBe('/a/b');
+    expect(readTool.permissionKey?.({})).toBeUndefined();
+    expect(readTool.describe?.({ path: '/a/b' })).toBe('read /a/b');
+    expect(readTool.describe?.({})).toBe('read (no path)');
   });
 });

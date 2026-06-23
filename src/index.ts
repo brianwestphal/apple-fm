@@ -33,8 +33,17 @@ export {
 } from './protocol.js';
 export type { ChatSessionConfig, GenerateFn } from './session.js';
 export { ChatSession } from './session.js';
-export type { Tool, ToolContext, ToolDefinition } from './tools/index.js';
-export { BUILTIN_TOOLS, readTool, registryFromNames, ToolRegistry } from './tools/index.js';
+export type {
+  AskOutcome,
+  PermissionAsker,
+  PermissionMode,
+  PermissionPolicyConfig,
+  PermissionRequest,
+  Tool,
+  ToolContext,
+  ToolDefinition,
+} from './tools/index.js';
+export { BUILTIN_TOOLS, PermissionPolicy, readTool, registryFromNames, ToolRegistry } from './tools/index.js';
 export type {
   DeltaHandler,
   GenerateOptions,

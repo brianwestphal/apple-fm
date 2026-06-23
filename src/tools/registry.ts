@@ -5,6 +5,7 @@
  * {@link ToolDefinition}s onto each turn command and dispatches an incoming
  * `tool_call` to the matching tool's `run`.
  */
+import type { PermissionRequest } from './permissions.js';
 import type { Tool, ToolContext, ToolDefinition } from './types.js';
 
 export class ToolRegistry {
@@ -36,6 +37,26 @@ export class ToolRegistry {
       description,
       parameters,
     }));
+  }
+
+  /** The registered tool names (for the REPL `/tools` listing). */
+  names(): string[] {
+    return [...this.tools.keys()];
+  }
+
+  /**
+   * Build a {@link PermissionRequest} for a call, using the tool's optional
+   * `permissionKey` / `describe` hooks. Returns `undefined` for an unknown tool.
+   */
+  permissionRequest(name: string, args: Record<string, unknown>): PermissionRequest | undefined {
+    const tool = this.tools.get(name);
+    if (tool === undefined) return undefined;
+    return {
+      tool: name,
+      key: tool.permissionKey?.(args),
+      description: tool.describe?.(args) ?? `${name} ${JSON.stringify(args)}`,
+      args,
+    };
   }
 
   /**

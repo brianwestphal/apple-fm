@@ -7,12 +7,12 @@ the investigation/design doc [8-tool-support.md](8-tool-support.md). Tracked by
 **FR-14** in [3-requirements.md](3-requirements.md); the build is phased under
 **AF-5** (tickets AFM-31…34).
 
-> **Status: phase 1 shipped.** The generic round-trip plumbing (protocol, Swift
-> `DynamicTool`, Node `ToolRegistry` + dispatcher) and the `read` built-in are
-> implemented, unit + e2e tested device-free, and **smoke-verified on-device** (the
-> real model called `read`, the file content round-tripped, and the answer reflected
-> it). Permissions (phase 2), `bash` (phase 3), and `web` (phase 4) are not built —
-> see the status table below.
+> **Status: phases 1–2 shipped.** The generic round-trip plumbing (protocol, Swift
+> `DynamicTool`, Node `ToolRegistry` + dispatcher), the `read` built-in, and the
+> **per-call permission gate** ([10-permissions.md](10-permissions.md)) are
+> implemented, unit + e2e tested device-free, and **on-device verified** (the real
+> model called `read` when allowed, and was told — and recovered — when denied).
+> `bash` (phase 3) and `web` (phase 4) are not built — see the status table below.
 
 ## What it is
 
@@ -31,7 +31,7 @@ TypeScript.
 | TC-2 | Extensible tool registry (library + CLI) | **Shipped** (phase 1) | `ToolRegistry` (`src/tools/`) is the seam: a library consumer registers their own `Tool`; the CLI enables built-ins with `chat --tools <names>` (`registryFromNames`). |
 | TC-3 | Tool argument schemas constrain the model | **Shipped** (phase 1) | A tool's `parameters` JSON Schema is compiled to a native `GenerationSchema` (reuses FR-8), so the model can only generate valid arguments. |
 | TC-4 | `read` built-in tool | **Shipped** (phase 1) | `src/tools/builtin/read.ts`: read a UTF-8 file, optional line `offset`/`limit`. Read-only; auto-runs in phase 1 (no gate yet). |
-| TC-5 | Per-call permission policy (`ask`/`allow`/`deny`) | **Deferred** (phase 2, AFM-32) | Kept in Node; keyed by tool name with finer keys (bash by command prefix, read by path glob); REPL `[y/N/a]` prompt; **deny-by-default when non-interactive**. |
+| TC-5 | Per-call permission policy (`ask`/`allow`/`deny`) | **Shipped** (phase 2) | `PermissionPolicy` in Node, consulted before each tool runs; keyed by tool or `tool:keyPrefix`; REPL `[y/N/a]` prompt; **deny-by-default when non-interactive**; CLI `--allow-tool`/`--deny-tool`/`--yes` + `/tools`. On-device verified. See [10-permissions.md](10-permissions.md). |
 | TC-6 | `bash` built-in tool | **Deferred** (phase 3, AFM-33) | High-risk; behind TC-5; timeout-bounded; safe arg handling. |
 | TC-7 | `web` built-in tool (fetch + search) | **Deferred** (phase 4, AFM-34) | **Breaks NFR-1** (network). Approved by the user *provided it is permission-gated*; off by default, documented as the one networked tool. User chose **fetch + a search backend** (search needs an external endpoint/key — likely its own follow-up). NFR-1 to be reworded then. |
 | TC-8 | Surface tool activity to the user | **Deferred** (phase 2+) | The REPL should show which tool ran with what arguments (today the round-trip is silent except for the final answer). |
@@ -58,9 +58,12 @@ TypeScript.
 - **One generic adapter.** `DynamicTool.Arguments = GeneratedContent` and the
   arguments are re-serialized to JSON (`GeneratedContent.jsonString`) for Node — so no
   Swift type per tool.
-- **A failed tool is recoverable.** `tool_error` is fed to the model (it can continue),
-  not a turn-ending crash. An unknown/unsupported tool degrades gracefully (skipped
-  with a diagnostic; dispatcher returns a `tool_error`).
+- **A failed/denied tool is recoverable — fed back as a `tool_result`, not a thrown
+  `tool_error`.** On-device, throwing from the Swift `DynamicTool.call` (the
+  `tool_error` path) aborts the *entire turn* with a `ToolCallError` — the model can't
+  continue. So the dispatcher returns failures/denials as a normal tool result whose
+  text explains what happened; the model reads it and carries on. `tool_error` remains
+  in the protocol as a *fatal* abort. (Verified on-device in AFM-32.)
 - **Phase-1 `read` auto-runs.** Acceptable because `read` is read-only; the permission
   gate (TC-5) lands before `bash`/`web`, which are unsafe without it.
 
@@ -79,8 +82,11 @@ TypeScript.
 
 ## Open items
 
-- Permissions, `bash`, `web` (TC-5…7) — phases 2–4.
-- Tool-activity display (TC-8).
+- `bash` (TC-6, AFM-33) and `web` (TC-7, AFM-34) — phases 3–4.
+- Tool-activity display (TC-8): the REPL doesn't yet show which tool ran / what was
+  approved, only the final answer.
 - `web` search backend choice + NFR-1 rewording (rides on phase 4).
+- Persist "always" permission grants beyond the process lifetime (PERM-9 in
+  [10-permissions.md](10-permissions.md)).
 - A slow tool restarts the turn timeout per call; a global cap on total tool time is
   not yet enforced.

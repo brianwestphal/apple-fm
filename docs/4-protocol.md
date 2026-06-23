@@ -91,8 +91,8 @@ Commands:
 | --- | --- | --- |
 | turn | `{"id":"7","prompt":"…","options":{…}?,"stream":bool?}` | Respond on the held session; emits `delta`* (when `stream`) then `result`, or `error` — all tagged with the `id`. The session is **not** reset, so prior turns remain in context. |
 | reset | `{"type":"reset","id":"8","system":"…"?,"seed":[{"role","content"}]?,"tools":[…]?}` | Recreate the session with `system` as instructions and `seed` folded in as a labeled recap (used for `/reset` / `/clear` and for compaction reseed). `tools` (optional) binds the tools the model may call this session (see below). Acks with `{"type":"ready","id":"8"}`. |
-| tool_result | `{"type":"tool_result","callId":"7:1","content":"…"}` | Resume a suspended `tool_call` with its textual result (see tool calling). |
-| tool_error | `{"type":"tool_error","callId":"7:1","message":"…"}` | Resume a suspended `tool_call` as a failure; the model is told and may continue. |
+| tool_result | `{"type":"tool_result","callId":"7:1","content":"…"}` | Resume a suspended `tool_call` with its textual result (see tool calling). Also how a **refusal or failure** is reported (the content explains it) so the model can continue. |
+| tool_error | `{"type":"tool_error","callId":"7:1","message":"…"}` | Resume a suspended `tool_call` as a **fatal** error — on-device this aborts the whole turn (`ToolCallError`), so it is *reserved*; routine denials/failures use `tool_result` instead. |
 
 Events are the same vocabulary as `--generate` (`delta` / `result` / `error`) plus
 `ready` for a reset ack and `tool_call` for tool calling, each with the optional `id`:
@@ -126,11 +126,13 @@ generation ([6-guided-generation.md](6-guided-generation.md)); it becomes the to
 native argument schema so the model can only produce valid arguments. When the model
 invokes a tool **during a turn**, the helper emits a `tool_call` (tagged with the
 turn `id` plus a unique `callId` of the form `"<turnId>:<n>"`) and **suspends** that
-turn. Node runs the tool and replies with a `tool_result` / `tool_error` keyed by the
-same `callId`; the helper resumes, feeds the outcome to the model, and the turn
-continues — possibly with more `tool_call`s — until its final `result`. The reader is
-concurrent with the in-flight turn so the `tool_result` line is delivered while the
-turn is suspended.
+turn. Node runs the tool — after a permission check ([10-permissions.md](10-permissions.md)) —
+and replies with a `tool_result` keyed by the same `callId`; the helper resumes, feeds
+the outcome to the model, and the turn continues — possibly with more `tool_call`s —
+until its final `result`. The reader is concurrent with the in-flight turn so the
+`tool_result` line is delivered while the turn is suspended. A **denied or failed**
+tool is reported as a `tool_result` whose content explains it (not `tool_error`, which
+aborts the turn), so the model can continue without it.
 
 ## Notes
 

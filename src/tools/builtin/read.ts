@@ -30,6 +30,11 @@ export const readTool: Tool = {
       limit: { type: 'integer', minimum: 1, description: 'Maximum number of lines to return.' },
     },
   },
+  // Scope permission rules / "always" grants to the path, so a user can approve a
+  // directory once (`read:/Users/me/project`) without allowing every read.
+  permissionKey: (args) => (typeof args.path === 'string' ? args.path : undefined),
+  describe: (args) => `read ${typeof args.path === 'string' ? args.path : '(no path)'}`,
+
   async run(args): Promise<string> {
     const path = typeof args.path === 'string' ? args.path : '';
     if (path.length === 0) throw new Error('read: "path" (string) is required');

@@ -23,7 +23,7 @@ Keep status markers in sync with the implementation.
 - **FR-11 Helper discovery** — Shipped. `APPLE_FM_BIN` → bundled binary → PATH.
 - **FR-12 Persistent live session** — Shipped. `--session` helper mode (`runSession`) + Node `LiveSession`; `ChatSession` uses it as its backend, replacing transcript-replay. See `docs/7-live-session.md`.
 - **FR-13 Homebrew distribution** — Dropped. npm is sufficient; descoped.
-- **FR-14 Tool calling (extensible, permission-gated)** — Partial. **Phase 1 shipped + on-device verified**: generic round-trip plumbing (Swift `DynamicTool` suspends each call, round-tripped to Node over a `tool_call`/`tool_result` extension of `--session`, bound at `reset`), an extensible `ToolRegistry` (`src/tools/`), and the `read` built-in (`chat --tools read`). Remaining (AF-5): permissions (phase 2/AFM-32), `bash` (AFM-33), `web` (AFM-34 — breaks NFR-1, user-approved if permission-gated). Reqs `docs/9-tool-calling.md`; design `docs/8-tool-support.md`.
+- **FR-14 Tool calling (extensible, permission-gated)** — Partial. **Phases 1–2 shipped + on-device verified**: generic round-trip plumbing (Swift `DynamicTool` suspends each call, round-tripped to Node over a `tool_call`/`tool_result` extension of `--session`, bound at `reset`), an extensible `ToolRegistry` (`src/tools/`), the `read` built-in, and a per-call `PermissionPolicy` gate (`ask`/`allow`/`deny`, REPL `[y/N/a]`, `--allow-tool`/`--deny-tool`/`--yes`/`/tools`, deny-by-default non-interactive; a denial is fed back as a tool result so the model continues). Remaining (AF-5): `bash` (AFM-33), `web` (AFM-34 — breaks NFR-1, user-approved if permission-gated). Reqs `docs/9-tool-calling.md` + `docs/10-permissions.md`; design `docs/8-tool-support.md`.
 
 ## Non-functional
 
@@ -39,5 +39,5 @@ Keep status markers in sync with the implementation.
 
 AF-2 (automated on-device test in CI — CI compiles the helper; running the model
 needs a self-hosted macOS 26 + Apple Intelligence runner, still pending).
-AF-5 (tool calling, FR-14 — phase 1 shipped/on-device verified under AFM-31;
-permissions/bash/web remain, AFM-32…34; reqs `docs/9-tool-calling.md`).
+AF-5 (tool calling, FR-14 — phases 1–2 shipped/on-device verified under AFM-31/32;
+bash/web remain, AFM-33/34; reqs `docs/9-tool-calling.md` + `docs/10-permissions.md`).

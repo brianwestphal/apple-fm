@@ -71,7 +71,15 @@ async function main(): Promise<void> {
     }
     case 'chat': {
       const tools = args.tools !== undefined ? registryFromNames(args.tools) : undefined;
-      await runRepl({ system: args.system, stream: args.stream, compactAtTokens: args.compactAtTokens, tools });
+      await runRepl({
+        system: args.system,
+        stream: args.stream,
+        compactAtTokens: args.compactAtTokens,
+        tools,
+        allowTools: args.allowTools,
+        denyTools: args.denyTools,
+        yes: args.yes,
+      });
       return;
     }
   }
