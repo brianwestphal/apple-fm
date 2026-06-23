@@ -65,6 +65,41 @@ describe('LiveSession', () => {
     }
   });
 
+  it('interrupts an in-flight turn and resolves with the partial reply (FR-15)', async () => {
+    const session = new LiveSession({ binPath: STUB });
+    try {
+      await session.reset('');
+      const controller = new AbortController();
+      const chunks: string[] = [];
+      // STREAM_FOREVER streams one delta then waits for a cancel.
+      const pending = session.send('STREAM_FOREVER', (c) => chunks.push(c), controller.signal);
+      await new Promise((resolve) => setTimeout(resolve, 50)); // let the first delta land
+      expect(chunks).toEqual(['partial ']);
+      controller.abort();
+      await expect(pending).resolves.toBe('partial '); // partial kept, no error
+      // The session is still usable after an interrupt.
+      const result = parseResult(await session.send('ok'));
+      expect(result.turns).toBe(2); // the interrupted turn counted, then a normal turn
+    } finally {
+      session.close();
+    }
+  });
+
+  it('cancelling an already-settled turn is a harmless no-op', async () => {
+    const session = new LiveSession({ binPath: STUB });
+    try {
+      await session.reset('');
+      const controller = new AbortController();
+      const reply = await session.send('go', undefined, controller.signal); // completes immediately
+      expect(reply).toBe(JSON.stringify({ instructions: '', turns: 1, prompt: 'go' }));
+      controller.abort(); // after settle — must not throw or wedge the session
+      const next = parseResult(await session.send('again'));
+      expect(next.turns).toBe(2);
+    } finally {
+      session.close();
+    }
+  });
+
   it('surfaces a per-turn error without ending the session', async () => {
     const session = new LiveSession({ binPath: STUB });
     try {

@@ -56,9 +56,9 @@ that scope permission rules and the prompt. Registered in `BUILTIN_TOOLS`
 
 | | |
 | --- | --- |
-| Purpose | Fetch an http(s) URL (GET) and return its text content. |
-| Arguments | `url` (string, required; must be `http(s)://`). |
-| Result | A status line (`HTTP <code> <text> (<content-type>)`) plus the body — HTML stripped to readable text, other content types as-is. |
+| Purpose | Fetch an http(s) URL (GET) and return its main text content. |
+| Arguments | `url` (string, required; must be `http(s)://`); `offset` (int ≥ 0) — a 0-based character offset to page a long page. |
+| Result | A status line (`HTTP <code> <text> (<content-type>)`, `[from char N]` when paging) plus the body — HTML reduced to its main article body (readability-style; [12-web-extraction.md](12-web-extraction.md)), other content types as-is. |
 | Permission key | the `url`, so a user can pre-approve a site (`--allow-tool "web:https://docs."`). |
 | Risk | **Network.** The one apple-fm tool that leaves the machine — **off by default**, opt-in (`chat --tools web`), permission-gated; default `ask`, deny-by-default non-interactive. |
 
@@ -70,10 +70,14 @@ that scope permission rules and the prompt. Registered in `BUILTIN_TOOLS`
   was reworded to reflect this.
 - **WT-2 GET only, dependency-free.** Uses Node's global `fetch` (Node ≥ 18) — no new
   dependency. No request body / non-GET methods, so no remote side effects.
-- **WT-3 Bounded.** Timeout (15 s default, `AbortController`), and the returned text
-  is capped to the shared `MAX_TOOL_OUTPUT_CHARS` (3 000 chars ≈ 750 tokens; AFM-38) so
-  a large page can't overflow the ~4096-token on-device window. Boilerplate blocks
-  (`nav`/`header`/`footer`/`aside`/`form`/`noscript`) are dropped before the cap.
+- **WT-3 Bounded + readable.** Timeout (15 s default, `AbortController`), and the
+  returned text is windowed to a cap (default `MAX_TOOL_OUTPUT_CHARS` = 3 000 chars ≈
+  750 tokens; AFM-38) so a large page can't overflow the ~4096-token on-device window.
+  HTML is first reduced to its **main article body** with a readability-style heuristic
+  (drop boilerplate, scope to `<main>`/`<article>`, keep content blocks, link-density
+  filter, safe fallback) so the capped text is mostly real content — see
+  [12-web-extraction.md](12-web-extraction.md) (WX-1…7; AFM-39). The model pages a long
+  page with `offset`; a user can widen the cap with `APPLE_FM_WEB_MAX_CHARS`.
 - **WT-4 HTTP errors are normal results.** A 4xx/5xx *status* is reported (not thrown)
   so the model can react; only a non-http(s) URL, a timeout, or a transport error
   rejects.
@@ -83,16 +87,19 @@ that scope permission rules and the prompt. Registered in `BUILTIN_TOOLS`
 > (TC-9 in [9-tool-calling.md](9-tool-calling.md)).
 
 > **On-device reality.** Web reading is genuinely marginal on the ~3B / 4k-token
-> on-device model: it works well for small, focused pages and APIs, but big
-> content-heavy pages (Wikipedia, news front pages) are slow and unreliable — the
-> model is small, the window is tiny, and naive HTML→text keeps noise. Enabling fewer
-> tools (`--tools web` alone) and asking about focused URLs works best. Better content
-> extraction would help — tracked as a follow-up (AFM-39).
+> on-device model: it works best for focused pages and APIs. AFM-39 added
+> readability-style main-content extraction, paging (`offset`), and a configurable cap
+> (`APPLE_FM_WEB_MAX_CHARS`) so the capped text is mostly real content (see
+> [12-web-extraction.md](12-web-extraction.md)) — but big content-heavy pages are still
+> bounded by the tiny window. Enabling fewer tools (`--tools web` alone) and asking
+> about focused URLs works best.
 
 ## Testing
 
 - **Unit**: `tests/tools.test.ts` (`read` + registry), `tests/bash.test.ts` (`bash`,
-  real `/bin/sh`), `tests/web.test.ts` (`web`, injected `fetch` — HTML→text, non-HTML
+  real `/bin/sh`), `tests/web.test.ts` (`web`, injected `fetch` — HTML→text,
+  readability extraction (article scoping, link-density filter, plain-strip fallback),
+  paging (`offset`), configurable cap (`maxChars` + `APPLE_FM_WEB_MAX_CHARS`), non-HTML
   pass-through, error status, size cap, non-http reject, timeout, transport error,
   permission key) — all device-free.
 - **E2E** (`tests/e2e/cli.e2e.test.ts`): `read` / `bash` run through the assembled CLI

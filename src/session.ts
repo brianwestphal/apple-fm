@@ -112,8 +112,13 @@ export class ChatSession {
     return estimateConversationTokens(this.effectiveSystem(), this.messages) > this.compactAtTokens;
   }
 
-  /** Send a user turn and return the assistant's reply (streamed via `onDelta`). */
-  async send(text: string, onDelta?: DeltaHandler): Promise<string> {
+  /**
+   * Send a user turn and return the assistant's reply (streamed via `onDelta`). An
+   * optional `signal` interrupts the turn (FR-15, esc-to-interrupt): on abort the
+   * reply resolves with the partial text generated so far, and both the user prompt
+   * and that partial reply are kept in history (so a follow-up turn stays coherent).
+   */
+  async send(text: string, onDelta?: DeltaHandler, signal?: AbortSignal): Promise<string> {
     if (this.shouldCompact()) await this.compact();
     // Re-establish the backend's context (first turn, or after a compaction
     // changed the effective system prompt) *before* recording the new turn, so the
@@ -122,7 +127,7 @@ export class ChatSession {
     this.messages.push({ role: 'user', content: text });
     let reply: string;
     try {
-      reply = await this.backend.send(text, onDelta);
+      reply = await this.backend.send(text, onDelta, signal);
     } catch (error) {
       const overflow = isContextOverflow(error);
       if (!recoverable(error) && !overflow) {
@@ -139,7 +144,7 @@ export class ChatSession {
       this.backendInstructions = undefined;
       await this.ensureStarted();
       this.messages.push({ role: 'user', content: text });
-      reply = await this.backend.send(text, onDelta);
+      reply = await this.backend.send(text, onDelta, signal);
     }
     this.messages.push({ role: 'assistant', content: reply });
     return reply;

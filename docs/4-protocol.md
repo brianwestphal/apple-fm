@@ -93,6 +93,7 @@ Commands:
 | reset | `{"type":"reset","id":"8","system":"…"?,"seed":[{"role","content"}]?,"tools":[…]?}` | Recreate the session with `system` as instructions and `seed` folded in as a labeled recap (used for `/reset` / `/clear` and for compaction reseed). `tools` (optional) binds the tools the model may call this session (see below). Acks with `{"type":"ready","id":"8"}`. |
 | tool_result | `{"type":"tool_result","callId":"7:1","content":"…"}` | Resume a suspended `tool_call` with its textual result (see tool calling). Also how a **refusal or failure** is reported (the content explains it) so the model can continue. |
 | tool_error | `{"type":"tool_error","callId":"7:1","message":"…"}` | Resume a suspended `tool_call` as a **fatal** error — on-device this aborts the whole turn (`ToolCallError`), so it is *reserved*; routine denials/failures use `tool_result` instead. |
+| cancel | `{"type":"cancel","id":"7"}` | **Interrupt** the in-flight turn `id` (FR-15, esc-to-interrupt). The helper cancels the turn's task; the turn ends cleanly by emitting its normal `result` carrying the **partial** text generated so far — *not* an `error`. A `cancel` for a turn that already settled (or an unknown id) is a no-op. Turns are serial, so at most one turn is ever interruptible. |
 
 Events are the same vocabulary as `--generate` (`delta` / `result` / `error`) plus
 `ready` for a reset ack and `tool_call` for tool calling, each with the optional `id`:

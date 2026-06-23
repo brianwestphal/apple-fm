@@ -99,7 +99,8 @@ into the rest of your tooling.
 
 `chat` is a multi-turn REPL that streams replies and compacts the transcript
 automatically near the context window. Built-in slash commands: `/reset`,
-`/system`, `/clear`, `/compact`, `/help`, `/quit`.
+`/system`, `/clear`, `/compact`, `/help`, `/quit`. Press **Esc** while the model is
+replying to interrupt it (the partial reply is kept in context).
 
 <p align="center">
   <img src="assets/demos/chat.svg" alt="apple-fm chat answers a prompt, then /help lists the slash commands: /reset, /system, /clear, /compact, /help, /quit." width="820">

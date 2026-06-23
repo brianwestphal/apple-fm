@@ -166,6 +166,9 @@ if (process.env.STUB_HANG === '1') {
   let offeredTools = [];
   // callId -> turn id, for tool calls awaiting their tool_result/tool_error.
   const pendingTools = new Map();
+  // id -> partial text, for streaming turns awaiting a `cancel` (esc-to-interrupt,
+  // FR-15): the turn emits a delta then waits, and a cancel ends it with the partial.
+  const pendingCancel = new Map();
   const handleLine = (line) => {
     if (line.trim() === '') return;
     let cmd;
@@ -188,6 +191,17 @@ if (process.env.STUB_HANG === '1') {
       }
       return;
     }
+    // Interrupt an in-flight streaming turn (FR-15): end it with its partial text,
+    // mirroring the Swift helper emitting a `result` on cancellation.
+    if (cmd.type === 'cancel') {
+      if (pendingCancel.has(cmd.id)) {
+        const partial = pendingCancel.get(cmd.id);
+        pendingCancel.delete(cmd.id);
+        turns += 1;
+        write({ type: 'result', id: cmd.id, content: partial });
+      }
+      return;
+    }
     if (cmd.type === 'reset') {
       const seed = Array.isArray(cmd.seed) ? cmd.seed : [];
       instructions = (cmd.system ?? '') + (seed.length > 0 ? ` [seed:${seed.length}]` : '');
@@ -206,6 +220,13 @@ if (process.env.STUB_HANG === '1') {
       return;
     }
     if (prompt === 'CRASH') process.exit(1);
+    if (prompt === 'STREAM_FOREVER') {
+      // Stream one delta, then keep the turn open until a `cancel` finishes it with
+      // the partial — lets tests exercise esc-to-interrupt deterministically.
+      write({ type: 'delta', id: cmd.id, text: 'partial ' });
+      pendingCancel.set(cmd.id, 'partial ');
+      return;
+    }
     const toolMatch = /^TOOL (\S+) (.*)$/.exec(prompt);
     if (toolMatch) {
       // Only call a tool the turn actually offered (mirrors the helper building the

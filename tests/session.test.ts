@@ -86,6 +86,29 @@ describe('ChatSession.send', () => {
     expect(chunks).toEqual(['chunk']);
   });
 
+  it('forwards an abort signal and keeps the partial reply in history (FR-15)', async () => {
+    let seenSignal: AbortSignal | undefined;
+    const backend: ChatBackend = {
+      reset: () => Promise.resolve(),
+      // The interrupted backend resolves with the partial text generated so far.
+      send: (text, _onDelta, signal) => {
+        seenSignal = signal;
+        return Promise.resolve(signal?.aborted === true ? `partial:${text}` : `reply:${text}`);
+      },
+      close: () => undefined,
+    };
+    const session = new ChatSession({ backend, compactAtTokens: 1e9 });
+    const controller = new AbortController();
+    controller.abort();
+    const reply = await session.send('hi', undefined, controller.signal);
+    expect(seenSignal).toBe(controller.signal); // signal threaded through to the backend
+    expect(reply).toBe('partial:hi');
+    expect(session.history()).toEqual([
+      { role: 'user', content: 'hi' },
+      { role: 'assistant', content: 'partial:hi' }, // partial kept
+    ]);
+  });
+
   it('reseeds and retries once when the helper dies mid-turn', async () => {
     const { backend, calls } = recordingBackend({ crashOn: 'two' });
     const session = new ChatSession({ system: 'sys', backend, compactAtTokens: 1e9 });

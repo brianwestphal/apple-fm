@@ -3,7 +3,7 @@
  * {@link ChatSession}: it streams replies to stdout and handles a few slash
  * commands. All conversation/compaction logic lives in `session.ts`.
  */
-import { createInterface, type Interface as ReadlineInterface } from 'node:readline';
+import { createInterface, emitKeypressEvents, type Interface as ReadlineInterface } from 'node:readline';
 
 import { ChatSession } from './session.js';
 import { type PermissionAsker, PermissionPolicy, toolGuidancePrompt,type ToolRegistry } from './tools/index.js';
@@ -32,7 +32,9 @@ const HELP = `Commands:
   /compact          Compact the conversation context now
   /tools            List the tools the model may call
   /help             Show this help
-  /quit             Quit (alias /exit, or Ctrl-D)`;
+  /quit             Quit (alias /exit, or Ctrl-D)
+
+  Press Esc while the model is replying to interrupt it (keeps the partial reply).`;
 
 /**
  * A permission prompt bound to readline: `Run <description>? [y/N/a(lways)]`.
@@ -81,6 +83,18 @@ export async function runRepl(opts: ReplOptions): Promise<void> {
     permission,
   });
   process.stdout.write("apple-fm chat — Ctrl-D or /quit to quit, /help for commands.\n");
+
+  // Esc interrupts the in-flight reply (FR-15). Only on a real TTY (keypress events
+  // need raw mode); piped/non-interactive input has no keypress stream, so interrupt
+  // is simply inactive there. `active` is set only while a turn is streaming.
+  let active: AbortController | undefined;
+  const onKeypress = (_str: string | undefined, key: { name?: string } | undefined): void => {
+    if (key?.name === 'escape') active?.abort();
+  };
+  if (process.stdin.isTTY) {
+    emitKeypressEvents(process.stdin, rl);
+    process.stdin.on('keypress', onKeypress);
+  }
 
   rl.setPrompt('> ');
   rl.prompt();
@@ -133,16 +147,25 @@ export async function runRepl(opts: ReplOptions): Promise<void> {
       continue;
     }
 
+    const controller = new AbortController();
+    active = controller;
     try {
-      const reply = await session.send(text, opts.stream ? (chunk) => process.stdout.write(chunk) : undefined);
+      const reply = await session.send(
+        text,
+        opts.stream ? (chunk) => process.stdout.write(chunk) : undefined,
+        controller.signal,
+      );
       if (!opts.stream) process.stdout.write(reply);
-      process.stdout.write('\n');
+      process.stdout.write(controller.signal.aborted ? '\n(interrupted)\n' : '\n');
     } catch (error) {
       process.stdout.write(`error: ${error instanceof Error ? error.message : String(error)}\n`);
+    } finally {
+      active = undefined;
     }
     rl.prompt();
   }
 
+  if (process.stdin.isTTY) process.stdin.off('keypress', onKeypress);
   rl.close();
   // Tear down the persistent live-session helper process.
   session.close();

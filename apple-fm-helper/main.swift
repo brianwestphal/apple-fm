@@ -351,14 +351,20 @@ private func sessionInstructions(system: String?, seed: [WireMessage]?) -> Strin
     return parts.isEmpty ? nil : parts.joined(separator: "\n\n")
 }
 
-/// Run one turn against the held session, emitting id-tagged events.
+/// Run one turn against the held session, emitting id-tagged events. The turn runs
+/// as a cancellable task (see `runSession`): a `cancel` command cancels it, and the
+/// turn ends cleanly by emitting a `result` carrying the partial text generated so
+/// far — *not* an `error` — so the Node side (which requested the cancel) settles the
+/// turn and keeps the partial reply (FR-15; esc-to-interrupt). See docs/4-protocol.md.
 private func sessionTurn(_ session: LanguageModelSession, _ command: SessionCommand) async {
     let prompt = command.prompt ?? ""
     let options = generationOptions(command.options)
+    var emitted = ""
     do {
         if command.stream == true {
-            var emitted = ""
             for try await partial in session.streamResponse(to: prompt, options: options) {
+                // Cooperative cancellation: stop streaming and report the partial.
+                if Task.isCancelled { break }
                 let full = partial.content
                 if full.count > emitted.count {
                     emitDelta(String(full.dropFirst(emitted.count)), id: command.id)
@@ -370,9 +376,18 @@ private func sessionTurn(_ session: LanguageModelSession, _ command: SessionComm
             let response = try await session.respond(to: prompt, options: options)
             emitResult(response.content, id: command.id)
         }
+    } catch is CancellationError {
+        emitResult(emitted, id: command.id)
     } catch {
-        let f = failure(for: error)
-        emitError(f.code, f.message, id: command.id)
+        // A cancelled stream can surface as a generic framework error rather than a
+        // typed CancellationError; treat any error on a cancelled turn as the same
+        // clean partial-result interrupt.
+        if Task.isCancelled {
+            emitResult(emitted, id: command.id)
+        } else {
+            let f = failure(for: error)
+            emitError(f.code, f.message, id: command.id)
+        }
     }
 }
 
@@ -417,6 +432,10 @@ private func runSession() async -> Never {
                 await bridge.resolve(callId: command.callId ?? "", reply: .result(command.content ?? ""))
             case "tool_error":
                 await bridge.resolve(callId: command.callId ?? "", reply: .error(command.message ?? "tool failed"))
+            case "cancel":
+                // Interrupt the in-flight turn (FR-15). Turns are serial, so the one
+                // live task is the target; it ends by emitting its partial `result`.
+                currentTurn?.cancel()
             case "reset":
                 await currentTurn?.value // no turn should be in flight, but be safe
                 session = makeSession(command, bridge: bridge)

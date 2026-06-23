@@ -43,8 +43,12 @@ interface Pending {
 
 /** The backend contract that `ChatSession` drives. */
 export interface ChatBackend {
-  /** Send one user turn; prior turns stay in the session's context. */
-  send(text: string, onDelta?: DeltaHandler): Promise<string>;
+  /**
+   * Send one user turn; prior turns stay in the session's context. An optional
+   * `signal` interrupts the in-flight turn (FR-15, esc-to-interrupt): on abort the
+   * turn is cancelled and resolves with the partial text generated so far.
+   */
+  send(text: string, onDelta?: DeltaHandler, signal?: AbortSignal): Promise<string>;
   /** Recreate the underlying session with new instructions + seed turns. */
   reset(system: string, seed: Message[]): Promise<void>;
   /** Tear down the backend. */
@@ -92,9 +96,13 @@ export class LiveSession implements ChatBackend {
     );
   }
 
-  /** Send one user turn; prior turns stay in context. Streams via `onDelta`. */
-  send(text: string, onDelta?: DeltaHandler): Promise<string> {
-    return this.dispatch({ prompt: text, options: this.options, stream: onDelta !== undefined }, onDelta);
+  /**
+   * Send one user turn; prior turns stay in context. Streams via `onDelta`. An
+   * optional `signal` interrupts the turn: on abort a `cancel` command is sent and
+   * the helper ends the turn with the partial text generated so far (FR-15).
+   */
+  send(text: string, onDelta?: DeltaHandler, signal?: AbortSignal): Promise<string> {
+    return this.dispatch({ prompt: text, options: this.options, stream: onDelta !== undefined }, onDelta, signal);
   }
 
   /** Tear down the helper process and reject any in-flight commands. */
@@ -250,7 +258,11 @@ export class LiveSession implements ChatBackend {
     pending.reject(new Error(message));
   }
 
-  private dispatch(command: Record<string, unknown>, onDelta: DeltaHandler | undefined): Promise<string> {
+  private dispatch(
+    command: Record<string, unknown>,
+    onDelta: DeltaHandler | undefined,
+    signal?: AbortSignal,
+  ): Promise<string> {
     // Off-platform the bundled macOS helper can't run — fail with a clear error
     // rather than spawning it and surfacing a raw [sessionClosed].
     if (this.bundled && !isPlatformSupported()) return Promise.reject(unsupportedPlatformError());
@@ -262,7 +274,27 @@ export class LiveSession implements ChatBackend {
         reject(new Error(`live session timed out after ${String(this.timeoutMs)}ms`));
       }, this.timeoutMs);
       this.pending.set(id, { resolve, reject, onDelta, acc: '', timer });
+      // Interrupt (FR-15): tell the helper to cancel this turn; it ends by emitting a
+      // `result` with the partial text, which settles the pending promise normally.
+      if (signal !== undefined) {
+        if (signal.aborted) this.cancel(id);
+        else {
+          signal.addEventListener(
+            'abort',
+            () => {
+              this.cancel(id);
+            },
+            { once: true },
+          );
+        }
+      }
       child.stdin.write(JSON.stringify({ ...command, id }) + '\n');
     });
+  }
+
+  /** Ask the helper to cancel an in-flight turn (no-op if it already settled). */
+  private cancel(id: string): void {
+    if (!this.pending.has(id)) return;
+    this.child?.stdin.write(JSON.stringify({ type: 'cancel', id }) + '\n');
   }
 }
