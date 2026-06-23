@@ -115,6 +115,12 @@ if (process.env.STUB_HANG === '1') {
       write({ type: 'error', code: 'modelNotReady', message: 'the on-device model is still provisioning; try again shortly' });
       process.exit(1);
     }
+    if (req.prompt === 'STDERR_FAIL') {
+      // Nonzero exit with raw stderr and NO error event — exercises helper.ts's
+      // stderr-surfacing branch (the helper crashed before emitting a wire error).
+      process.stderr.write('helper diagnostic: model subsystem offline');
+      process.exit(2);
+    }
     if (req.schema !== undefined) {
       const err = schemaError(req.schema);
       if (err) {

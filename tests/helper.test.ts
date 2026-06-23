@@ -119,6 +119,21 @@ describe('generate', () => {
       /\[modelNotReady\] the on-device model is still provisioning/,
     );
   });
+
+  it('passes a messages[] conversation through to the helper (FR-4)', async () => {
+    const messages = [
+      { role: 'user' as const, content: 'a' },
+      { role: 'assistant' as const, content: 'b' },
+    ];
+    const content = await generate({ messages }, { binPath: STUB });
+    expect(JSON.parse(content)).toMatchObject({ messages });
+  });
+
+  it('surfaces captured stderr when the helper exits nonzero without an error event (NFR-2)', async () => {
+    await expect(generate({ prompt: 'STDERR_FAIL' }, { binPath: STUB })).rejects.toThrow(
+      /exited with code 2: helper diagnostic: model subsystem offline/,
+    );
+  });
 });
 
 describe('generate with a schema (native guided generation)', () => {

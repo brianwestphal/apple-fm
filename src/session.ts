@@ -112,13 +112,18 @@ export class ChatSession {
     try {
       reply = await this.backend.send(text, onDelta);
     } catch (error) {
-      if (!recoverable(error)) {
+      const overflow = isContextOverflow(error);
+      if (!recoverable(error) && !overflow) {
         this.messages.pop();
         throw error;
       }
-      // The helper died mid-turn. Reseed a fresh session from the transcript so far
-      // (excluding the in-flight turn) and try once more.
+      // The in-flight turn failed recoverably; reseed a fresh session from the
+      // transcript so far (excluding the in-flight turn) and try once more.
+      // `[contextWindowExceeded]`: the model overflowed despite our pre-send token
+      // estimate — compact first so the retry actually fits. `[sessionClosed]`: the
+      // helper merely died, so reseeding as-is is enough.
       this.messages.pop();
+      if (overflow) await this.compact();
       this.backendInstructions = undefined;
       await this.ensureStarted();
       this.messages.push({ role: 'user', content: text });
@@ -178,4 +183,9 @@ export class ChatSession {
 /** A backend failure is recoverable when the live-session helper merely exited. */
 function recoverable(error: unknown): boolean {
   return error instanceof Error && error.message.includes('[sessionClosed]');
+}
+
+/** A turn that overflowed the model's context window (vs our pre-send estimate). */
+function isContextOverflow(error: unknown): boolean {
+  return error instanceof Error && error.message.includes('[contextWindowExceeded]');
 }

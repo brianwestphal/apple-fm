@@ -14,9 +14,13 @@ type BackendCall =
  * and replies `reply:<text>`. `crashOnce` makes the first send throw a
  * `[sessionClosed]` error (to exercise ChatSession's reseed-and-retry).
  */
-function recordingBackend(opts: { crashOn?: string } = {}): { backend: ChatBackend; calls: BackendCall[] } {
+function recordingBackend(opts: { crashOn?: string; overflowOn?: string } = {}): {
+  backend: ChatBackend;
+  calls: BackendCall[];
+} {
   const calls: BackendCall[] = [];
   let crashArmed = opts.crashOn !== undefined;
+  let overflowArmed = opts.overflowOn !== undefined;
   const backend: ChatBackend = {
     reset(system, seed) {
       calls.push({ kind: 'reset', system, seed: seed.map((m) => ({ ...m })) });
@@ -27,6 +31,10 @@ function recordingBackend(opts: { crashOn?: string } = {}): { backend: ChatBacke
       if (crashArmed && text === opts.crashOn) {
         crashArmed = false;
         return Promise.reject(new Error('[sessionClosed] live session helper exited'));
+      }
+      if (overflowArmed && text === opts.overflowOn) {
+        overflowArmed = false;
+        return Promise.reject(new Error('[contextWindowExceeded] the model context window was exceeded'));
       }
       onDelta?.('chunk');
       return Promise.resolve(`reply:${text}`);
@@ -103,6 +111,32 @@ describe('ChatSession.send', () => {
       { kind: 'send', text: 'two' }, // succeeds
     ]);
     expect(session.history().at(-1)).toEqual({ role: 'assistant', content: 'reply:two' });
+  });
+
+  it('compacts and retries once when a turn overflows the context window', async () => {
+    const { backend, calls } = recordingBackend({ overflowOn: 'big' });
+    const summarizer = recordingSummarizer();
+    const session = new ChatSession({
+      system: 'sys',
+      backend,
+      generateFn: summarizer.gen,
+      compactAtTokens: 1e9, // never compact proactively — force the reactive path
+      keepRecentTurns: 1,
+    });
+    await session.send('one');
+    await session.send('two'); // build a transcript so there is something to fold
+
+    const reply = await session.send('big'); // overflows, compacts, reseeds, retries
+    expect(reply).toBe('reply:big');
+
+    // The overflow triggered a compaction (summarizer ran) even though the proactive
+    // threshold was never crossed…
+    expect(summarizer.calls).toHaveLength(1);
+    // …and the retry reseeded a fresh session carrying the recap.
+    const lastReset = [...calls].reverse().find((c) => c.kind === 'reset');
+    expect(lastReset?.system).toContain('Conversation so far:\nSUMMARY');
+    // The turn ultimately landed in history.
+    expect(session.history().at(-1)).toEqual({ role: 'assistant', content: 'reply:big' });
   });
 
   it('history() returns a defensive copy', async () => {
