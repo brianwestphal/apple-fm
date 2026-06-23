@@ -115,7 +115,15 @@ release flow and its one-time CI signing setup are documented in
 - [docs/5-releasing.md](docs/5-releasing.md) — release flow + one-time CI signing/notarization setup.
 - [docs/6-guided-generation.md](docs/6-guided-generation.md) — design for native guided generation (FR-8 / AFM-11).
 - [docs/7-live-session.md](docs/7-live-session.md) — design for the persistent live-session helper (FR-12 / AFM-12).
+- [docs/8-tool-support.md](docs/8-tool-support.md) — investigation + design for extensible, permission-gated tool calling (FR-14 / AFM-30); design only.
 - [docs/ai/code-summary.md](docs/ai/code-summary.md) — AI-oriented code map.
+
+> **Standing re-eval:** apple-fm's tool-support case partly rests on Apple's official
+> `fm` CLI *not* exposing tools. That can change. If the **"Last checked"** date in
+> [docs/8-tool-support.md](docs/8-tool-support.md) is **over a month old**, re-research
+> whether `fm` has added tool calling (WWDC sessions, Apple developer docs, `fm --help`
+> in a macOS 27 beta), update that doc's finding, and bump its "Last checked" date. If
+> `fm` gained tools, file a Hot Sheet ticket flagging the impact on FR-14.
 - [docs/ai/requirements-summary.md](docs/ai/requirements-summary.md) — AI-oriented requirements digest.
 
 Two ID schemes coexist, deliberately: `AF-N` are **requirement follow-up

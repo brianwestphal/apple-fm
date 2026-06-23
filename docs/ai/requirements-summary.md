@@ -23,6 +23,7 @@ Keep status markers in sync with the implementation.
 - **FR-11 Helper discovery** — Shipped. `APPLE_FM_BIN` → bundled binary → PATH.
 - **FR-12 Persistent live session** — Shipped. `--session` helper mode (`runSession`) + Node `LiveSession`; `ChatSession` uses it as its backend, replacing transcript-replay. See `docs/7-live-session.md`.
 - **FR-13 Homebrew distribution** — Dropped. npm is sufficient; descoped.
+- **FR-14 Tool calling (extensible, permission-gated)** — Deferred (design only). Native FoundationModels `Tool` API; design = a generic Swift `DynamicTool` that round-trips each call to Node-side tools (bash/read/web) over a `tool_call`/`tool_result` protocol extension, behind a per-call permission policy. Investigated AFM-30; phased under AF-5. `web` would break NFR-1 → needs a user decision. See `docs/8-tool-support.md`.
 
 ## Non-functional
 
@@ -38,3 +39,5 @@ Keep status markers in sync with the implementation.
 
 AF-2 (automated on-device test in CI — CI compiles the helper; running the model
 needs a self-hosted macOS 26 + Apple Intelligence runner, still pending).
+AF-5 (tool calling, FR-14 — designed under AFM-30 in `docs/8-tool-support.md`;
+build phased into follow-up tickets, not started).

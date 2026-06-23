@@ -48,6 +48,7 @@ tests/            # protocol, cliArgs, session, helper, liveSession, docs, demo 
 | add/change a CLI flag | `cliArgs.ts` (+ wire in `cli.ts`) |
 | change interactive REPL commands | `repl.ts` |
 | change the on-device calls (probe/respond/stream) | `apple-fm-helper/main.swift` |
+| add tool calling (bash/read/web, permissions) — design only, not built | `docs/8-tool-support.md` (FR-14 / AF-5); planned: `src/tools/` registry + a generic `DynamicTool` in the Swift helper |
 
 ## Testing
 

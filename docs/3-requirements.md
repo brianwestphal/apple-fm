@@ -28,6 +28,7 @@ gaps noted — including code that needs on-device verification), **Deferred**
 | FR-11 | Helper discovery | **Shipped** | `resolveHelperPath`: `APPLE_FM_BIN` → bundled `bin/apple-fm-helper` → `PATH`. |
 | FR-12 | Persistent live session (KV-cache reuse) | **Shipped** | The `--session` helper mode holds one `LanguageModelSession` across turns (`runSession`); the Node `LiveSession` (`liveSession.ts`) drives it and `ChatSession` uses it as its backend, **replacing** transcript-replay for `chat`. Compaction stays in Node (summarize → reset + reseed); crash → respawn + reseed. Smoke-verified on-device. See [7-live-session.md](7-live-session.md). |
 | FR-13 | Homebrew distribution | **Dropped** | npm distribution is sufficient; a signed + notarized Homebrew tap is descoped. Revisit if there's demand. |
+| FR-14 | Tool calling (extensible, permission-gated) | **Deferred** | Native FoundationModels `Tool` API exists; design is a generic Swift `DynamicTool` adapter that round-trips each invocation to Node-side tools (bash/read/web) over a `tool_call`/`tool_result` protocol extension, behind a per-call permission policy. Investigated under AFM-30; build sliced into follow-ups (AF-5). A `web` tool would break NFR-1 and needs a user decision. See [8-tool-support.md](8-tool-support.md). |
 
 ## Non-functional requirements
 
@@ -47,3 +48,8 @@ gaps noted — including code that needs on-device verification), **Deferred**
   now *compiles* the helper on a macOS 26 runner (`ci.yml` `helper-build` job),
   catching Swift/API regressions; running the model on-device is still pending
   (hosted runners lack Apple Intelligence — needs a self-hosted macOS 26 runner).
+- **AF-5** tool calling (FR-14). Designed under AFM-30 (see
+  [8-tool-support.md](8-tool-support.md)); implementation is phased into follow-up
+  tickets: (1) protocol + generic `DynamicTool` plumbing + `read`, (2) permission
+  layer, (3) `bash`, (4) `web` (pending the NFR-1 decision), (5) docs/AI-summary
+  promotion.
