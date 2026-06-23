@@ -62,6 +62,7 @@ describe('project conventions', () => {
       'registryFromNames',
       'resolveHelperPath',
       'splitLines',
+      'toolGuidancePrompt',
       'webTool',
     ]);
   });

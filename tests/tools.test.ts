@@ -11,7 +11,7 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import type { Tool } from '../src/tools/index.js';
-import { BUILTIN_TOOLS, readTool, registryFromNames, ToolRegistry } from '../src/tools/index.js';
+import { BUILTIN_TOOLS, readTool, registryFromNames, toolGuidancePrompt, ToolRegistry } from '../src/tools/index.js';
 
 describe('ToolRegistry', () => {
   const fake: Tool = {
@@ -72,6 +72,26 @@ describe('ToolRegistry', () => {
     const request = reg.permissionRequest('read', { path: '/etc/hosts' });
     expect(request).toMatchObject({ tool: 'read', key: '/etc/hosts', description: 'read /etc/hosts' });
   });
+
+  it('usageHints uses a tool’s usageHint, falling back to name: description', () => {
+    const hinted: Tool = { ...fake, usageHint: 'echo — echoes text back.' };
+    expect(new ToolRegistry([hinted]).usageHints()).toEqual(['echo — echoes text back.']);
+    expect(new ToolRegistry([fake]).usageHints()).toEqual(['echo: echo back']); // fallback
+  });
+});
+
+describe('toolGuidancePrompt', () => {
+  it('is empty for a registry with no tools', () => {
+    expect(toolGuidancePrompt(new ToolRegistry())).toBe('');
+  });
+
+  it('lists each enabled tool and tells the model not to refuse', () => {
+    const prompt = toolGuidancePrompt(registryFromNames(['read', 'bash', 'web']));
+    expect(prompt).toMatch(/never claim you cannot/i);
+    expect(prompt).toContain('- read —');
+    expect(prompt).toContain('- bash —');
+    expect(prompt).toContain('- web —');
+  });
 });
 
 describe('registryFromNames', () => {
@@ -127,6 +147,14 @@ describe('read tool', () => {
 
   it('rejects a non-existent file (the fs error propagates)', async () => {
     await expect(readTool.run({ path: join(dir, 'nope.txt') }, {})).rejects.toThrow();
+  });
+
+  it('caps a large file so it cannot overflow the model context (AFM-38)', async () => {
+    const big = join(dir, 'big.txt');
+    writeFileSync(big, 'y'.repeat(40_000), 'utf8');
+    const out = await readTool.run({ path: big }, {});
+    expect(out).toMatch(/more chars truncated/);
+    expect(out.length).toBeLessThan(8_000);
   });
 
   it('exposes a path-scoped permission key + description (and tolerates a missing path)', () => {

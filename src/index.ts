@@ -49,6 +49,7 @@ export {
   PermissionPolicy,
   readTool,
   registryFromNames,
+  toolGuidancePrompt,
   ToolRegistry,
   webTool,
 } from './tools/index.js';

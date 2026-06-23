@@ -71,7 +71,9 @@ that scope permission rules and the prompt. Registered in `BUILTIN_TOOLS`
 - **WT-2 GET only, dependency-free.** Uses Node's global `fetch` (Node ≥ 18) — no new
   dependency. No request body / non-GET methods, so no remote side effects.
 - **WT-3 Bounded.** Timeout (15 s default, `AbortController`), and the returned text
-  is capped (16 000 chars) so a large page can't blow the context window.
+  is capped to the shared `MAX_TOOL_OUTPUT_CHARS` (3 000 chars ≈ 750 tokens; AFM-38) so
+  a large page can't overflow the ~4096-token on-device window. Boilerplate blocks
+  (`nav`/`header`/`footer`/`aside`/`form`/`noscript`) are dropped before the cap.
 - **WT-4 HTTP errors are normal results.** A 4xx/5xx *status* is reported (not thrown)
   so the model can react; only a non-http(s) URL, a timeout, or a transport error
   rejects.
@@ -79,6 +81,13 @@ that scope permission rules and the prompt. Registered in `BUILTIN_TOOLS`
 > **Search vs. fetch.** This is URL *fetch*. A real *web search* (a query → results)
 > needs an external search API/endpoint + key/config and is a separate follow-up
 > (TC-9 in [9-tool-calling.md](9-tool-calling.md)).
+
+> **On-device reality.** Web reading is genuinely marginal on the ~3B / 4k-token
+> on-device model: it works well for small, focused pages and APIs, but big
+> content-heavy pages (Wikipedia, news front pages) are slow and unreliable — the
+> model is small, the window is tiny, and naive HTML→text keeps noise. Enabling fewer
+> tools (`--tools web` alone) and asking about focused URLs works best. Better content
+> extraction would help — tracked as a follow-up (AFM-39).
 
 ## Testing
 
@@ -98,4 +107,5 @@ that scope permission rules and the prompt. Registered in `BUILTIN_TOOLS`
 Implement `Tool` in `src/tools/builtin/<name>.ts`, add it to `BUILTIN_TOOLS`
 (`src/tools/index.ts`), export it from the public API (`src/index.ts`), give it a
 `permissionKey`/`describe` if calls should be gated more finely than the whole tool,
-and add unit + e2e tests. Document it here.
+and a one-line `usageHint` (folded into the CLI's auto tool-use system prompt, AFM-36)
+telling the model when to call it. Add unit + e2e tests. Document it here.

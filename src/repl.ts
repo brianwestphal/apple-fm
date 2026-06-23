@@ -6,7 +6,7 @@
 import { createInterface, type Interface as ReadlineInterface } from 'node:readline';
 
 import { ChatSession } from './session.js';
-import { type PermissionAsker, PermissionPolicy, type ToolRegistry } from './tools/index.js';
+import { type PermissionAsker, PermissionPolicy, toolGuidancePrompt,type ToolRegistry } from './tools/index.js';
 import type { GenerateOptions } from './types.js';
 
 /** Options for {@link runRepl}. */
@@ -65,8 +65,16 @@ export async function runRepl(opts: ReplOptions): Promise<void> {
           asker,
         })
       : undefined;
+  // When tools are enabled, fold a tool-use preamble into the system prompt so the
+  // small on-device model knows when to call a tool instead of refusing. Merged with
+  // any user `-s`, and re-applied on /system and /reset <sys>.
+  const guidance = opts.tools !== undefined ? toolGuidancePrompt(opts.tools) : '';
+  const withGuidance = (userSystem: string | undefined): string | undefined => {
+    if (guidance.length === 0) return userSystem;
+    return userSystem !== undefined && userSystem.length > 0 ? `${userSystem}\n\n${guidance}` : guidance;
+  };
   const session = new ChatSession({
-    system: opts.system,
+    system: withGuidance(opts.system),
     options: opts.options,
     compactAtTokens: opts.compactAtTokens,
     tools: opts.tools,
@@ -112,13 +120,14 @@ export async function runRepl(opts: ReplOptions): Promise<void> {
       continue;
     }
     if (text === '/reset' || text.startsWith('/reset ')) {
-      session.reset(text.slice('/reset'.length).trim() || undefined);
+      const arg = text.slice('/reset'.length).trim();
+      session.reset(arg.length > 0 ? withGuidance(arg) : undefined);
       process.stdout.write('(reset)\n');
       rl.prompt();
       continue;
     }
     if (text.startsWith('/system ')) {
-      session.reset(text.slice('/system '.length).trim());
+      session.reset(withGuidance(text.slice('/system '.length).trim()));
       process.stdout.write('(system updated, conversation reset)\n');
       rl.prompt();
       continue;

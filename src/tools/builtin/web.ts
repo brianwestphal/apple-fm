@@ -12,12 +12,11 @@
  * and the returned text is capped so a large page can't blow the model's context
  * window. A real *search* backend (an external API/endpoint) is a separate follow-up.
  */
+import { capOutput } from '../output.js';
 import type { Tool } from '../types.js';
 
 /** Abort a request that takes longer than this (ms). */
 const DEFAULT_TIMEOUT_MS = 15_000;
-/** Cap the returned text to this many characters. */
-const MAX_TEXT_CHARS = 16_000;
 
 /** Options for {@link fetchUrl} (exposed so tests can inject `fetch` / shorten the timeout). */
 export interface FetchOptions {
@@ -31,6 +30,8 @@ function htmlToText(html: string): string {
   return html
     .replace(/<script[\s\S]*?<\/script>/gi, ' ')
     .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    // Drop common boilerplate blocks so the (capped) text is mostly real content.
+    .replace(/<(nav|header|footer|aside|form|noscript)[\s\S]*?<\/\1>/gi, ' ')
     .replace(/<[^>]+>/g, ' ')
     .replace(/&nbsp;/gi, ' ')
     .replace(/&amp;/gi, '&')
@@ -40,12 +41,6 @@ function htmlToText(html: string): string {
     .replace(/&#39;/gi, "'")
     .replace(/\s+/g, ' ')
     .trim();
-}
-
-/** Truncate text to the cap, noting how much was dropped. */
-function cap(text: string): string {
-  if (text.length <= MAX_TEXT_CHARS) return text;
-  return `${text.slice(0, MAX_TEXT_CHARS)}\n…(${String(text.length - MAX_TEXT_CHARS)} more chars truncated)`;
 }
 
 /**
@@ -68,7 +63,8 @@ export async function fetchUrl(url: string, options: FetchOptions = {}): Promise
     const text = contentType.includes('html') ? htmlToText(raw) : raw;
     const kind = contentType.split(';')[0]?.trim();
     const status = `HTTP ${String(response.status)} ${response.statusText}${kind !== undefined && kind.length > 0 ? ` (${kind})` : ''}`;
-    return `${status}\n\n${cap(text)}`;
+    // Cap the page text so a large page can't overflow the small on-device window.
+    return capOutput(`${status}\n\n${text}`);
   } catch (error) {
     if (error instanceof Error && error.name === 'AbortError') {
       throw new Error('web: request timed out', { cause: error });
@@ -94,5 +90,6 @@ export const webTool: Tool = {
   },
   permissionKey: (args) => (typeof args.url === 'string' ? args.url : undefined),
   describe: (args) => `fetch ${typeof args.url === 'string' ? args.url : '(no url)'}`,
+  usageHint: 'web — fetch an http(s) URL and return its text; use it for ANY URL or web page (never use bash for a URL).',
   run: (args) => fetchUrl(typeof args.url === 'string' ? args.url : ''),
 };

@@ -47,6 +47,13 @@ export interface Tool {
 
   /** Optional one-line description of a call, shown in the permission prompt. */
   describe?(args: Record<string, unknown>): string;
+
+  /**
+   * Optional one-line hint telling the model *when* to use this tool, folded into the
+   * auto-injected tool-use system prompt (CLI only; see `toolGuidancePrompt`). Without
+   * it, the tool's `name`/`description` are used.
+   */
+  usageHint?: string;
 }
 
 /**

@@ -10,18 +10,11 @@
  */
 import { spawn } from 'node:child_process';
 
+import { capOutput } from '../output.js';
 import type { Tool } from '../types.js';
 
 /** Kill a command that runs longer than this (ms). */
 const DEFAULT_TIMEOUT_MS = 30_000;
-/** Cap each of stdout/stderr to this many characters in the result. */
-const MAX_STREAM_CHARS = 8_000;
-
-/** Truncate a captured stream, noting how much was dropped. */
-function cap(text: string): string {
-  if (text.length <= MAX_STREAM_CHARS) return text;
-  return `${text.slice(0, MAX_STREAM_CHARS)}\n…(${String(text.length - MAX_STREAM_CHARS)} more chars truncated)`;
-}
 
 /** Options for {@link runShellCommand} (exposed so tests can shorten the timeout). */
 export interface ShellOptions {
@@ -68,9 +61,10 @@ export function runShellCommand(command: string, options: ShellOptions = {}): Pr
 /** Assemble the model-facing report (status line + any stdout/stderr sections). */
 function report({ stdout, stderr, status }: { stdout: string; stderr: string; status: string }): string {
   const sections = [status];
-  if (stdout.length > 0) sections.push(`stdout:\n${cap(stdout)}`);
-  if (stderr.length > 0) sections.push(`stderr:\n${cap(stderr)}`);
-  return sections.join('\n');
+  if (stdout.length > 0) sections.push(`stdout:\n${stdout}`);
+  if (stderr.length > 0) sections.push(`stderr:\n${stderr}`);
+  // Cap the whole report so noisy output can't overflow the on-device context window.
+  return capOutput(sections.join('\n'));
 }
 
 export const bashTool: Tool = {
@@ -88,5 +82,6 @@ export const bashTool: Tool = {
   },
   permissionKey: (args) => (typeof args.command === 'string' ? args.command : undefined),
   describe: (args) => `run: ${typeof args.command === 'string' ? args.command : '(no command)'}`,
+  usageHint: 'bash — run a shell command; use it to inspect the system or run CLI tools, NOT to read files or fetch URLs.',
   run: (args) => runShellCommand(typeof args.command === 'string' ? args.command : ''),
 };

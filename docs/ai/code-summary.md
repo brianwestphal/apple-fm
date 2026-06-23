@@ -32,10 +32,10 @@ tests/            # protocol, cliArgs, session, helper, liveSession, docs, demo 
 - Chat: `ChatSession` (`send`, `compact`, `shouldCompact`, `history`, `reset`,
   `close`); `LiveSession` (`send`, `reset`, `close`); types `ChatSessionConfig`,
   `GenerateFn`, `ChatBackend`, `LiveSessionConfig`.
-- Tools (FR-14): `ToolRegistry`, `registryFromNames`, `readTool`, `bashTool`,
-  `webTool`, `BUILTIN_TOOLS`, `PermissionPolicy`; types `Tool`, `ToolContext`,
-  `ToolDefinition`, `PermissionMode`, `PermissionRequest`, `PermissionAsker`,
-  `AskOutcome`, `PermissionPolicyConfig`.
+- Tools (FR-14): `ToolRegistry`, `registryFromNames`, `toolGuidancePrompt`,
+  `readTool`, `bashTool`, `webTool`, `BUILTIN_TOOLS`, `PermissionPolicy`; types `Tool`,
+  `ToolContext`, `ToolDefinition`, `PermissionMode`, `PermissionRequest`,
+  `PermissionAsker`, `AskOutcome`, `PermissionPolicyConfig`.
 - Protocol: `encodeRequest`, `splitLines`, `parseEvent`, `flattenMessages`,
   `estimateTokens`, `estimateConversationTokens`.
 - Types: `Message`, `Role`, `GenerateRequest`, `GenerateOptions`, `ProbeResult`,

@@ -50,7 +50,12 @@ TypeScript.
   `liveSession.ts` (with a per-turn timeout restart across tool calls).
 - **Public API** (`src/index.ts`): `Tool`, `ToolContext`, `ToolDefinition`,
   `ToolRegistry`, `registryFromNames`, `readTool`, `BUILTIN_TOOLS`.
-- **CLI**: `apple-fm chat --tools read` (`cliArgs.ts` → `cli.ts` → `repl.ts`).
+- **CLI**: `apple-fm chat --tools read` (`cliArgs.ts` → `cli.ts` → `repl.ts`). When
+  tools are enabled the CLI auto-injects a **tool-use system preamble**
+  (`toolGuidancePrompt`, built from the enabled tools' `usageHint`s, merged with any
+  `-s`) so the small on-device model knows *when* to call a tool instead of falling
+  back on a "can't access files" refusal (AFM-36). The library stays unopinionated —
+  injection is CLI-only.
 
 ## Design decisions
 

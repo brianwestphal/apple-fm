@@ -44,6 +44,11 @@ export class ToolRegistry {
     return [...this.tools.keys()];
   }
 
+  /** One usage hint per tool (its `usageHint`, or a `name: description` fallback). */
+  usageHints(): string[] {
+    return [...this.tools.values()].map((tool) => tool.usageHint ?? `${tool.name}: ${tool.description}`);
+  }
+
   /**
    * Build a {@link PermissionRequest} for a call, using the tool's optional
    * `permissionKey` / `describe` hooks. Returns `undefined` for an unknown tool.

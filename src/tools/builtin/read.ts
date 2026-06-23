@@ -8,6 +8,7 @@
  */
 import { readFile } from 'node:fs/promises';
 
+import { capOutput } from '../output.js';
 import type { Tool } from '../types.js';
 
 /** Coerce a model-supplied argument to a non-negative integer, or `undefined`. */
@@ -34,6 +35,7 @@ export const readTool: Tool = {
   // directory once (`read:/Users/me/project`) without allowing every read.
   permissionKey: (args) => (typeof args.path === 'string' ? args.path : undefined),
   describe: (args) => `read ${typeof args.path === 'string' ? args.path : '(no path)'}`,
+  usageHint: 'read — read a local file by its path; use it whenever the user references a file path (never use bash to read a file).',
 
   async run(args): Promise<string> {
     const path = typeof args.path === 'string' ? args.path : '';
@@ -42,11 +44,13 @@ export const readTool: Tool = {
     const content = await readFile(path, 'utf8');
     const offset = intArg(args.offset);
     const limit = intArg(args.limit);
-    if (offset === undefined && limit === undefined) return content;
+    // Cap the returned text so a large file can't overflow the small on-device
+    // context window; the model can page with offset/limit for more.
+    if (offset === undefined && limit === undefined) return capOutput(content);
 
     const lines = content.split('\n');
     const start = offset ?? 0;
     const end = limit !== undefined ? start + limit : lines.length;
-    return lines.slice(start, end).join('\n');
+    return capOutput(lines.slice(start, end).join('\n'));
   },
 };
