@@ -85,9 +85,9 @@ describe('registryFromNames', () => {
     expect(() => registryFromNames(['read', 'bogus'])).toThrow(/unknown built-in tool "bogus"/);
   });
 
-  it('exposes read and bash as built-ins', () => {
+  it('exposes read, bash, and web as built-ins', () => {
     expect(BUILTIN_TOOLS.read).toBe(readTool);
-    expect(registryFromNames(['read', 'bash']).names().sort()).toEqual(['bash', 'read']);
+    expect(registryFromNames(['read', 'bash', 'web']).names().sort()).toEqual(['bash', 'read', 'web']);
   });
 });
 

@@ -339,6 +339,20 @@ describe('apple-fm CLI (e2e)', () => {
     );
 
     it(
+      'denies the web tool by default (no network is reached)',
+      async () => {
+        // No --allow-tool + piped (non-interactive) ⇒ denied before any fetch.
+        const turn = `TOOL web ${JSON.stringify({ url: 'https://example.com' })}`;
+        const { stdout, code } = await runCli(['chat', '--no-stream', '--tools', 'web'], {
+          input: `${turn}\n/quit\n`,
+        });
+        expect(stdout).toMatch(/denied by the user/);
+        expect(code).toBe(0);
+      },
+      T,
+    );
+
+    it(
       'errors and exits 1 for an unknown --tools name',
       async () => {
         const { stderr, code } = await runCli(['chat', '--tools', 'bogus'], { input: '/quit\n' });

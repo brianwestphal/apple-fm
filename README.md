@@ -2,7 +2,9 @@
 
 **Apple Intelligence from your command line and your code.** apple-fm gives you
 the on-device **Foundation Models** on **macOS 26+ / Apple Silicon** — free,
-private, and fully offline. No API key, no network, nothing leaves your Mac.
+private, and offline by default. No API key, no cloud — your prompts never leave
+your Mac. (An optional, permission-gated `web` tool can reach the network when you
+explicitly enable it.)
 
 Apple ships these models as a Swift-only framework with no command-line
 front-end. apple-fm provides one — a fast, lightweight CLI and a TypeScript

@@ -23,11 +23,11 @@ Keep status markers in sync with the implementation.
 - **FR-11 Helper discovery** — Shipped. `APPLE_FM_BIN` → bundled binary → PATH.
 - **FR-12 Persistent live session** — Shipped. `--session` helper mode (`runSession`) + Node `LiveSession`; `ChatSession` uses it as its backend, replacing transcript-replay. See `docs/7-live-session.md`.
 - **FR-13 Homebrew distribution** — Dropped. npm is sufficient; descoped.
-- **FR-14 Tool calling (extensible, permission-gated)** — Partial. **Phases 1–3 shipped + on-device verified**: generic round-trip plumbing (Swift `DynamicTool` suspends each call, round-tripped to Node over a `tool_call`/`tool_result` extension of `--session`, bound at `reset`), an extensible `ToolRegistry` (`src/tools/`), the `read` + `bash` built-ins, and a per-call `PermissionPolicy` gate (`ask`/`allow`/`deny`, REPL `[y/N/a]`, `--allow-tool`/`--deny-tool`/`--yes`/`/tools`, deny-by-default non-interactive; a denial is fed back as a tool result so the model continues). Remaining (AF-5): `web` (AFM-34 — breaks NFR-1, user-approved if permission-gated). Reqs `docs/9-tool-calling.md` + `docs/10-permissions.md` + `docs/11-builtin-tools.md`; design `docs/8-tool-support.md`.
+- **FR-14 Tool calling (extensible, permission-gated)** — Shipped. **Phases 1–4 + on-device verified**: generic round-trip plumbing (Swift `DynamicTool` suspends each call, round-tripped to Node over a `tool_call`/`tool_result` extension of `--session`, bound at `reset`), an extensible `ToolRegistry` (`src/tools/`), the `read` / `bash` / `web` built-ins, and a per-call `PermissionPolicy` gate (`ask`/`allow`/`deny`, REPL `[y/N/a]`, `--allow-tool`/`--deny-tool`/`--yes`/`/tools`, deny-by-default non-interactive; a denial is fed back as a tool result so the model continues). `web` is off by default and reshaped NFR-1 (gated network). Remaining follow-up: a `web` **search** backend (TC-9). Reqs `docs/9-tool-calling.md` + `docs/10-permissions.md` + `docs/11-builtin-tools.md`; design `docs/8-tool-support.md`.
 
 ## Non-functional
 
-- **NFR-1 On-device only, no key/network** — Shipped.
+- **NFR-1 On-device model; no API key; network only via an explicitly-enabled tool** — Shipped. Model runs fully on-device (no cloud SDK, no key, prompts never leave the machine); no network by default. Sole exception: the optional, off-by-default, permission-gated `web` tool (FR-14 phase 4). Reworded from "on-device only; no network" when `web` shipped (AFM-34).
 - **NFR-2 Bounded/diagnosable subprocess** — Shipped (timeout + stderr + error codes).
 - **NFR-3 Pure unit-tested, native stub-tested** — Shipped (`tests/fixtures/stub-helper.js`).
 - **NFR-4 Strict TS / ESM / lint-clean / zero deps** — Shipped.
@@ -39,6 +39,6 @@ Keep status markers in sync with the implementation.
 
 AF-2 (automated on-device test in CI — CI compiles the helper; running the model
 needs a self-hosted macOS 26 + Apple Intelligence runner, still pending).
-AF-5 (tool calling, FR-14 — phases 1–3 shipped/on-device verified under AFM-31/32/33;
-web remains, AFM-34; reqs `docs/9-tool-calling.md` + `docs/10-permissions.md` +
-`docs/11-builtin-tools.md`).
+AF-5 (tool calling, FR-14 — phases 1–4 shipped/on-device verified under
+AFM-31/32/33/34; only a `web` search backend remains (TC-9); reqs
+`docs/9-tool-calling.md` + `docs/10-permissions.md` + `docs/11-builtin-tools.md`).

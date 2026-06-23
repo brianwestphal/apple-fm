@@ -43,7 +43,15 @@ export type {
   ToolContext,
   ToolDefinition,
 } from './tools/index.js';
-export { bashTool, BUILTIN_TOOLS, PermissionPolicy, readTool, registryFromNames, ToolRegistry } from './tools/index.js';
+export {
+  bashTool,
+  BUILTIN_TOOLS,
+  PermissionPolicy,
+  readTool,
+  registryFromNames,
+  ToolRegistry,
+  webTool,
+} from './tools/index.js';
 export type {
   DeltaHandler,
   GenerateOptions,

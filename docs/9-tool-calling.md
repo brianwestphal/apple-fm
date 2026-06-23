@@ -7,13 +7,13 @@ the investigation/design doc [8-tool-support.md](8-tool-support.md). Tracked by
 **FR-14** in [3-requirements.md](3-requirements.md); the build is phased under
 **AF-5** (tickets AFM-31…34).
 
-> **Status: phases 1–3 shipped.** The generic round-trip plumbing (protocol, Swift
-> `DynamicTool`, Node `ToolRegistry` + dispatcher), the `read` and `bash` built-ins
-> ([11-builtin-tools.md](11-builtin-tools.md)), and the **per-call permission gate**
-> ([10-permissions.md](10-permissions.md)) are implemented, unit + e2e tested
-> device-free, and **on-device verified** (the real model called `read` and `bash`,
-> and recovered gracefully when a call was denied). `web` (phase 4) is not built —
-> see the status table below.
+> **Status: phases 1–4 shipped.** The generic round-trip plumbing (protocol, Swift
+> `DynamicTool`, Node `ToolRegistry` + dispatcher), the `read` / `bash` / `web`
+> built-ins ([11-builtin-tools.md](11-builtin-tools.md)), and the **per-call
+> permission gate** ([10-permissions.md](10-permissions.md)) are implemented, unit +
+> e2e tested device-free, and **on-device verified** (the real model called `read`,
+> `bash`, and `web`, and recovered gracefully when a call was denied). The remaining
+> follow-up is a `web` **search** backend (TC-9).
 
 ## What it is
 
@@ -34,7 +34,8 @@ TypeScript.
 | TC-4 | `read` built-in tool | **Shipped** (phase 1) | `src/tools/builtin/read.ts`: read a UTF-8 file, optional line `offset`/`limit`. Read-only; gated by the permission policy. See [11-builtin-tools.md](11-builtin-tools.md). |
 | TC-5 | Per-call permission policy (`ask`/`allow`/`deny`) | **Shipped** (phase 2) | `PermissionPolicy` in Node, consulted before each tool runs; keyed by tool or `tool:keyPrefix`; REPL `[y/N/a]` prompt; **deny-by-default when non-interactive**; CLI `--allow-tool`/`--deny-tool`/`--yes` + `/tools`. On-device verified. See [10-permissions.md](10-permissions.md). |
 | TC-6 | `bash` built-in tool | **Shipped** (phase 3) | `src/tools/builtin/bash.ts`: run a shell command via `sh -c`, report exit code + stdout/stderr. High-risk; behind the permission gate (deny-by-default non-interactive); timeout-bounded; output-capped. On-device verified. See [11-builtin-tools.md](11-builtin-tools.md). |
-| TC-7 | `web` built-in tool (fetch + search) | **Deferred** (phase 4, AFM-34) | **Breaks NFR-1** (network). Approved by the user *provided it is permission-gated*; off by default, documented as the one networked tool. User chose **fetch + a search backend** (search needs an external endpoint/key — likely its own follow-up). NFR-1 to be reworded then. |
+| TC-7 | `web` built-in tool (fetch) | **Shipped** (phase 4) | `src/tools/builtin/web.ts`: GET an http(s) URL, return its text (HTML stripped). **Off by default**, opt-in (`chat --tools web`), permission-gated; the one networked tool. NFR-1 reworded (docs/3). Dependency-free (global `fetch`), timeout + size capped. On-device verified. A **search backend** (TC-9) is split into a follow-up. See [11-builtin-tools.md](11-builtin-tools.md). |
+| TC-9 | `web` search backend | **Deferred** (follow-up) | Search (vs. URL fetch) needs an external search API/endpoint + key/config — more opinionated; tracked as its own ticket. |
 | TC-8 | Surface tool activity to the user | **Deferred** (phase 2+) | The REPL should show which tool ran with what arguments (today the round-trip is silent except for the final answer). |
 
 ## Phase 1 surface (shipped)
@@ -83,10 +84,10 @@ TypeScript.
 
 ## Open items
 
-- `web` (TC-7, AFM-34) — phase 4.
+- `web` **search** backend (TC-9) — needs an external search API/endpoint; its own
+  follow-up.
 - Tool-activity display (TC-8): the REPL doesn't yet show which tool ran / what was
   approved, only the final answer.
-- `web` search backend choice + NFR-1 rewording (rides on phase 4).
 - Persist "always" permission grants beyond the process lifetime (PERM-9 in
   [10-permissions.md](10-permissions.md)).
 - A slow tool restarts the turn timeout per call; a global cap on total tool time is

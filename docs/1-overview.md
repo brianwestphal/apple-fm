@@ -9,7 +9,7 @@ distributed via npm.
 ## Goal
 
 Make the on-device model usable the way other model CLIs are — free, private, and
-offline — for three shapes of use:
+offline by default — for three shapes of use:
 
 ```bash
 apple-fm probe                       # is the on-device model available?
@@ -31,8 +31,10 @@ if ((await probe()).available) {
 
 ## Principles
 
-- **No API key, no network.** Everything runs on-device; the model is whatever
-  Apple Intelligence has installed. apple-fm never sends data off the machine.
+- **On-device and private by default.** The model runs entirely on-device — no API
+  key, no cloud — and your prompts never leave the machine. apple-fm makes no network
+  connection at all unless you explicitly enable the optional, permission-gated `web`
+  tool (off by default; see [3-requirements.md](3-requirements.md) NFR-1).
 - **Thin native surface, tested logic.** Only the Swift helper
   (`apple-fm-helper/*.swift`) touches `FoundationModels`. All policy — argument
   parsing, the wire protocol, chat history, auto-compaction — lives in strict
