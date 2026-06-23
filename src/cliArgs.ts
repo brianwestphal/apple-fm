@@ -17,7 +17,7 @@ export type ParsedArgs =
       temperature?: number;
       maxTokens?: number;
     }
-  | { command: 'chat'; system?: string; stream: boolean; compactAtTokens?: number };
+  | { command: 'chat'; system?: string; stream: boolean; compactAtTokens?: number; tools?: string[] };
 
 export const USAGE = `apple-fm — command-line access to Apple's on-device Foundation Models
 
@@ -37,6 +37,7 @@ Chat flags:
   -s, --system <text>     System instructions
       --no-stream         Disable token streaming
       --compact-at <n>    Compact the transcript past <n> estimated tokens
+      --tools <a,b>       Enable built-in tools the model may call (e.g. read)
 
 Global:
   -h, --help              Show this help
@@ -129,9 +130,20 @@ function parseChat(argv: string[]): ParsedArgs {
       case '--compact-at':
         result.compactAtTokens = parseNumber(arg, takeValue(argv, i++, arg));
         break;
+      case '--tools':
+        result.tools = parseList(takeValue(argv, i++, arg));
+        break;
       default:
         throw new Error(`unknown flag "${arg}"`);
     }
   }
   return result;
+}
+
+/** Split a comma-separated flag value into trimmed, non-empty names. */
+function parseList(value: string): string[] {
+  return value
+    .split(',')
+    .map((name) => name.trim())
+    .filter((name) => name.length > 0);
 }

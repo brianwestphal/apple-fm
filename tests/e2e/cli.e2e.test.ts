@@ -24,6 +24,7 @@ const CLI = fileURLToPath(new URL('../../src/cli.ts', import.meta.url));
 const STUB = fileURLToPath(new URL('../fixtures/stub-helper.js', import.meta.url));
 const SCHEMA = fileURLToPath(new URL('../fixtures/cli-schema.json', import.meta.url));
 const BAD_SCHEMA = fileURLToPath(new URL('../fixtures/cli-bad-schema.json', import.meta.url));
+const READ_SAMPLE = fileURLToPath(new URL('../fixtures/read-sample.txt', import.meta.url));
 
 /** Each case spawns node+tsx; allow generous headroom over the cold-start cost. */
 const T = 20_000;
@@ -235,6 +236,33 @@ describe('apple-fm CLI (e2e)', () => {
         expect(stdout).toContain('(reset)'); // /reset
         expect(stdout).toContain('(system updated, conversation reset)'); // /system
         expect(code).toBe(0);
+      },
+      T,
+    );
+
+    it(
+      'runs a tool round-trip end-to-end with --tools read',
+      async () => {
+        // The stub's `TOOL <name> <jsonArgs>` sentinel makes the model "call" read;
+        // the CLI's registry actually reads the fixture and feeds it back.
+        const turn = `TOOL read ${JSON.stringify({ path: READ_SAMPLE })}`;
+        // --no-stream so the REPL prints the final reply (the tool turn emits a
+        // single `result`, not deltas).
+        const { stdout, code } = await runCli(['chat', '--no-stream', '--tools', 'read'], {
+          input: `${turn}\n/quit\n`,
+        });
+        expect(stdout).toContain('the-eagle-has-landed'); // the file content, via the tool
+        expect(code).toBe(0);
+      },
+      T,
+    );
+
+    it(
+      'errors and exits 1 for an unknown --tools name',
+      async () => {
+        const { stderr, code } = await runCli(['chat', '--tools', 'bogus'], { input: '/quit\n' });
+        expect(stderr).toMatch(/unknown built-in tool "bogus"/);
+        expect(code).toBe(1);
       },
       T,
     );

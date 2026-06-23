@@ -12,6 +12,7 @@
 import { generate as helperGenerate } from './helper.js';
 import { type ChatBackend,LiveSession } from './liveSession.js';
 import { estimateConversationTokens, flattenMessages } from './protocol.js';
+import type { ToolRegistry } from './tools/index.js';
 import type { DeltaHandler, GenerateOptions, HelperOptions, Message } from './types.js';
 
 /** Pluggable one-shot generation, used for summarization (a stub in tests). */
@@ -37,6 +38,8 @@ export interface ChatSessionConfig {
   keepRecentTurns?: number;
   /** Helper discovery / timeout options (used for the default backend + summarizer). */
   helper?: HelperOptions;
+  /** Tools the model may call mid-turn (FR-14). Ignored when a custom `backend` is set. */
+  tools?: ToolRegistry;
   /** Override the live-session backend (tests inject a fake here). */
   backend?: ChatBackend;
   /** Override the one-shot summarization backend (tests inject a stub here). */
@@ -79,7 +82,8 @@ export class ChatSession {
     this.system = config.system ?? '';
     this.compactAtTokens = config.compactAtTokens ?? DEFAULT_COMPACT_AT;
     this.keepRecentTurns = config.keepRecentTurns ?? DEFAULT_KEEP_RECENT;
-    this.backend = config.backend ?? new LiveSession({ ...config.helper, options: config.options });
+    this.backend =
+      config.backend ?? new LiveSession({ ...config.helper, options: config.options, tools: config.tools });
     this.generateFn = config.generateFn ?? defaultGenerateFn(config.helper, config.options);
   }
 

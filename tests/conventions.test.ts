@@ -43,9 +43,11 @@ describe('project conventions', () => {
 
   it('exposes exactly the documented public API surface (FR-10)', () => {
     expect(Object.keys(api).sort()).toEqual([
+      'BUILTIN_TOOLS',
       'ChatSession',
       'HELPER_BIN_ENV',
       'LiveSession',
+      'ToolRegistry',
       'encodeRequest',
       'estimateConversationTokens',
       'estimateTokens',
@@ -54,6 +56,8 @@ describe('project conventions', () => {
       'isPlatformSupported',
       'parseEvent',
       'probe',
+      'readTool',
+      'registryFromNames',
       'resolveHelperPath',
       'splitLines',
     ]);

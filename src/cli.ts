@@ -9,6 +9,7 @@ import { readFile } from 'node:fs/promises';
 import { parseArgs, USAGE } from './cliArgs.js';
 import { generate, probe } from './helper.js';
 import { runRepl } from './repl.js';
+import { registryFromNames } from './tools/index.js';
 import type { GenerateOptions, GenerateRequest } from './types.js';
 
 /** Read all of stdin as UTF-8 (used when `generate` is given no prompt arg). */
@@ -69,7 +70,8 @@ async function main(): Promise<void> {
       return;
     }
     case 'chat': {
-      await runRepl({ system: args.system, stream: args.stream, compactAtTokens: args.compactAtTokens });
+      const tools = args.tools !== undefined ? registryFromNames(args.tools) : undefined;
+      await runRepl({ system: args.system, stream: args.stream, compactAtTokens: args.compactAtTokens, tools });
       return;
     }
   }

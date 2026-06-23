@@ -5,10 +5,12 @@ Investigation + design for letting the on-device model **call tools** mid-genera
 with a **permission** gate on each call. Tracked by **FR-14** in
 [3-requirements.md](3-requirements.md); investigated under **AFM-30**.
 
-> **Status: Design only (investigated, not built).** This document is the outcome
-> of the AFM-30 investigation: it establishes that the feature is feasible with
-> Apple's native tool-calling API, lays out the architecture and the protocol
-> extension, and slices the build into follow-up tickets. No code has shipped yet.
+> **Status: phase 1 shipped; rest designed.** This document is the outcome of the
+> AFM-30 investigation — feasibility, architecture, the protocol extension, and the
+> phased build. **Phase 1 (generic plumbing + `read`) has since shipped under AFM-31
+> and is on-device verified** (see [9-tool-calling.md](9-tool-calling.md) for the
+> requirements view and current status). Permissions, `bash`, and `web` (phases 2–4)
+> remain designed-only here.
 
 ## The question (AFM-30)
 

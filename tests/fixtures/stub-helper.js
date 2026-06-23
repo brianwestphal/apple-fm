@@ -155,9 +155,17 @@ if (process.env.STUB_HANG === '1') {
   //   BOOM      -> per-turn error (loop continues)
   //   OVERFLOW  -> per-turn contextWindowExceeded error
   //   CRASH     -> exit(1) abruptly (process death)
+  //   TOOL <name> <jsonArgs> -> emit a tool_call (mirrors the Swift DynamicTool
+  //                  suspend/resume): pause the turn, await a tool_result /
+  //                  tool_error command, then emit the final result / error.
   let instructions = '';
   let turns = 0;
   let buf = '';
+  // Tool names offered at the last reset (the framework binds tools at session
+  // construction, so they ride on `reset`, not each turn).
+  let offeredTools = [];
+  // callId -> turn id, for tool calls awaiting their tool_result/tool_error.
+  const pendingTools = new Map();
   const handleLine = (line) => {
     if (line.trim() === '') return;
     let cmd;
@@ -167,9 +175,23 @@ if (process.env.STUB_HANG === '1') {
       write({ type: 'error', code: 'badRequest', message: 'malformed session command' });
       return;
     }
+    // Node -> helper tool outcomes resume a paused turn (matched by callId).
+    if (cmd.type === 'tool_result' || cmd.type === 'tool_error') {
+      const id = pendingTools.get(cmd.callId);
+      if (id === undefined) return;
+      pendingTools.delete(cmd.callId);
+      if (cmd.type === 'tool_result') {
+        turns += 1;
+        write({ type: 'result', id, content: String(cmd.content) });
+      } else {
+        write({ type: 'error', id, code: 'toolFailed', message: String(cmd.message) });
+      }
+      return;
+    }
     if (cmd.type === 'reset') {
       const seed = Array.isArray(cmd.seed) ? cmd.seed : [];
       instructions = (cmd.system ?? '') + (seed.length > 0 ? ` [seed:${seed.length}]` : '');
+      offeredTools = Array.isArray(cmd.tools) ? cmd.tools.map((t) => t && t.name).filter(Boolean) : [];
       turns = 0;
       write({ type: 'ready', id: cmd.id });
       return;
@@ -184,6 +206,27 @@ if (process.env.STUB_HANG === '1') {
       return;
     }
     if (prompt === 'CRASH') process.exit(1);
+    const toolMatch = /^TOOL (\S+) (.*)$/.exec(prompt);
+    if (toolMatch) {
+      // Only call a tool the turn actually offered (mirrors the helper building the
+      // session with exactly the turn's `tools[]`).
+      const [, name, argsJson] = toolMatch;
+      const offered = offeredTools.includes(name);
+      if (!offered) {
+        write({ type: 'error', id: cmd.id, code: 'inferenceFailed', message: `tool ${name} not offered` });
+        return;
+      }
+      const callId = `${cmd.id}:1`;
+      pendingTools.set(callId, cmd.id);
+      let args;
+      try {
+        args = JSON.parse(argsJson);
+      } catch {
+        args = {};
+      }
+      write({ type: 'tool_call', id: cmd.id, callId, name, arguments: args });
+      return; // turn stays open until the tool_result/tool_error arrives
+    }
     if (prompt === 'JUNK') {
       // Exercise the demux's defensive branches, then resolve normally.
       process.stdout.write('not json\n'); // malformed -> JSON.parse throws

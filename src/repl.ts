@@ -6,6 +6,7 @@
 import { createInterface } from 'node:readline';
 
 import { ChatSession } from './session.js';
+import type { ToolRegistry } from './tools/index.js';
 import type { GenerateOptions } from './types.js';
 
 /** Options for {@link runRepl}. */
@@ -14,6 +15,8 @@ export interface ReplOptions {
   stream: boolean;
   compactAtTokens?: number;
   options?: GenerateOptions;
+  /** Tools the model may call mid-turn (FR-14). */
+  tools?: ToolRegistry;
 }
 
 const HELP = `Commands:
@@ -30,6 +33,7 @@ export async function runRepl(opts: ReplOptions): Promise<void> {
     system: opts.system,
     options: opts.options,
     compactAtTokens: opts.compactAtTokens,
+    tools: opts.tools,
   });
   const rl = createInterface({ input: process.stdin, output: process.stdout });
   process.stdout.write("apple-fm chat — Ctrl-D or /quit to quit, /help for commands.\n");

@@ -4,6 +4,8 @@ import { fileURLToPath } from 'node:url';
 import { beforeAll, describe, expect, it } from 'vitest';
 
 import { LiveSession } from '../src/liveSession.js';
+import type { Tool } from '../src/tools/index.js';
+import { ToolRegistry } from '../src/tools/index.js';
 
 const STUB = fileURLToPath(new URL('./fixtures/stub-helper.js', import.meta.url));
 
@@ -120,5 +122,76 @@ describe('LiveSession', () => {
       delete process.env.STUB_HANG;
       session.close();
     }
+  });
+
+  describe('tool calling (FR-14)', () => {
+    /** A tool that records its calls and echoes the args back as its result. */
+    function spyTool(): { tool: Tool; calls: Array<Record<string, unknown>> } {
+      const calls: Array<Record<string, unknown>> = [];
+      const tool: Tool = {
+        name: 'fake',
+        description: 'records and echoes',
+        parameters: { type: 'object', properties: { path: { type: 'string' } } },
+        run: (args) => {
+          calls.push(args);
+          return Promise.resolve(`tool-saw:${String(args.path)}`);
+        },
+      };
+      return { tool, calls };
+    }
+
+    it('round-trips a model tool call: dispatch → run → feed the result back', async () => {
+      const { tool, calls } = spyTool();
+      const session = new LiveSession({ binPath: STUB, tools: new ToolRegistry([tool]) });
+      try {
+        await session.reset('sys'); // tools bind at reset
+        // The stub's `TOOL <name> <jsonArgs>` sentinel emits a tool_call, then
+        // resolves the turn with whatever tool_result Node writes back.
+        const reply = await session.send('TOOL fake {"path":"x.txt"}');
+        expect(reply).toBe('tool-saw:x.txt');
+        expect(calls).toEqual([{ path: 'x.txt' }]); // args round-tripped from the model
+      } finally {
+        session.close();
+      }
+    });
+
+    it('surfaces a tool failure to the model as a tool_error → turn error', async () => {
+      const tool: Tool = {
+        name: 'fake',
+        description: 'always throws',
+        parameters: { type: 'object', properties: {} },
+        run: () => Promise.reject(new Error('disk on fire')),
+      };
+      const session = new LiveSession({ binPath: STUB, tools: new ToolRegistry([tool]) });
+      try {
+        await session.reset('sys');
+        await expect(session.send('TOOL fake {}')).rejects.toThrow(/\[toolFailed\] disk on fire/);
+      } finally {
+        session.close();
+      }
+    });
+
+    it('keeps the session alive after a tool round-trip', async () => {
+      const { tool } = spyTool();
+      const session = new LiveSession({ binPath: STUB, tools: new ToolRegistry([tool]) });
+      try {
+        await session.reset('sys');
+        await session.send('TOOL fake {"path":"a"}');
+        const after = parseResult(await session.send('ok'));
+        expect(after.turns).toBe(2); // the tool turn counted, then a normal turn
+      } finally {
+        session.close();
+      }
+    });
+
+    it('does not offer tools the model was not given (empty registry ⇒ no tools[])', async () => {
+      const session = new LiveSession({ binPath: STUB }); // no tools
+      try {
+        await session.reset('sys');
+        await expect(session.send('TOOL fake {}')).rejects.toThrow(/not offered/);
+      } finally {
+        session.close();
+      }
+    });
   });
 });

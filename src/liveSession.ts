@@ -11,6 +11,7 @@ import { type ChildProcessWithoutNullStreams,spawn } from 'node:child_process';
 
 import { isPlatformSupported, resolveHelperPath, unsupportedPlatformError, usingBundledHelper } from './helper.js';
 import { splitLines } from './protocol.js';
+import type { ToolRegistry } from './tools/index.js';
 import type { DeltaHandler, GenerateOptions, HelperOptions, Message } from './types.js';
 
 const DEFAULT_TURN_TIMEOUT_MS = 120_000;
@@ -19,6 +20,11 @@ const DEFAULT_TURN_TIMEOUT_MS = 120_000;
 export interface LiveSessionConfig extends HelperOptions {
   /** Generation knobs forwarded with every turn. */
   options?: GenerateOptions;
+  /**
+   * Tools the model may call mid-turn (FR-14). When non-empty, their definitions
+   * are sent with each turn and the session dispatches `tool_call` events to them.
+   */
+  tools?: ToolRegistry;
 }
 
 interface Pending {
@@ -43,6 +49,7 @@ export class LiveSession implements ChatBackend {
   private readonly command: string;
   private readonly timeoutMs: number;
   private readonly options: GenerateOptions | undefined;
+  private readonly tools: ToolRegistry | undefined;
   /** Whether we'd spawn the bundled macOS helper (subject to the platform gate). */
   private readonly bundled: boolean;
   private child: ChildProcessWithoutNullStreams | undefined;
@@ -54,20 +61,32 @@ export class LiveSession implements ChatBackend {
     this.command = resolveHelperPath(config);
     this.timeoutMs = config.timeoutMs ?? DEFAULT_TURN_TIMEOUT_MS;
     this.options = config.options;
+    this.tools = config.tools !== undefined && config.tools.size > 0 ? config.tools : undefined;
     this.bundled = usingBundledHelper(config);
   }
 
-  /** Recreate the underlying session with new instructions + seed turns. */
+  /**
+   * Recreate the underlying session with new instructions + seed turns. Tool
+   * definitions ride on `reset` because the framework binds tools at session
+   * construction (not per turn); the helper builds the session's tools here.
+   */
   async reset(system: string, seed: Message[] = []): Promise<void> {
-    await this.dispatch({ type: 'reset', system, seed }, undefined);
+    await this.dispatch(
+      {
+        type: 'reset',
+        system,
+        seed,
+        // Only attach tools when some are registered, so resets stay byte-identical
+        // to the no-tools path otherwise.
+        ...(this.tools !== undefined ? { tools: this.tools.definitions() } : {}),
+      },
+      undefined,
+    );
   }
 
   /** Send one user turn; prior turns stay in context. Streams via `onDelta`. */
   send(text: string, onDelta?: DeltaHandler): Promise<string> {
-    return this.dispatch(
-      { prompt: text, options: this.options, stream: onDelta !== undefined },
-      onDelta,
-    );
+    return this.dispatch({ prompt: text, options: this.options, stream: onDelta !== undefined }, onDelta);
   }
 
   /** Tear down the helper process and reject any in-flight commands. */
@@ -133,6 +152,11 @@ export class LiveSession implements ChatBackend {
           pending.onDelta?.(event.text);
         }
         break;
+      case 'tool_call':
+        // A tool the model invoked mid-turn. Run it (in Node) and write the result
+        // back; the turn stays pending until its eventual `result`/`error`.
+        this.handleToolCall(id, pending, event);
+        break;
       case 'ready':
         this.settle(id, '');
         break;
@@ -145,6 +169,50 @@ export class LiveSession implements ChatBackend {
       default:
         break;
     }
+  }
+
+  /**
+   * Dispatch a `tool_call` to the registered tool and write the outcome back to the
+   * helper as a `tool_result` / `tool_error` keyed by `callId`. Runs concurrently
+   * with the still-open turn. The turn's timeout is restarted while a tool runs so a
+   * slow tool doesn't count against the model's response budget.
+   */
+  private handleToolCall(id: string, pending: Pending, event: Record<string, unknown>): void {
+    const callId = typeof event.callId === 'string' ? event.callId : undefined;
+    const name = typeof event.name === 'string' ? event.name : undefined;
+    const args =
+      typeof event.arguments === 'object' && event.arguments !== null
+        ? (event.arguments as Record<string, unknown>)
+        : {};
+    if (callId === undefined || name === undefined) return; // malformed; ignore
+
+    this.restartTimer(id, pending);
+    const reply = (command: Record<string, unknown>): void => {
+      this.child?.stdin.write(JSON.stringify({ ...command, callId }) + '\n');
+    };
+    const registry = this.tools;
+    const run =
+      registry !== undefined
+        ? registry.run(name, args)
+        : Promise.reject(new Error(`no tools available for call "${name}"`));
+    run.then(
+      (content) => {
+        this.restartTimer(id, pending);
+        reply({ type: 'tool_result', content });
+      },
+      (error: unknown) => {
+        this.restartTimer(id, pending);
+        reply({ type: 'tool_error', message: error instanceof Error ? error.message : String(error) });
+      },
+    );
+  }
+
+  /** Restart a pending turn's timeout (e.g. across a tool call). */
+  private restartTimer(id: string, pending: Pending): void {
+    clearTimeout(pending.timer);
+    pending.timer = setTimeout(() => {
+      this.fail(id, `live session timed out after ${String(this.timeoutMs)}ms`);
+    }, this.timeoutMs);
   }
 
   private settle(id: string, content: string): void {

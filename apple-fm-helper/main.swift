@@ -120,8 +120,16 @@ private func emitSnapshot(_ content: String, id: String? = nil) {
     emit("{\"type\":\"snapshot\"\(idField(id)),\"content\":\(encodeString(content))}")
 }
 
-/// Emit an error event without exiting (used per-turn in `--session`).
-private func emitError(_ code: String, _ message: String, id: String?) {
+/// A tool the model invoked mid-turn. `argumentsJSON` is embedded as raw JSON (the
+/// model's generated arguments), not a string. `internal` so `ToolBridge` (in
+/// Tools.swift) can call it. See docs/9-tool-calling.md.
+func emitToolCall(name: String, callId: String, argumentsJSON: String, id: String?) {
+    emit("{\"type\":\"tool_call\"\(idField(id)),\"callId\":\(encodeString(callId)),\"name\":\(encodeString(name)),\"arguments\":\(argumentsJSON)}")
+}
+
+/// Emit an error event without exiting (used per-turn in `--session`). `internal` so
+/// `buildTools` (in Tools.swift) can report an unsupported tool schema.
+func emitError(_ code: String, _ message: String, id: String?) {
     emit("{\"type\":\"error\"\(idField(id)),\"code\":\(encodeString(code)),\"message\":\(encodeString(message))}")
 }
 
@@ -319,6 +327,13 @@ struct SessionCommand: Decodable {
     let prompt: String?
     let options: WireOptions?
     let stream: Bool?
+    // Tool calling (FR-14): `tools` rides on a `reset` (the framework binds tools at
+    // session construction); `callId`/`content`/`message` carry a tool outcome back
+    // into a suspended `tool_call`. See docs/9-tool-calling.md.
+    let tools: [WireTool]?
+    let callId: String?
+    let content: String?
+    let message: String?
 }
 
 /// Compose session instructions from a system prompt plus any seed turns, folded
@@ -361,15 +376,35 @@ private func sessionTurn(_ session: LanguageModelSession, _ command: SessionComm
     }
 }
 
+/// Build the session for a `reset`: with the command's tools when any are offered,
+/// otherwise the plain session. Tools are bound at construction (the framework's
+/// model), so they ride on `reset`, not each turn.
+private func makeSession(_ command: SessionCommand, bridge: ToolBridge) -> LanguageModelSession {
+    let instructions = sessionInstructions(system: command.system, seed: command.seed)
+    let tools = buildTools(command.tools ?? [], bridge: bridge)
+    if tools.isEmpty {
+        return LanguageModelSession(instructions: instructions)
+    }
+    return LanguageModelSession(tools: tools, instructions: instructions)
+}
+
 /// Hold one `LanguageModelSession` across many turns (KV-cache reuse). Reads one
-/// command per stdin line, serially, and exits 0 on EOF. A turn error is reported
-/// per-turn and does not end the loop; a `reset` recreates the session with new
-/// instructions + seed and acks with `ready`.
+/// command per stdin line and exits 0 on EOF. A turn error is reported per-turn and
+/// does not end the loop; a `reset` recreates the session with new instructions +
+/// seed (+ tools) and acks with `ready`.
+///
+/// Turns are serial, but the model may call a tool mid-turn — so a turn runs as a
+/// detached task while the reader keeps reading, delivering the `tool_result` /
+/// `tool_error` lines into the suspended `tool_call` via the `ToolBridge`. The next
+/// turn waits on the previous task, so only one turn is ever live. See
+/// docs/9-tool-calling.md.
 private func runSession() async -> Never {
     guard case .available = SystemLanguageModel.default.availability else {
         failEvent("unavailable", "Apple Foundation Models unavailable")
     }
+    let bridge = ToolBridge()
     var session = LanguageModelSession()
+    var currentTurn: Task<Void, Never>?
     do {
         for try await line in FileHandle.standardInput.bytes.lines {
             if line.trimmingCharacters(in: .whitespaces).isEmpty { continue }
@@ -377,14 +412,23 @@ private func runSession() async -> Never {
                 emitError("badRequest", "malformed session command", id: nil)
                 continue
             }
-            if command.type == "reset" {
-                session = LanguageModelSession(
-                    instructions: sessionInstructions(system: command.system, seed: command.seed))
+            switch command.type {
+            case "tool_result":
+                await bridge.resolve(callId: command.callId ?? "", reply: .result(command.content ?? ""))
+            case "tool_error":
+                await bridge.resolve(callId: command.callId ?? "", reply: .error(command.message ?? "tool failed"))
+            case "reset":
+                await currentTurn?.value // no turn should be in flight, but be safe
+                session = makeSession(command, bridge: bridge)
                 emitReady(command.id)
-            } else {
-                await sessionTurn(session, command)
+            default:
+                await currentTurn?.value // serialize: one turn at a time
+                await bridge.beginTurn(command.id)
+                let active = session
+                currentTurn = Task { await sessionTurn(active, command) }
             }
         }
+        await currentTurn?.value
     } catch {
         failEvent("inferenceFailed", "session input error: \(String(describing: error))")
     }

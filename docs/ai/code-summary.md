@@ -16,9 +16,11 @@ src/
   repl.ts         # interactive chat loop (runRepl) — readline over ChatSession
   cli.ts          # apple-fm bin (thin)
   index.ts        # public API surface
+  tools/          # tool calling (FR-14): Tool/ToolContext/ToolDefinition (types.ts), ToolRegistry (registry.ts), registryFromNames + BUILTIN_TOOLS (index.ts), builtin/read.ts
 apple-fm-helper/             # Swift FoundationModels CLI (--probe / --generate / --session); all *.swift compiled into one binary by scripts/build-apple-fm-helper.sh
-  main.swift                 # entry point, output/emit, probe, generate, session loop
+  main.swift                 # entry point, output/emit, probe, generate, session loop (+ tool-call routing)
   GuidedGeneration.swift     # JSON Schema -> DynamicGenerationSchema/GenerationSchema (compileSchema)
+  Tools.swift                # tool calling (FR-14): DynamicTool, ToolBridge (suspend/resume), buildTools
 tests/            # protocol, cliArgs, session, helper, liveSession, docs, demo (+ fixtures/stub-helper.js)
   e2e/cli.e2e.test.ts        # spawns the real CLI (src/cli.ts via tsx) against the stub; asserts stdout/exit codes
 ```
@@ -30,6 +32,8 @@ tests/            # protocol, cliArgs, session, helper, liveSession, docs, demo 
 - Chat: `ChatSession` (`send`, `compact`, `shouldCompact`, `history`, `reset`,
   `close`); `LiveSession` (`send`, `reset`, `close`); types `ChatSessionConfig`,
   `GenerateFn`, `ChatBackend`, `LiveSessionConfig`.
+- Tools (FR-14): `ToolRegistry`, `registryFromNames`, `readTool`, `BUILTIN_TOOLS`;
+  types `Tool`, `ToolContext`, `ToolDefinition`.
 - Protocol: `encodeRequest`, `splitLines`, `parseEvent`, `flattenMessages`,
   `estimateTokens`, `estimateConversationTokens`.
 - Types: `Message`, `Role`, `GenerateRequest`, `GenerateOptions`, `ProbeResult`,
@@ -48,7 +52,7 @@ tests/            # protocol, cliArgs, session, helper, liveSession, docs, demo 
 | add/change a CLI flag | `cliArgs.ts` (+ wire in `cli.ts`) |
 | change interactive REPL commands | `repl.ts` |
 | change the on-device calls (probe/respond/stream) | `apple-fm-helper/main.swift` |
-| add tool calling (bash/read/web, permissions) — design only, not built | `docs/8-tool-support.md` (FR-14 / AF-5); planned: `src/tools/` registry + a generic `DynamicTool` in the Swift helper |
+| add or change a tool / the tool round-trip (FR-14) | `src/tools/` (registry + built-ins) + `liveSession.ts` (dispatcher) + `apple-fm-helper/Tools.swift` (`DynamicTool`) + `docs/4-protocol.md` + `docs/9-tool-calling.md`. Phase 1 (read) shipped; permissions/bash/web are AF-5 (`docs/8-tool-support.md`). |
 
 ## Testing
 

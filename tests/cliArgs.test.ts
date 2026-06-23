@@ -50,6 +50,15 @@ describe('parseArgs', () => {
     });
   });
 
+  it('parses chat --tools into a trimmed, non-empty name list', () => {
+    expect(parseArgs(['chat', '--tools', 'read'])).toEqual({ command: 'chat', stream: true, tools: ['read'] });
+    expect(parseArgs(['chat', '--tools', ' read , bash ,'])).toEqual({
+      command: 'chat',
+      stream: true,
+      tools: ['read', 'bash'],
+    });
+  });
+
   it('rejects unknown commands and flags', () => {
     expect(() => parseArgs(['frobnicate'])).toThrow(/unknown command/);
     expect(() => parseArgs(['generate', '--nope'])).toThrow(/unknown flag/);

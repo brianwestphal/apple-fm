@@ -90,14 +90,17 @@ Commands:
 | Command | Shape | Effect |
 | --- | --- | --- |
 | turn | `{"id":"7","prompt":"…","options":{…}?,"stream":bool?}` | Respond on the held session; emits `delta`* (when `stream`) then `result`, or `error` — all tagged with the `id`. The session is **not** reset, so prior turns remain in context. |
-| reset | `{"type":"reset","id":"8","system":"…"?,"seed":[{"role","content"}]?}` | Recreate the session with `system` as instructions and `seed` folded in as a labeled recap (used for `/reset` / `/clear` and for compaction reseed). Acks with `{"type":"ready","id":"8"}`. |
+| reset | `{"type":"reset","id":"8","system":"…"?,"seed":[{"role","content"}]?,"tools":[…]?}` | Recreate the session with `system` as instructions and `seed` folded in as a labeled recap (used for `/reset` / `/clear` and for compaction reseed). `tools` (optional) binds the tools the model may call this session (see below). Acks with `{"type":"ready","id":"8"}`. |
+| tool_result | `{"type":"tool_result","callId":"7:1","content":"…"}` | Resume a suspended `tool_call` with its textual result (see tool calling). |
+| tool_error | `{"type":"tool_error","callId":"7:1","message":"…"}` | Resume a suspended `tool_call` as a failure; the model is told and may continue. |
 
 Events are the same vocabulary as `--generate` (`delta` / `result` / `error`) plus
-`ready` for a reset ack, each with the optional `id`:
+`ready` for a reset ack and `tool_call` for tool calling, each with the optional `id`:
 
 ```json
 {"type":"ready","id":"8"}
 {"type":"delta","id":"7","text":"…"}
+{"type":"tool_call","id":"7","callId":"7:1","name":"read","arguments":{"path":"a.txt"}}
 {"type":"result","id":"7","content":"…"}
 {"type":"error","id":"7","code":"contextWindowExceeded","message":"…"}
 ```
@@ -105,6 +108,29 @@ Events are the same vocabulary as `--generate` (`delta` / `result` / `error`) pl
 A turn `error` is reported **per-turn** and does not end the session — the loop
 keeps running for the next command (`contextWindowExceeded` lets the Node side
 compact, `reset`, and retry). Only stdin EOF (or a fatal read error) stops it.
+
+### Tool calling (FR-14)
+
+Tools let the model call back into Node mid-turn (FR-14; see
+[9-tool-calling.md](9-tool-calling.md)). Because the framework binds tools at session
+construction, tool **definitions** ride on the `reset` command:
+
+```json
+{"type":"reset","id":"8","system":"…","tools":[
+  {"name":"read","description":"Read a file…","parameters":{ …JSON Schema… }}
+]}
+```
+
+`parameters` is a JSON Schema in the same subset the helper compiles for guided
+generation ([6-guided-generation.md](6-guided-generation.md)); it becomes the tool's
+native argument schema so the model can only produce valid arguments. When the model
+invokes a tool **during a turn**, the helper emits a `tool_call` (tagged with the
+turn `id` plus a unique `callId` of the form `"<turnId>:<n>"`) and **suspends** that
+turn. Node runs the tool and replies with a `tool_result` / `tool_error` keyed by the
+same `callId`; the helper resumes, feeds the outcome to the model, and the turn
+continues — possibly with more `tool_call`s — until its final `result`. The reader is
+concurrent with the in-flight turn so the `tool_result` line is delivered while the
+turn is suspended.
 
 ## Notes
 
