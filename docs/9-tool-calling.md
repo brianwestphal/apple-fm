@@ -29,7 +29,7 @@ TypeScript.
 
 | ID | Requirement | Status | Notes |
 | --- | --- | --- | --- |
-| TC-1 | Generic tool round-trip across the Node ⇄ Swift boundary | **Shipped** (phase 1) | `tool_call`/`tool_result`/`tool_error` extend the `--session` protocol ([4-protocol.md](4-protocol.md)); Swift `DynamicTool` (`apple-fm-helper/Tools.swift`) suspends on `call` and resumes on the reply; the Node dispatcher (`liveSession.ts`) services `tool_call` concurrently with the in-flight turn. Bound at `reset`. **On-device verified.** |
+| TC-1 | Generic tool round-trip across the Node ⇄ Swift boundary | **Shipped** (phase 1) | `tool_call`/`tool_result`/`tool_error` extend the `--session` protocol ([4-protocol.md](4-protocol.md)); Swift `DynamicTool` (`apple-fm-helper/Tools.swift`) suspends on `call` and resumes on the reply; the Node dispatcher (`dispatchToolCall` in `src/tools/dispatch.ts`, wired by `liveSession.ts`) services `tool_call` concurrently with the in-flight turn. Bound at `reset`. **On-device verified.** |
 | TC-2 | Extensible tool registry (library + CLI) | **Shipped** (phase 1) | `ToolRegistry` (`src/tools/`) is the seam: a library consumer registers their own `Tool`; the CLI enables built-ins with `chat --tools <names>` (`registryFromNames`). |
 | TC-3 | Tool argument schemas constrain the model | **Shipped** (phase 1) | A tool's `parameters` JSON Schema is compiled to a native `GenerationSchema` (reuses FR-8), so the model can only generate valid arguments. |
 | TC-4 | `read` built-in tool | **Shipped** (phase 1) | `src/tools/builtin/read.ts`: read a UTF-8 file, optional line `offset`/`limit`. Read-only; gated by the permission policy. See [11-builtin-tools.md](11-builtin-tools.md). |
@@ -47,8 +47,9 @@ TypeScript.
   `ToolBridge` actor (suspend/resume), and a concurrent session reader so a
   `tool_result` is delivered while a turn is suspended.
 - **Node** (`src/tools/`): `Tool` / `ToolContext` / `ToolDefinition` types,
-  `ToolRegistry`, `registryFromNames`, the `read` built-in, and the dispatcher in
-  `liveSession.ts` (with a per-turn timeout restart across tool calls).
+  `ToolRegistry`, `registryFromNames`, the `read` built-in, and the dispatcher
+  (`tools/dispatch.ts`, wired by `liveSession.ts` with a per-turn timeout restart
+  across tool calls).
 - **Public API** (`src/index.ts`): `Tool`, `ToolContext`, `ToolDefinition`,
   `ToolRegistry`, `registryFromNames`, `readTool`, `BUILTIN_TOOLS`.
 - **CLI**: `apple-fm chat --tools read` (`cliArgs.ts` → `cli.ts` → `repl.ts`). When
@@ -80,7 +81,9 @@ TypeScript.
 ## Testing
 
 - **Unit** (`tests/tools.test.ts`): `ToolRegistry`, `registryFromNames`, the `read`
-  tool (whole file / range / bad args / missing path).
+  tool (whole file / range / bad args / missing path). `tests/dispatch.test.ts` covers
+  `dispatchToolCall` directly (malformed event, unknown tool, success, failure-as-result,
+  denied).
 - **Integration, device-free** (`tests/liveSession.test.ts`): a real `LiveSession`
   against the stub helper drives a full `tool_call → run → tool_result` round-trip,
   a `tool_error`, session-survival after a tool turn, and the not-offered path. The

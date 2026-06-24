@@ -50,8 +50,9 @@ Two layers, talking NDJSON (see [docs/4-protocol.md](docs/4-protocol.md)):
   - `tools/` — tool calling (FR-14): the `Tool`/`ToolContext`/`ToolDefinition`
     contract (`types.ts`), `ToolRegistry` (`registry.ts`), `registryFromNames` +
     `BUILTIN_TOOLS` + `toolGuidancePrompt` (`index.ts`), the `read`/`bash` built-ins
-    (`builtin/`), the per-call `PermissionPolicy` (`permissions.ts`), and the shared
-    output cap (`output.ts`). All local — no network. See [docs/9-tool-calling.md](docs/9-tool-calling.md).
+    (`builtin/`), the per-call `PermissionPolicy` (`permissions.ts`), the `tool_call`
+    dispatcher (`dispatch.ts`), and the shared output cap (`output.ts`). All local — no
+    network. See [docs/9-tool-calling.md](docs/9-tool-calling.md).
   - `index.ts` — public API.
 
 ## Public API (`src/index.ts`)

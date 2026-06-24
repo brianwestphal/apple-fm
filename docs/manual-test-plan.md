@@ -11,8 +11,11 @@ When a case here gains automated coverage, remove it and note it under
 
 Esc-to-interrupt needs a real TTY (keypress events + raw mode), so it is verified
 manually. The Node↔helper `cancel` round-trip and history-keeping are unit-tested
-device-free (`tests/liveSession.test.ts`, `tests/session.test.ts`); this case covers
-the live keypress path and the real model actually stopping.
+device-free (`tests/liveSession.test.ts`, `tests/session.test.ts`), and the **Swift
+cancel path is on-device verified** (AFM-45 — a streaming turn `cancel`ed mid-flight
+stopped `streamResponse`, emitted a clean partial `result`, and the session stayed
+usable). This case now only covers the **live TTY keypress** (readline `keypress` →
+`AbortController`), the one bit not exercised automatically.
 
 **Steps**
 

@@ -11,6 +11,7 @@ import { type ChildProcessWithoutNullStreams,spawn } from 'node:child_process';
 
 import { isPlatformSupported, resolveHelperPath, unsupportedPlatformError, usingBundledHelper } from './helper.js';
 import { splitLines } from './protocol.js';
+import { dispatchToolCall } from './tools/dispatch.js';
 import type { PermissionPolicy, ToolRegistry } from './tools/index.js';
 import type { DeltaHandler, GenerateOptions, HelperOptions, Message } from './types.js';
 
@@ -190,48 +191,22 @@ export class LiveSession implements ChatBackend {
 
   /**
    * Dispatch a `tool_call` to the registered tool and write the outcome back to the
-   * helper as a `tool_result` / `tool_error` keyed by `callId`. Runs concurrently
-   * with the still-open turn. The turn's timeout is restarted while a tool runs so a
-   * slow tool doesn't count against the model's response budget.
+   * helper, keyed by `callId`. Runs concurrently with the still-open turn; the tool
+   * policy lives in {@link dispatchToolCall} (`src/tools/dispatch.ts`) — this wires it
+   * to the session's child process and the pending turn's timeout.
    */
-  private async handleToolCall(id: string, pending: Pending, event: Record<string, unknown>): Promise<void> {
-    const callId = typeof event.callId === 'string' ? event.callId : undefined;
-    const name = typeof event.name === 'string' ? event.name : undefined;
-    const args =
-      typeof event.arguments === 'object' && event.arguments !== null
-        ? (event.arguments as Record<string, unknown>)
-        : {};
-    if (callId === undefined || name === undefined) return; // malformed; ignore
-
-    // Hold the turn open while the tool (and any permission prompt) runs.
-    this.restartTimer(id, pending);
-    const reply = (command: Record<string, unknown>): void => {
-      this.restartTimer(id, pending);
-      this.child?.stdin.write(JSON.stringify({ ...command, callId }) + '\n');
-    };
-    // A refusal or failure is fed back as the tool's *result* (a message the model
-    // reads), not a throwing `tool_error`: on-device, a thrown tool error aborts the
-    // whole turn rather than letting the model continue without the tool (verified).
-    // See docs/9-tool-calling.md.
-    const registry = this.tools;
-    if (registry === undefined || !registry.has(name)) {
-      reply({ type: 'tool_result', content: `Unknown tool "${name}".` });
-      return;
-    }
-    // Permission gate (phase 2): refuse → tell the model it was denied; it continues.
-    if (this.permission !== undefined) {
-      const request = registry.permissionRequest(name, args);
-      const allowed = request !== undefined && (await this.permission.authorize(request));
-      if (!allowed) {
-        reply({ type: 'tool_result', content: `Permission to use the "${name}" tool was denied by the user.` });
-        return;
-      }
-    }
-    try {
-      reply({ type: 'tool_result', content: await registry.run(name, args) });
-    } catch (error) {
-      reply({ type: 'tool_result', content: `The "${name}" tool failed: ${error instanceof Error ? error.message : String(error)}` });
-    }
+  private handleToolCall(id: string, pending: Pending, event: Record<string, unknown>): Promise<void> {
+    return dispatchToolCall(event, {
+      tools: this.tools,
+      permission: this.permission,
+      send: (command) => {
+        this.child?.stdin.write(JSON.stringify(command) + '\n');
+      },
+      // Hold the turn open while the tool (and any permission prompt) runs.
+      keepAlive: () => {
+        this.restartTimer(id, pending);
+      },
+    });
   }
 
   /** Restart a pending turn's timeout (e.g. across a tool call). */
