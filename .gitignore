@@ -4,6 +4,7 @@ coverage/
 .coverage-tmp/
 .DS_Store
 *.tsbuildinfo
+.claude/settings.local.json
 .mcp.json
 /.glassbox/*
 !/.glassbox/settings.json
