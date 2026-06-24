@@ -155,8 +155,15 @@ export async function runRepl(opts: ReplOptions): Promise<void> {
         opts.stream ? (chunk) => process.stdout.write(chunk) : undefined,
         controller.signal,
       );
-      if (!opts.stream) process.stdout.write(reply);
-      process.stdout.write(controller.signal.aborted ? '\n(interrupted)\n' : '\n');
+      if (controller.signal.aborted) {
+        process.stdout.write('\n(interrupted)\n');
+      } else {
+        if (!opts.stream) process.stdout.write(reply);
+        // The model can return nothing — e.g. it stops right after a tool call. Say so
+        // rather than printing a blank line that looks like the command did nothing.
+        if (reply.trim().length === 0) process.stdout.write('(no response)');
+        process.stdout.write('\n');
+      }
     } catch (error) {
       process.stdout.write(`error: ${error instanceof Error ? error.message : String(error)}\n`);
     } finally {

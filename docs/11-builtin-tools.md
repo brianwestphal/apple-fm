@@ -70,7 +70,10 @@ that scope permission rules and the prompt. Registered in `BUILTIN_TOOLS`
   on-device; only this tool reaches out. NFR-1 ([3-requirements.md](3-requirements.md))
   was reworded to reflect this.
 - **WT-2 GET only, dependency-free.** Uses Node's global `fetch` (Node ≥ 18) — no new
-  dependency. No request body / non-GET methods, so no remote side effects.
+  dependency. No request body / non-GET methods, so no remote side effects. Sends a
+  realistic browser `User-Agent` + `Accept` header so sites don't serve an empty body /
+  bot challenge / redirect stub to a UA-less client (which the model would see as
+  "nothing"; AFM-42).
 - **WT-3 Bounded + readable.** Timeout (15 s default, `AbortController`), and the
   returned text is windowed to a cap (default `MAX_TOOL_OUTPUT_CHARS` = 3 000 chars ≈
   750 tokens; AFM-38) so a large page can't overflow the ~4096-token on-device window.
@@ -102,10 +105,13 @@ that scope permission rules and the prompt. Registered in `BUILTIN_TOOLS`
   readability extraction (article scoping, link-density filter, plain-strip fallback),
   paging (`offset`), configurable cap (`maxChars` + `APPLE_FM_WEB_MAX_CHARS`), non-HTML
   pass-through, error status, size cap, non-http reject, timeout, transport error,
-  permission key) — all device-free.
+  `User-Agent`/`Accept` headers (AFM-42), permission key) — all device-free.
 - **E2E** (`tests/e2e/cli.e2e.test.ts`): `read` / `bash` run through the assembled CLI
   behind the gate (pre-authorized runs; piped-non-interactive denies); `web` is denied
-  by default (no network reached).
+  by default (no network reached); and a full **read-a-URL** flow (`--tools
+  web,read,bash --allow-tool web`) fetches a **loopback** page and asserts the extracted
+  content reaches stdout — proving the tool delivers end-to-end, not "nothing" (AFM-42).
+  An empty model reply prints `(no response)` rather than a blank line.
 - **On-device** (AF-2): the real model called `read` (returned a file's secret),
   `bash` (ran `echo SMOKE-$((6*7))` → `SMOKE-42`), and `web` (fetched a local page and
   reported its content).

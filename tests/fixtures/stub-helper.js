@@ -220,6 +220,13 @@ if (process.env.STUB_HANG === '1') {
       return;
     }
     if (prompt === 'CRASH') process.exit(1);
+    if (prompt === 'EMPTY') {
+      // Model produced no text (e.g. it stopped right after a tool call). Lets the
+      // REPL's empty-reply feedback be exercised end-to-end (AFM-42).
+      turns += 1;
+      write({ type: 'result', id: cmd.id, content: '' });
+      return;
+    }
     if (prompt === 'STREAM_FOREVER') {
       // Stream one delta, then keep the turn open until a `cancel` finishes it with
       // the partial — lets tests exercise esc-to-interrupt deterministically.

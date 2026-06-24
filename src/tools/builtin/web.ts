@@ -21,6 +21,18 @@ import type { Tool } from '../types.js';
 /** Abort a request that takes longer than this (ms). */
 const DEFAULT_TIMEOUT_MS = 15_000;
 
+/**
+ * Request headers sent with every fetch. A realistic browser `User-Agent` + `Accept`
+ * matter: many sites serve an empty body, a bot challenge, or a redirect stub to a
+ * client that sends no/`undici` UA — which the model then sees as "nothing" (AFM-42).
+ */
+const REQUEST_HEADERS: Record<string, string> = {
+  'user-agent':
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) ' +
+    'Chrome/124.0.0.0 Safari/537.36',
+  accept: 'text/html,application/xhtml+xml,application/json;q=0.9,text/plain;q=0.8,*/*;q=0.5',
+};
+
 /** Env var letting a user widen the per-fetch output cap (machines with a larger window). */
 export const WEB_MAX_CHARS_ENV = 'APPLE_FM_WEB_MAX_CHARS';
 
@@ -165,7 +177,12 @@ export async function fetchUrl(url: string, options: FetchOptions = {}): Promise
     controller.abort();
   }, options.timeoutMs ?? DEFAULT_TIMEOUT_MS);
   try {
-    const response = await doFetch(url, { method: 'GET', redirect: 'follow', signal: controller.signal });
+    const response = await doFetch(url, {
+      method: 'GET',
+      redirect: 'follow',
+      signal: controller.signal,
+      headers: REQUEST_HEADERS,
+    });
     const contentType = response.headers.get('content-type') ?? '';
     const raw = await response.text();
     const text = contentType.includes('html') ? htmlToText(raw) : raw;

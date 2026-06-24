@@ -49,6 +49,18 @@ describe('web tool', () => {
     expect(out.length).toBeLessThan(20_000);
   });
 
+  it('sends a realistic User-Agent and Accept header (AFM-42)', async () => {
+    let seenInit: RequestInit | undefined;
+    const capturing: typeof fetch = ((_url: string, init?: RequestInit) => {
+      seenInit = init;
+      return Promise.resolve(new Response('ok', { headers: { 'content-type': 'text/plain' } }));
+    }) as unknown as typeof fetch;
+    await fetchUrl('https://example.com', { fetchImpl: capturing });
+    const headers = seenInit?.headers as Record<string, string> | undefined;
+    expect(headers?.['user-agent']).toMatch(/Mozilla\/5\.0/);
+    expect(headers?.accept).toMatch(/text\/html/);
+  });
+
   it('rejects a non-http(s) URL without fetching', async () => {
     const fetchImpl = vi.fn();
     await expect(fetchUrl('file:///etc/passwd', { fetchImpl: fetchImpl as unknown as typeof fetch })).rejects.toThrow(
