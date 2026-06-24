@@ -3,12 +3,12 @@ dist
 coverage/
 .coverage-tmp/
 .DS_Store
-.hotsheet/
-.glassbox/
-.cursor/
 *.tsbuildinfo
 .mcp.json
-.claude
+/.glassbox/*
+!/.glassbox/settings.json
+/.hotsheet/*
+!/.hotsheet/settings.json
 
 # Compiled Apple Foundation Models helper binary (build with `npm run build:helper`)
 bin/

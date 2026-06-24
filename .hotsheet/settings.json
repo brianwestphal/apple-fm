@@ -1,0 +1,115 @@
+{
+  "appName": "Apple FM",
+  "ticketPrefix": "AFM",
+  "secret": "372e8dd4dd24e8784714dd3bad03422e",
+  "secretPathHash": "a423bfe8f580e01f",
+  "port": 4174,
+  "terminals": [
+    {
+      "id": "claude",
+      "command": "{{claudeCommand}}",
+      "name": "Claude",
+      "lazy": false,
+      "theme": "github-dark",
+      "fontFamily": "system",
+      "fontSize": 17
+    }
+  ],
+  "drawer_open": "true",
+  "drawer_active_tab": "terminal:dyn-mqrkk0zn-523gbu",
+  "drawer_expanded": "true",
+  "terminal_default": {
+    "theme": "github-dark",
+    "fontSize": 17
+  },
+  "custom_commands": [
+    {
+      "name": "Commit Changes",
+      "prompt": "make a commit message for the recently completed tickets, without wrapping long lines.  Don't include any co-authored by Anthropic type lines in the commit message.  add all unstaged changes to the git commit.  git commit with the message you generated but don't push",
+      "icon": "send",
+      "color": "#3b82f6"
+    },
+    {
+      "name": "Update Requirements",
+      "prompt": "Update the requirements docs as appropriate",
+      "icon": "file-text",
+      "color": "#6b7280"
+    },
+    {
+      "type": "group",
+      "name": "quality",
+      "children": [
+        {
+          "name": "Reqs ↔︎ Code",
+          "prompt": "/check-requirements-against-code",
+          "icon": "arrow-left-right",
+          "color": "#ec4899"
+        },
+        {
+          "name": "Analyze Code Quality",
+          "prompt": "/analyze-code-quality",
+          "icon": "circle-check-big",
+          "color": "#8b5cf6"
+        },
+        {
+          "name": "Check Code Hygene",
+          "prompt": "/check-code-hygiene",
+          "icon": "soap-dispenser-droplet",
+          "color": "#f97316"
+        },
+        {
+          "name": "Everything",
+          "prompt": "do these sequentially, creating follow up tickets for all concerns encountered:\n/check-requirements-against-code\n/check-code-hygiene\n/analyze-code-quality\n",
+          "icon": "balloon",
+          "color": "#e5e7eb"
+        }
+      ]
+    },
+    {
+      "type": "group",
+      "name": "GIT",
+      "children": [
+        {
+          "name": "git status",
+          "prompt": "git status",
+          "icon": "git-compare",
+          "color": "#e5e7eb",
+          "target": "shell",
+          "autoShowLog": true
+        },
+        {
+          "name": "git push",
+          "prompt": "git push",
+          "icon": "git-compare-arrows",
+          "target": "shell"
+        }
+      ]
+    },
+    {
+      "name": "Prep Major Release",
+      "prompt": "/prep-major-release",
+      "icon": "wand",
+      "color": "#14b8a6"
+    }
+  ],
+  "auto_context": [
+    {
+      "type": "category",
+      "key": "feature",
+      "text": "Read docs/ai/code-summary.md and docs/ai/requirements-summary.md if you haven't yet or if you feel you might be out-of-date.\n\nAdd a new requirements document.\n\nAsk clarifying questions as needed.\n\nBe sure to create follow up tickets as needed as well.\n"
+    },
+    {
+      "type": "category",
+      "key": "requirement_change",
+      "text": "Read docs/ai/code-summary.md and docs/ai/requirements-summary.md if you haven't yet or if you feel you might be out-of-date.\n\nUpdate requirements documents as appropriate.\n\nAsk clarifying questions as needed.\n"
+    },
+    {
+      "type": "category",
+      "key": "bug",
+      "text": "Read docs/ai/code-summary.md and docs/ai/requirements-summary.md if you haven't yet or if you feel you might be out-of-date.\n\nEvaluate current tests and add unit tests or test automation to protected against this kind of bug going forward, if applicable.\n"
+    }
+  ],
+  "detail_visible": "true",
+  "detail_position": "side",
+  "ai_instructions_nudge_dismissed": true
+}
