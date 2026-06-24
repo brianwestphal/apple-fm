@@ -3,9 +3,7 @@ name: hotsheet
 description: Read the Hot Sheet worklist and work through the current priority items
 allowed-tools: Read, Grep, Glob, Edit, Write, Bash
 ---
-<!-- hotsheet-skill-version: 12 -->
-
-Base directory for this skill: /Users/westphal/Documents/apple-fm/.claude/skills/hotsheet
+<!-- hotsheet-skill-version: 13 -->
 
 Read `.hotsheet/worklist.md` and work through the tickets in priority order.
 

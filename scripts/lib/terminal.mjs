@@ -1,153 +1,110 @@
 /**
- * HTML scaffolding for the animated README demos.
+ * The title card laid over each demo's opening beat.
  *
- * Each demo is two frames composed by `domotion animate`: a title card that
- * introduces the concept, then a macOS-style terminal window that types the
- * command and reveals the *real* captured CLI output (apple-fm's on-device
- * generation). Both frames share one canvas size so the crossfade between them
- * is seamless.
+ * Each demo is a single terminal `cast` (see cast.mjs) dressed as a window
+ * (window.mjs); the title card is SVG markup that window.mjs layers on top and
+ * fades out over the cast's lead-in. We emit SVG directly (rather than capturing
+ * HTML) so it composes into the demo with no id collisions and no font-glyph
+ * duplication.
  *
- * Nothing here renders pixels — it only emits HTML/CSS that domotion captures in
- * Chromium. Colors track GitHub's dark theme so the SVGs read well in the README.
+ * The card is a centered dark panel mirroring the terminal window's surface, so
+ * the two read as one family. Being its own dark panel, the card's text stays
+ * legible on any README background, light or dark.
  */
 
 /** Shared canvas width for every demo SVG (px). */
-export const WIDTH = 860;
+export const WIDTH = 880;
 
-/** Terminal vertical metrics (px) — used to size the canvas to the content. */
-const BAR_H = 38;
-const BODY_PAD_TOP = 18;
-const BODY_PAD_BOTTOM = 20;
-const CMD_LINE_H = 26;
-const CMD_GAP = 12;
-const LINE_H = 22;
-
-/** Height that fits a terminal with `lineCount` output lines. */
-export function terminalHeight(lineCount) {
-  return BAR_H + BODY_PAD_TOP + CMD_LINE_H + CMD_GAP + lineCount * LINE_H + BODY_PAD_BOTTOM;
-}
+const CARD_W = 660;
+const PAD = 44; // card inner padding
+const EYEBROW_H = 14;
+const HEAD_LH = 36; // headline line height
+const SUB_LH = 23; // subtitle line height
+const RULE_H = 3;
+const GAP = 18;
 
 function esc(s) {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-/**
- * Wrap one captured output line in a colored `<div>`. The text is verbatim from
- * the CLI; only presentation classes are added based on the line's shape, so the
- * JSON of `probe` / `--schema` and the chat prompts read distinctly.
- */
-function lineToHtml(line) {
-  let cls = '';
-  if (/^>\s/.test(line)) cls = 'prompt'; // chat prompt + typed input
-  else if (/^(apple-fm:|error)/.test(line)) cls = 'warn'; // stderr / errors
-  else if (/^[[\]{}]/.test(line) || /^\s+"/.test(line) || /^\s*[}\]],?$/.test(line)) cls = 'json';
-  else if (/^\s*•|^\s*[-*]\s/.test(line)) cls = 'li'; // bullets
-  return `<div class="line ${cls}">${esc(line)}</div>`;
+/** Greedy word-wrap to at most `width` characters per line. */
+function wrapText(text, width) {
+  const out = [];
+  let line = '';
+  for (const word of text.split(' ')) {
+    if (line.length > 0 && (line + ' ' + word).length > width) {
+      out.push(line);
+      line = word;
+    } else {
+      line = line.length > 0 ? `${line} ${word}` : word;
+    }
+  }
+  if (line.length > 0) out.push(line);
+  return out;
 }
 
-const SHELL = `
-  *{box-sizing:border-box}
-  html,body{margin:0;background:#010409}
-  .stage{width:${WIDTH}px;display:flex;flex-direction:column}
-`;
-
-/** The introductory title card. */
-export function titleCardHtml({ eyebrow, headline, subtitle, height }) {
-  return `<!doctype html><html><head><meta charset="utf-8"><style>
-  ${SHELL}
-  .stage{height:${height}px;justify-content:center;align-items:center;
-    background:radial-gradient(130% 130% at 0% 0%,#1b2433 0%,#0d1117 58%);
-    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;text-align:center}
-  .eyebrow{color:#7ee787;font:600 12px/1 ui-monospace,SFMono-Regular,Menlo,monospace;
-    letter-spacing:.24em;text-transform:uppercase}
-  h1{color:#e6edf3;font-size:30px;line-height:1.15;margin:14px 0 0;font-weight:700}
-  p{color:#8b949e;font-size:15px;line-height:1.5;margin:11px 0 0;max-width:600px}
-  </style></head><body><div class="stage">
-    <div class="eyebrow">${esc(eyebrow)}</div>
-    <h1>${headline}</h1>
-    <p>${esc(subtitle)}</p>
-  </div></body></html>`;
-}
+const SANS = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif";
+const MONO = 'ui-monospace,SFMono-Regular,Menlo,monospace';
 
 /**
- * The terminal window. The command line is intentionally empty in the DOM — the
- * `typing` overlay draws it character by character — and the output starts
- * visible so domotion captures it, then per-frame opacity animations drive it:
- * `.outbody` is revealed once the command has finished "running", and the
- * wrapping `.out` is faded back out at the end of the frame so the output
- * disappears in lockstep with the typed command (which domotion self-erases just
- * before the loop). Reveal and fade target two elements so their `animation`
- * shorthands don't clash on one node.
+ * The title card as a self-contained SVG `<g>` for {@link decorateWindow} to layer
+ * over the opening: an eyebrow, a headline, an accent rule, and a subtitle on a
+ * centered dark card. `accent` tints the eyebrow and rule.
  */
-/** Public form of {@link lineToHtml} — used by demo.mjs to build chat frames. */
-export function outputLineHtml(line) {
-  return lineToHtml(line);
-}
+export function titleCardSvg({
+  eyebrow,
+  headline,
+  subtitle,
+  accent = '#7ee787',
+  canvasW,
+  canvasH,
+  coverW = 0,
+  coverH = 0,
+}) {
+  const headLines = wrapText(headline, 24);
+  const subLines = wrapText(subtitle, 52);
 
-/**
- * A single frame of the multi-step chat demo. `body` is prebuilt HTML (the
- * session so far, top-aligned) assembled by demo.mjs: committed lines are plain;
- * the current input's `.cin` span is an empty anchor the frame's lone `typing`
- * overlay fills, and any not-yet-revealed block carries `.reveal` (opacity 0)
- * for an `animations` entry to fade in. Each turn is its own frame so every
- * `typing` overlay gets a unique id (domotion keys overlay ids by frame index).
- */
-export function chatFrameHtml({ title, body, height }) {
-  return `<!doctype html><html><head><meta charset="utf-8"><style>
-  ${SHELL}
-  .stage{height:${height}px;background:#0d1117}
-  .bar{height:${BAR_H}px;display:flex;align-items:center;gap:8px;padding:0 14px;
-    background:#161b22;border-bottom:1px solid #21262d;flex:0 0 auto}
-  .dot{width:12px;height:12px;border-radius:50%}
-  .r{background:#ff5f56}.y{background:#febc2e}.g{background:#28c840}
-  .name{color:#8b949e;font:12px/1 ui-monospace,SFMono-Regular,Menlo,monospace;margin-left:8px}
-  .body{padding:${BODY_PAD_TOP}px 20px ${BODY_PAD_BOTTOM}px;
-    font:15px/1 ui-monospace,SFMono-Regular,Menlo,monospace;color:#e6edf3}
-  .cmdline{height:${CMD_LINE_H}px;display:flex;align-items:center}
-  .prompt-sym{color:#7ee787;margin-right:9px;font-weight:600}
-  .cmd{display:inline-block;min-width:1px}
-  .cin{display:inline-block;min-width:1px}
-  .shellcur{display:inline-block;min-width:1px;height:${LINE_H}px}
-  .welcome{margin-top:${CMD_GAP}px}
-  .line{height:${LINE_H}px;line-height:${LINE_H}px;white-space:pre}
-  .prompt{color:#e6edf3}
-  .psym{color:#7ee787;font-weight:600}
-  .json{color:#a5d6ff}
-  .li{color:#c9d1d9}
-  .warn{color:#febc2e}
-  </style></head><body><div class="stage">
-    <div class="bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="name">${esc(title)}</span></div>
-    <div class="body">${body}</div>
-  </div></body></html>`;
-}
+  const contentH =
+    EYEBROW_H + GAP + headLines.length * HEAD_LH + GAP + RULE_H + GAP + subLines.length * SUB_LH;
+  // The card must fully cover the terminal window behind it during the intro, so
+  // grow it to the window's footprint (plus a margin) when that's larger.
+  const cardW = Math.max(CARD_W, coverW + 60);
+  const cardH = Math.max(contentH + 2 * PAD, coverH + 44);
+  const cardX = Math.round((canvasW - cardW) / 2);
+  const cardY = Math.round((canvasH - cardH) / 2);
+  const cx = Math.round(canvasW / 2);
 
-export function terminalHtml({ title, outputLines, height }) {
-  const out = outputLines.map(lineToHtml).join('');
-  return `<!doctype html><html><head><meta charset="utf-8"><style>
-  ${SHELL}
-  .stage{height:${height}px;background:#0d1117}
-  .bar{height:${BAR_H}px;display:flex;align-items:center;gap:8px;padding:0 14px;
-    background:#161b22;border-bottom:1px solid #21262d;flex:0 0 auto}
-  .dot{width:12px;height:12px;border-radius:50%}
-  .r{background:#ff5f56}.y{background:#febc2e}.g{background:#28c840}
-  .name{color:#8b949e;font:12px/1 ui-monospace,SFMono-Regular,Menlo,monospace;margin-left:8px}
-  .body{padding:${BODY_PAD_TOP}px 20px ${BODY_PAD_BOTTOM}px;
-    font:15px/1 ui-monospace,SFMono-Regular,Menlo,monospace;color:#e6edf3}
-  .cmdline{height:${CMD_LINE_H}px;display:flex;align-items:center}
-  .prompt-sym{color:#7ee787;margin-right:9px;font-weight:600}
-  .cmd{display:inline-block;min-width:1px}
-  .out{margin-top:${CMD_GAP}px;opacity:1}
-  .outbody{opacity:1}
-  .line{height:${LINE_H}px;line-height:${LINE_H}px;white-space:pre}
-  .json{color:#a5d6ff}
-  .prompt{color:#7ee787}
-  .li{color:#c9d1d9}
-  .warn{color:#febc2e}
-  </style></head><body><div class="stage">
-    <div class="bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="name">${esc(title)}</span></div>
-    <div class="body">
-      <div class="cmdline"><span class="prompt-sym">$</span><span class="cmd"></span></div>
-      <div class="out"><div class="outbody">${out}</div></div>
-    </div>
-  </div></body></html>`;
+  // Vertically center the text block within the (possibly taller) card.
+  let y = cardY + Math.round((cardH - contentH) / 2) + EYEBROW_H;
+  const parts = [
+    `<rect x="${cardX}" y="${cardY}" width="${cardW}" height="${cardH}" rx="14" ` +
+      `fill="#0d1117" stroke="#30363d" stroke-width="1"/>`,
+    `<text x="${cx}" y="${y}" text-anchor="middle" fill="${esc(accent)}" font-family="${MONO}" ` +
+      `font-size="12" font-weight="600" letter-spacing="2.6">${esc(eyebrow.toUpperCase())}</text>`,
+  ];
+
+  y += GAP + 24;
+  for (const line of headLines) {
+    parts.push(
+      `<text x="${cx}" y="${y}" text-anchor="middle" fill="#e6edf3" font-family="${SANS}" ` +
+        `font-size="30" font-weight="700">${esc(line)}</text>`,
+    );
+    y += HEAD_LH;
+  }
+
+  y += GAP - HEAD_LH + 24;
+  parts.push(
+    `<rect x="${cx - 23}" y="${y}" width="46" height="${RULE_H}" rx="1.5" fill="${esc(accent)}"/>`,
+  );
+
+  y += RULE_H + GAP + 16;
+  for (const line of subLines) {
+    parts.push(
+      `<text x="${cx}" y="${y}" text-anchor="middle" fill="#8b949e" font-family="${SANS}" ` +
+        `font-size="15">${esc(line)}</text>`,
+    );
+    y += SUB_LH;
+  }
+
+  return `<g>${parts.join('')}</g>`;
 }

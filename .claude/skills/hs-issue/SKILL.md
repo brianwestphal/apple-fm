@@ -3,7 +3,7 @@ name: hs-issue
 description: Create a new issue ticket in Hot Sheet
 allowed-tools: Bash
 ---
-<!-- hotsheet-skill-version: 12 -->
+<!-- hotsheet-skill-version: 13 -->
 
 Create a new Hot Sheet **issue** ticket. General issues that need attention.
 

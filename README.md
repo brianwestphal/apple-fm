@@ -10,7 +10,7 @@ front-end. apple-fm provides one — a fast, lightweight CLI and a TypeScript
 library, so you can use the on-device model from your terminal or your code.
 
 <p align="center">
-  <img src="assets/demos/generate.svg" alt="apple-fm generate &quot;Explain a closure in one sentence.&quot; runs Apple's on-device model and prints the answer — fully offline, no API key." width="820">
+  <img src="assets/demos/generate.svg" alt="apple-fm generate &quot;Explain a closure in one sentence.&quot; runs Apple's on-device model and prints the answer — fully offline, no API key." width="880">
 </p>
 
 ## Why apple-fm
@@ -86,7 +86,7 @@ Run `apple-fm --help` for the full flag list.
 Before generating, confirm Apple Intelligence is ready on this machine.
 
 <p align="center">
-  <img src="assets/demos/probe.svg" alt="apple-fm probe prints {&quot;available&quot;:true} when the on-device model is ready, or a reason like appleIntelligenceNotEnabled when it isn't." width="820">
+  <img src="assets/demos/probe.svg" alt="apple-fm probe prints {&quot;available&quot;:true} when the on-device model is ready, or a reason like appleIntelligenceNotEnabled when it isn't." width="880">
 </p>
 
 ### Structured output
@@ -96,7 +96,7 @@ conform** to it — native guided generation, not prompt-and-hope — ready to p
 into the rest of your tooling.
 
 <p align="center">
-  <img src="assets/demos/schema.svg" alt="apple-fm generate &quot;Recommend a classic sci-fi novel.&quot; --schema novel.json returns a JSON object with title, author, year, and why fields." width="820">
+  <img src="assets/demos/schema.svg" alt="apple-fm generate &quot;Recommend a classic sci-fi novel.&quot; --schema novel.json returns a JSON object with title, author, year, and why fields." width="880">
 </p>
 
 ### Interactive chat
@@ -107,7 +107,7 @@ automatically near the context window. Built-in slash commands: `/reset`,
 replying to interrupt it (the partial reply is kept in context).
 
 <p align="center">
-  <img src="assets/demos/chat.svg" alt="apple-fm chat answers a prompt, then /help lists the slash commands (/reset, /system, /clear, /compact, /help, /quit) and notes that Esc interrupts a reply." width="820">
+  <img src="assets/demos/chat.svg" alt="apple-fm chat answers a prompt, then /help lists the slash commands (/reset, /system, /clear, /compact, /help, /quit) and notes that Esc interrupts a reply." width="880">
 </p>
 
 ### Tool calling
