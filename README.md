@@ -107,7 +107,7 @@ automatically near the context window. Built-in slash commands: `/reset`,
 replying to interrupt it (the partial reply is kept in context).
 
 <p align="center">
-  <img src="assets/demos/chat.svg" alt="apple-fm chat answers a prompt, then /help lists the slash commands: /reset, /system, /clear, /compact, /help, /quit." width="820">
+  <img src="assets/demos/chat.svg" alt="apple-fm chat answers a prompt, then /help lists the slash commands (/reset, /system, /clear, /compact, /help, /quit) and notes that Esc interrupts a reply." width="820">
 </p>
 
 ### Tool calling
@@ -160,7 +160,11 @@ picked up automatically — no reinstall.
 
 ## Documentation
 
-- [Overview](docs/1-overview.md)
+- [Overview](docs/1-overview.md) — what apple-fm is and its principles
+- [Architecture](docs/2-architecture.md) — module layout and data flow
+- [Wire protocol](docs/4-protocol.md) — the NDJSON helper ⇄ Node protocol
+- [Requirements](docs/3-requirements.md) — every feature and its status
+- [Tool calling](docs/9-tool-calling.md) — the extensible, permission-gated tool system
 
 ## Disclaimer
 
