@@ -51,7 +51,6 @@ export {
   registryFromNames,
   toolGuidancePrompt,
   ToolRegistry,
-  webTool,
 } from './tools/index.js';
 export type {
   DeltaHandler,

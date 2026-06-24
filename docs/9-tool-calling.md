@@ -1,19 +1,20 @@
 # 9. Tool Calling
 
 Requirements for **tool calling** in apple-fm: letting the on-device model call an
-**extensible**, **permission-gated** set of Node-side tools (read / bash / web)
+**extensible**, **permission-gated** set of Node-side tools (read / bash)
 mid-generation. This is the requirements view; the architecture and rationale are in
 the investigation/design doc [8-tool-support.md](8-tool-support.md). Tracked by
 **FR-14** in [3-requirements.md](3-requirements.md); the build is phased under
-**AF-5** (tickets AFM-31…34).
+**AF-5** (tickets AFM-31…33).
 
-> **Status: phases 1–4 shipped.** The generic round-trip plumbing (protocol, Swift
-> `DynamicTool`, Node `ToolRegistry` + dispatcher), the `read` / `bash` / `web`
+> **Status: shipped.** The generic round-trip plumbing (protocol, Swift
+> `DynamicTool`, Node `ToolRegistry` + dispatcher), the `read` / `bash`
 > built-ins ([11-builtin-tools.md](11-builtin-tools.md)), and the **per-call
 > permission gate** ([10-permissions.md](10-permissions.md)) are implemented, unit +
-> e2e tested device-free, and **on-device verified** (the real model called `read`,
-> `bash`, and `web`, and recovered gracefully when a call was denied). The remaining
-> follow-up is a `web` **search** backend (TC-9).
+> e2e tested device-free, and **on-device verified** (the real model called `read`
+> and `bash`, and recovered gracefully when a call was denied). A networked `web`
+> fetch tool shipped under AFM-34 but was **removed in AFM-43** (the on-device model
+> wasn't reliable enough with it; apple-fm makes no network calls — see NFR-1).
 
 ## What it is
 
@@ -34,8 +35,8 @@ TypeScript.
 | TC-4 | `read` built-in tool | **Shipped** (phase 1) | `src/tools/builtin/read.ts`: read a UTF-8 file, optional line `offset`/`limit`. Read-only; gated by the permission policy. See [11-builtin-tools.md](11-builtin-tools.md). |
 | TC-5 | Per-call permission policy (`ask`/`allow`/`deny`) | **Shipped** (phase 2) | `PermissionPolicy` in Node, consulted before each tool runs; keyed by tool or `tool:keyPrefix`; REPL `[y/N/a]` prompt; **deny-by-default when non-interactive**; CLI `--allow-tool`/`--deny-tool`/`--yes` + `/tools`. On-device verified. See [10-permissions.md](10-permissions.md). |
 | TC-6 | `bash` built-in tool | **Shipped** (phase 3) | `src/tools/builtin/bash.ts`: run a shell command via `sh -c`, report exit code + stdout/stderr. High-risk; behind the permission gate (deny-by-default non-interactive); timeout-bounded; output-capped. On-device verified. See [11-builtin-tools.md](11-builtin-tools.md). |
-| TC-7 | `web` built-in tool (fetch) | **Shipped** (phase 4) | `src/tools/builtin/web.ts`: GET an http(s) URL, return its text (HTML stripped). **Off by default**, opt-in (`chat --tools web`), permission-gated; the one networked tool. NFR-1 reworded (docs/3). Dependency-free (global `fetch`), timeout + size capped. On-device verified. A **search backend** (TC-9) is split into a follow-up. See [11-builtin-tools.md](11-builtin-tools.md). |
-| TC-9 | `web` search backend | **Deferred** (follow-up) | Search (vs. URL fetch) needs an external search API/endpoint + key/config — more opinionated; tracked as its own ticket. |
+| TC-7 | `web` built-in tool (fetch) | **Removed** (AFM-43) | Shipped under AFM-34 (a permission-gated, off-by-default URL fetch), then removed: the on-device model was too unreliable with it to be worth the network-egress complexity. apple-fm makes no network calls; NFR-1 restored. |
+| TC-9 | `web` search backend | **Dropped** (AFM-43) | Was a follow-up to the `web` tool; dropped along with it. |
 | TC-8 | Surface tool activity to the user | **Deferred** (phase 2+) | The REPL should show which tool ran with what arguments (today the round-trip is silent except for the final answer). |
 
 ## Phase 1 surface (shipped)
@@ -55,9 +56,9 @@ TypeScript.
   (`toolGuidancePrompt`, built from the enabled tools' `usageHint`s, merged with any
   `-s`) so the small on-device model knows *when* to call a tool instead of falling
   back on a "can't access files" refusal (AFM-36). The preamble also steers tool
-  *selection*: anything starting with `http(s)://` is a URL → call `web` (not `read`,
-  which is local-only, nor `bash`/`curl`), and call **one** tool per job, not several
-  for the same thing (AFM-41). The library stays unopinionated — injection is CLI-only.
+  *selection* — match a local file path to `read`, a shell command to `bash`, and call
+  **one** tool per job, not several for the same thing (AFM-41). The library stays
+  unopinionated — injection is CLI-only.
 
 ## Design decisions
 
@@ -74,7 +75,7 @@ TypeScript.
   text explains what happened; the model reads it and carries on. `tool_error` remains
   in the protocol as a *fatal* abort. (Verified on-device in AFM-32.)
 - **Phase-1 `read` auto-runs.** Acceptable because `read` is read-only; the permission
-  gate (TC-5) lands before `bash`/`web`, which are unsafe without it.
+  gate (TC-5) lands before `bash`, which is unsafe without it.
 
 ## Testing
 
@@ -91,8 +92,6 @@ TypeScript.
 
 ## Open items
 
-- `web` **search** backend (TC-9) — needs an external search API/endpoint; its own
-  follow-up.
 - Tool-activity display (TC-8): the REPL doesn't yet show which tool ran / what was
   approved, only the final answer.
 - Persist "always" permission grants beyond the process lifetime (PERM-9 in

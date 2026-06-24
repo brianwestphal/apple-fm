@@ -31,10 +31,10 @@ if ((await probe()).available) {
 
 ## Principles
 
-- **On-device and private by default.** The model runs entirely on-device — no API
-  key, no cloud — and your prompts never leave the machine. apple-fm makes no network
-  connection at all unless you explicitly enable the optional, permission-gated `web`
-  tool (off by default; see [3-requirements.md](3-requirements.md) NFR-1).
+- **On-device and private.** The model runs entirely on-device — no API key, no
+  cloud — and your prompts never leave the machine. apple-fm makes **no network
+  connection at all**; every built-in tool (`read`, `bash`) is local (see
+  [3-requirements.md](3-requirements.md) NFR-1).
 - **Thin native surface, tested logic.** Only the Swift helper
   (`apple-fm-helper/*.swift`) touches `FoundationModels`. All policy — argument
   parsing, the wire protocol, chat history, auto-compaction — lives in strict

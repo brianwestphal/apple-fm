@@ -15,8 +15,6 @@
  */
 import { spawn } from 'node:child_process';
 import { chmodSync, readFileSync } from 'node:fs';
-import { createServer, type Server } from 'node:http';
-import type { AddressInfo } from 'node:net';
 import { fileURLToPath } from 'node:url';
 
 import { beforeAll, describe, expect, it } from 'vitest';
@@ -61,29 +59,6 @@ function runCli(args: string[], opts: { input?: string; env?: Record<string, str
     });
     child.stdin.end(opts.input ?? '');
   });
-}
-
-/** Serve `body` as text/html on loopback for the duration of `fn`, then close. */
-async function withLocalPage(body: string, fn: (url: string) => Promise<void>): Promise<void> {
-  const server: Server = createServer((_req, res) => {
-    res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
-    res.end(body);
-  });
-  await new Promise<void>((resolve) => {
-    server.listen(0, '127.0.0.1', () => {
-      resolve();
-    });
-  });
-  try {
-    const { port } = server.address() as AddressInfo;
-    await fn(`http://127.0.0.1:${String(port)}/`);
-  } finally {
-    await new Promise<void>((resolve) => {
-      server.close(() => {
-        resolve();
-      });
-    });
-  }
 }
 
 beforeAll(() => {
@@ -364,42 +339,16 @@ describe('apple-fm CLI (e2e)', () => {
     );
 
     it(
-      'denies the web tool by default (no network is reached)',
+      'tells the model a URL is not a local file rather than a confusing fs error (AFM-41/43)',
       async () => {
-        // No --allow-tool + piped (non-interactive) ⇒ denied before any fetch.
-        const turn = `TOOL web ${JSON.stringify({ url: 'https://example.com' })}`;
-        const { stdout, code } = await runCli(['chat', '--no-stream', '--tools', 'web'], {
+        // apple-fm has no network tool: reading a URL returns a clear message, not ENOENT.
+        const turn = `TOOL read ${JSON.stringify({ path: 'https://example.com/article' })}`;
+        const { stdout, code } = await runCli(['chat', '--no-stream', '--tools', 'read', '--allow-tool', 'read'], {
           input: `${turn}\n/quit\n`,
         });
-        expect(stdout).toMatch(/denied by the user/);
+        expect(stdout).toMatch(/is a URL/);
+        expect(stdout).not.toMatch(/ENOENT/);
         expect(code).toBe(0);
-      },
-      T,
-    );
-
-    it(
-      'reads a URL end-to-end: the web tool fetches a page and its content reaches the user (AFM-42)',
-      async () => {
-        // The exact user scenario: `chat --tools web,read,bash` then "read <url> …".
-        // The stub model "calls" web; piped input can't answer the prompt, so the call
-        // is pre-authorized. The web tool fetches a real (loopback) page — no external
-        // network — and the extracted content must reach stdout (not "do nothing").
-        const html =
-          '<html><body><nav><a href="/x">Home</a></nav>' +
-          '<main><h1>Squid Bug</h1><p>A serious proxy vulnerability was disclosed today, affecting many servers.</p></main>' +
-          '<footer><a href="/p">Privacy Policy</a></footer></body></html>';
-        await withLocalPage(html, async (url) => {
-          const turn = `TOOL web ${JSON.stringify({ url })}`;
-          const { stdout, code } = await runCli(
-            ['chat', '--no-stream', '--tools', 'web,read,bash', '--allow-tool', 'web'],
-            { input: `${turn}\n/quit\n` },
-          );
-          expect(stdout).toContain('Squid Bug'); // the article body reached the model/user
-          expect(stdout).toContain('serious proxy vulnerability');
-          expect(stdout).toMatch(/HTTP 200/);
-          expect(stdout).not.toContain('Privacy Policy'); // chrome stripped by extraction
-          expect(code).toBe(0);
-        });
       },
       T,
     );

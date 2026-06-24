@@ -16,7 +16,7 @@ src/
   repl.ts         # interactive chat loop (runRepl) — readline over ChatSession
   cli.ts          # apple-fm bin (thin)
   index.ts        # public API surface
-  tools/          # tool calling (FR-14): Tool/ToolContext/ToolDefinition (types.ts), ToolRegistry (registry.ts), registryFromNames + BUILTIN_TOOLS (index.ts), builtin/read.ts + bash.ts + web.ts, PermissionPolicy (permissions.ts)
+  tools/          # tool calling (FR-14): Tool/ToolContext/ToolDefinition (types.ts), ToolRegistry (registry.ts), registryFromNames + BUILTIN_TOOLS (index.ts), builtin/read.ts + bash.ts, PermissionPolicy (permissions.ts)
 apple-fm-helper/             # Swift FoundationModels CLI (--probe / --generate / --session); all *.swift compiled into one binary by scripts/build-apple-fm-helper.sh
   main.swift                 # entry point, output/emit, probe, generate, session loop (+ tool-call routing)
   GuidedGeneration.swift     # JSON Schema -> DynamicGenerationSchema/GenerationSchema (compileSchema)
@@ -33,7 +33,7 @@ tests/            # protocol, cliArgs, session, helper, liveSession, docs, demo 
   `close`); `LiveSession` (`send`, `reset`, `close`); types `ChatSessionConfig`,
   `GenerateFn`, `ChatBackend`, `LiveSessionConfig`.
 - Tools (FR-14): `ToolRegistry`, `registryFromNames`, `toolGuidancePrompt`,
-  `readTool`, `bashTool`, `webTool`, `BUILTIN_TOOLS`, `PermissionPolicy`; types `Tool`,
+  `readTool`, `bashTool`, `BUILTIN_TOOLS`, `PermissionPolicy`; types `Tool`,
   `ToolContext`, `ToolDefinition`, `PermissionMode`, `PermissionRequest`,
   `PermissionAsker`, `AskOutcome`, `PermissionPolicyConfig`.
 - Protocol: `encodeRequest`, `splitLines`, `parseEvent`, `flattenMessages`,
@@ -55,8 +55,7 @@ tests/            # protocol, cliArgs, session, helper, liveSession, docs, demo 
 | change interactive REPL commands | `repl.ts` |
 | change Esc/interrupt of an in-flight reply (FR-15) | `repl.ts` (keypress → `AbortController`) + `session.ts`/`liveSession.ts` (`send(…, signal)` → `cancel` command) + `apple-fm-helper/main.swift` (`cancel` case + `sessionTurn` cancellation) + `docs/4-protocol.md` (`cancel`) + stub `cancel`/`STREAM_FOREVER`. |
 | change the on-device calls (probe/respond/stream) | `apple-fm-helper/main.swift` |
-| add or change a tool / the tool round-trip (FR-14) | `src/tools/` (registry + built-ins `read`/`bash`/`web`) + `liveSession.ts` (dispatcher) + `apple-fm-helper/Tools.swift` (`DynamicTool`) + `docs/4-protocol.md` + `docs/9-tool-calling.md` + `docs/11-builtin-tools.md`. Phases 1–4 shipped; only a `web` search backend remains (TC-9). |
-| change `web` page extraction / paging / cap / headers (AFM-39/40/42) | `src/tools/builtin/web.ts` (`htmlToText` readability heuristic, `windowText` + `cleanCut` boundary-snapping paging, `REQUEST_HEADERS` UA/Accept, `WEB_MAX_CHARS_ENV`) + `docs/12-web-extraction.md` (WX-1…8). Env: `APPLE_FM_WEB_MAX_CHARS` widens the per-fetch cap. |
+| add or change a tool / the tool round-trip (FR-14) | `src/tools/` (registry + built-ins `read`/`bash`) + `liveSession.ts` (dispatcher) + `apple-fm-helper/Tools.swift` (`DynamicTool`) + `docs/4-protocol.md` + `docs/9-tool-calling.md` + `docs/11-builtin-tools.md`. (A `web` tool shipped under AFM-34 then was removed in AFM-43 — apple-fm makes no network calls.) |
 | change tool permissions / the prompt | `src/tools/permissions.ts` (`PermissionPolicy`) + `liveSession.ts` (gate in `handleToolCall`) + `repl.ts` (`readlineAsker`, `/tools`) + `cliArgs.ts` (`--allow-tool`/`--deny-tool`/`--yes`) + `docs/10-permissions.md`. |
 
 ## Testing

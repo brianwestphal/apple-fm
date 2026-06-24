@@ -1,7 +1,7 @@
 /**
  * Shared output cap for tools (FR-14). The on-device model has a small context
  * window (~4096 tokens), and a tool result is fed back into that same window mid-turn
- * — so an unbounded result (a big file, a real web page, noisy command output)
+ * — so an unbounded result (a big file or noisy command output)
  * overflows it and the turn fails with `contextWindowExceeded`. Every tool clamps its
  * output through {@link capOutput} to leave room for the system prompt, the
  * conversation, and the model's reply.

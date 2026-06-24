@@ -46,8 +46,7 @@ Chat flags:
   -s, --system <text>     System instructions
       --no-stream         Disable token streaming
       --compact-at <n>    Compact the transcript past <n> estimated tokens
-      --tools <a,b>       Enable built-in tools the model may call (read, bash, web)
-                          web reaches the network — off unless enabled + approved
+      --tools <a,b>       Enable built-in tools the model may call (read, bash)
       --allow-tool <rule> Pre-approve a tool (e.g. read, or read:/path). Repeatable
       --deny-tool <rule>  Always deny a tool (same syntax). Repeatable
       --yes               Auto-approve every tool call (use with care)

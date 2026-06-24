@@ -63,7 +63,6 @@ describe('project conventions', () => {
       'resolveHelperPath',
       'splitLines',
       'toolGuidancePrompt',
-      'webTool',
     ]);
   });
 });

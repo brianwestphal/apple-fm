@@ -279,10 +279,13 @@ Per the project's double-coverage rule:
 
 ## Open questions / decisions
 
-- **NFR-1 vs. a `web` tool** — **Resolved (AFM-34):** ship the opt-in,
-  permission-gated `web` tool (off by default) and reword NFR-1 to "on-device model;
-  network only via an explicitly-enabled tool". The `web` *fetch* tool shipped; a
-  *search* backend is a separate follow-up (TC-9).
+- **NFR-1 vs. a `web` tool** — **Resolved (AFM-34), then reversed (AFM-43).** The
+  opt-in, permission-gated `web` *fetch* tool shipped under AFM-34 (NFR-1 reworded to
+  allow it), but was **removed in AFM-43**: the on-device model wasn't reliable enough
+  with it to justify the network-egress complexity. apple-fm makes **no network calls**
+  and NFR-1 is restored to "on-device model; no network". The analysis below is kept as
+  the historical record of why a `web` tool was considered. (The `web` *search* backend,
+  TC-9, was dropped with it.)
 - **One-shot tools?** Do we want tools on `generate`, or keep them chat-only where a
   human can approve them? (Leaning chat-only first.)
 - **Streaming + tools** — confirm `streamResponse` interleaves tool calls cleanly with

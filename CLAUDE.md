@@ -116,10 +116,9 @@ release flow and its one-time CI signing setup are documented in
 - [docs/6-guided-generation.md](docs/6-guided-generation.md) — design for native guided generation (FR-8 / AFM-11).
 - [docs/7-live-session.md](docs/7-live-session.md) — design for the persistent live-session helper (FR-12 / AFM-12).
 - [docs/8-tool-support.md](docs/8-tool-support.md) — investigation + design for extensible, permission-gated tool calling (FR-14 / AFM-30).
-- [docs/9-tool-calling.md](docs/9-tool-calling.md) — tool-calling requirements (FR-14 / AF-5); phases 1–4 (`read`/`bash`/`web` + generic plumbing + permission gate) shipped, only a `web` search backend remains.
+- [docs/9-tool-calling.md](docs/9-tool-calling.md) — tool-calling requirements (FR-14 / AF-5); `read`/`bash` + generic plumbing + permission gate shipped (a `web` tool shipped under AFM-34 then was removed in AFM-43 — no network).
 - [docs/10-permissions.md](docs/10-permissions.md) — tool permission policy requirements (FR-14 / AF-5 phase 2 / AFM-32).
-- [docs/11-builtin-tools.md](docs/11-builtin-tools.md) — per-tool requirements for the built-in tools (`read`, `bash`, `web`) (FR-14 / AF-5).
-- [docs/12-web-extraction.md](docs/12-web-extraction.md) — `web` content extraction: readability-style main-content extraction, paging, configurable cap (FR-14 / AF-5 / AFM-39).
+- [docs/11-builtin-tools.md](docs/11-builtin-tools.md) — per-tool requirements for the built-in tools (`read`, `bash`) (FR-14 / AF-5).
 - [docs/ai/code-summary.md](docs/ai/code-summary.md) — AI-oriented code map.
 
 > **Standing re-eval:** apple-fm's tool-support case partly rests on Apple's official
@@ -129,7 +128,7 @@ release flow and its one-time CI signing setup are documented in
 > in a macOS 27 beta), update that doc's finding, and bump its "Last checked" date. If
 > `fm` gained tools, file a Hot Sheet ticket flagging the impact on FR-14.
 - [docs/ai/requirements-summary.md](docs/ai/requirements-summary.md) — AI-oriented requirements digest.
-- [docs/manual-test-plan.md](docs/manual-test-plan.md) — manual cases that can't be reliably automated (real TTY / on-device): Esc interrupt (FR-15), `web` extraction on a real page (AFM-39).
+- [docs/manual-test-plan.md](docs/manual-test-plan.md) — manual cases that can't be reliably automated (real TTY / on-device): Esc interrupt (FR-15).
 
 Two ID schemes coexist, deliberately: `AF-N` are **requirement follow-up
 identifiers** used throughout `docs/` (e.g. AF-1 native guided generation); the
@@ -164,7 +163,7 @@ When the user gives you work directly (not via the Hot Sheet channel or events),
 
 - **Unit tests** (`tests/**/*.test.ts`): [vitest](https://vitest.dev) with v8 coverage. Test the pure logic directly — `protocol.ts`, `cliArgs.ts`, and `session.ts` (the last via an injected `GenerateFn`). The process layer (`helper.ts`) runs against `tests/fixtures/stub-helper.js`, a JS reimplementation of the NDJSON protocol, so the suite needs **no macOS 26 device**. Never call the real on-device model in a unit test.
 - **E2E (device-free)** (`tests/e2e/cli.e2e.test.ts`, AFM-25): spawns the **real** `apple-fm` CLI (`src/cli.ts` run through `tsx`) as a child process with `APPLE_FM_BIN` pointed at the stub helper, asserting stdout/stderr and exit codes across `probe` / `generate` (incl. `--stream`, `--schema`, stdin, and the `modelNotReady` / `inferenceFailed` / `unsupportedSchema` error paths) and the `chat` REPL slash commands. This exercises the assembled CLI wiring (`cli.ts`, `repl.ts`) end-to-end without a device, and runs as part of `npm test`.
-- **E2E / on-device**: still manual. Real Swift-helper behaviour against the model — and its error mapping (e.g. `modelNotReady`, `failure(for:)`) — is verified by manual smoke testing; an automated on-device CI test is tracked as **AF-2** in [docs/3-requirements.md](docs/3-requirements.md). Manual-only cases (real TTY / on-device) live in [docs/manual-test-plan.md](docs/manual-test-plan.md) — e.g. MT-1 Esc interrupt (FR-15), MT-2 `web` extraction on a real page (AFM-39). Keep it up to date; when a case gains automated coverage, remove it and note it in that doc's Automated Coverage Summary.
+- **E2E / on-device**: still manual. Real Swift-helper behaviour against the model — and its error mapping (e.g. `modelNotReady`, `failure(for:)`) — is verified by manual smoke testing; an automated on-device CI test is tracked as **AF-2** in [docs/3-requirements.md](docs/3-requirements.md). Manual-only cases (real TTY / on-device) live in [docs/manual-test-plan.md](docs/manual-test-plan.md) — e.g. MT-1 Esc interrupt (FR-15). Keep it up to date; when a case gains automated coverage, remove it and note it in that doc's Automated Coverage Summary.
 - **Commands**: unit + e2e `npm test` (`vitest run --coverage`) · lint `npm run lint` · typecheck `npm run typecheck`. Coverage is produced by `npm test`; thresholds live in `vitest.config.ts` (statements 80, branches 75, functions 80, lines 80). `cli.ts` / `repl.ts` are excluded from the **coverage report** as thin I/O (the e2e suite spawns them in a child process, so they are covered functionally but not by in-process v8 instrumentation).
 <!-- hotsheet:end specifics=testing-philosophy -->
 <!-- hotsheet:end section=testing-philosophy -->

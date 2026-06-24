@@ -85,5 +85,4 @@ In the REPL, `/tools` lists the enabled tools.
 - Persist "always" grants (PERM-9).
 - Surface tool activity / the granted decision in the REPL transcript (TC-8 in
   [9-tool-calling.md](9-tool-calling.md)).
-- `bash` (AFM-33) and `web` (AFM-34) will lean on this gate; `bash`'s `permissionKey`
-  should be the command (prefix rules), `web`'s the host/URL.
+- `bash` (AFM-33) leans on this gate; its `permissionKey` is the command (prefix rules).

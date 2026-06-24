@@ -86,17 +86,14 @@ describe('toolGuidancePrompt', () => {
   });
 
   it('lists each enabled tool and tells the model not to refuse', () => {
-    const prompt = toolGuidancePrompt(registryFromNames(['read', 'bash', 'web']));
+    const prompt = toolGuidancePrompt(registryFromNames(['read', 'bash']));
     expect(prompt).toMatch(/never claim you cannot/i);
     expect(prompt).toContain('- read —');
     expect(prompt).toContain('- bash —');
-    expect(prompt).toContain('- web —');
   });
 
-  it('steers a URL to web, not read or bash (AFM-41)', () => {
-    const prompt = toolGuidancePrompt(registryFromNames(['read', 'bash', 'web']));
-    expect(prompt).toMatch(/https?:\/\/ is a URL/i);
-    expect(prompt).toMatch(/call web/i);
+  it('tells the model to call one tool per job (AFM-41)', () => {
+    const prompt = toolGuidancePrompt(registryFromNames(['read', 'bash']));
     expect(prompt).toMatch(/ONE tool/i);
   });
 });
@@ -112,9 +109,9 @@ describe('registryFromNames', () => {
     expect(() => registryFromNames(['read', 'bogus'])).toThrow(/unknown built-in tool "bogus"/);
   });
 
-  it('exposes read, bash, and web as built-ins', () => {
+  it('exposes read and bash as built-ins', () => {
     expect(BUILTIN_TOOLS.read).toBe(readTool);
-    expect(registryFromNames(['read', 'bash', 'web']).names().sort()).toEqual(['bash', 'read', 'web']);
+    expect(registryFromNames(['read', 'bash']).names().sort()).toEqual(['bash', 'read']);
   });
 });
 
@@ -156,10 +153,10 @@ describe('read tool', () => {
     await expect(readTool.run({ path: join(dir, 'nope.txt') }, {})).rejects.toThrow();
   });
 
-  it('redirects a URL path to the web tool instead of a confusing fs error (AFM-41)', async () => {
+  it('returns a clear message for a URL path instead of a confusing fs error (AFM-41)', async () => {
     const out = await readTool.run({ path: 'https://example.com/article' }, {});
     expect(out).toMatch(/is a URL/);
-    expect(out).toMatch(/use the web tool/i);
+    expect(out).toMatch(/only reads local files/i);
     expect(out).not.toMatch(/ENOENT/); // not framed as a failure the model misreads
   });
 

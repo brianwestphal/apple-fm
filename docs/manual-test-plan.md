@@ -33,24 +33,7 @@ the live keypress path and the real model actually stopping.
 - Pressing Esc when **no** reply is in flight does nothing harmful.
 - `/help` mentions the Esc interrupt.
 
-## MT-2 — `web` extraction on a real content-heavy page (AFM-39)
-
-Readability extraction is unit-tested with injected HTML; this confirms it helps on a
-real page within the on-device window.
-
-**Steps**
-
-1. `apple-fm chat --tools web` (approve the fetch when prompted).
-2. Ask: *"Summarize https://en.wikipedia.org/wiki/Roman_Empire"*.
-3. Optionally set `APPLE_FM_WEB_MAX_CHARS=8000` and repeat on a larger-window machine.
-
-**Expected**
-
-- The returned text is mostly article prose (not nav/footer/related-links).
-- The model produces a relevant summary rather than failing on noise; long pages page
-  with `offset` (the result notes how to continue).
-
 ## Automated Coverage Summary
 
-- *(none yet — the device-free protocol/round-trip parts of MT-1 and MT-2 are covered
-  by the unit + e2e suites; the on-device + TTY parts above remain manual under AF-2.)*
+- *(none yet — the device-free protocol/round-trip part of MT-1 is covered by the unit
+  + e2e suites; the on-device + TTY part above remains manual under AF-2.)*

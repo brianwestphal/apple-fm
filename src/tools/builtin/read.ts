@@ -37,16 +37,17 @@ export const readTool: Tool = {
   describe: (args) => `read ${typeof args.path === 'string' ? args.path : '(no path)'}`,
   usageHint:
     'read — read a LOCAL file by its path; use it whenever the user references a file path ' +
-    '(never use bash to read a file). For a URL (http/https) use web, not read.',
+    '(never use bash to read a file). Local files only — apple-fm cannot fetch URLs.',
 
   async run(args): Promise<string> {
     const path = typeof args.path === 'string' ? args.path : '';
     if (path.length === 0) throw new Error('read: "path" (string) is required');
     // A URL is not a local file: reading it throws a raw `ENOENT` that the small model
-    // misreads as "the page couldn't be found". Return a clear redirect to the `web`
-    // tool instead (not an error), so the model fetches it the right way (AFM-41).
+    // misreads as "the page couldn't be found". Return a clear message instead (not an
+    // error) so the model doesn't treat it as a missing file (AFM-41). apple-fm has no
+    // network tool, so a URL simply can't be fetched.
     if (/^https?:\/\//i.test(path)) {
-      return `"${path}" is a URL, not a local file. The read tool only reads local files — use the web tool to fetch a URL.`;
+      return `"${path}" is a URL, not a local file. The read tool only reads local files; apple-fm cannot fetch URLs.`;
     }
 
     const content = await readFile(path, 'utf8');
