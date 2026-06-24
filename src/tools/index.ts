@@ -41,9 +41,12 @@ export function toolGuidancePrompt(registry: ToolRegistry): string {
     'You have tools available and the user has authorized their use — every call is ' +
     'permission-checked, so you do not need to ask first. Prefer calling a tool over ' +
     'refusing: never claim you cannot read files, run commands, or access the web — ' +
-    'call the matching tool instead. Match the task to the tool: a file path → read; ' +
-    'an http/https URL → web; a shell command → bash. Do not use bash to read files or ' +
-    'fetch URLs, and never invent a tool or write a tool call as plain text. Available tools:';
+    'call the matching tool instead. Match the task to the tool: a local file path → read; ' +
+    'an http/https URL → web; a shell command → bash. Anything that starts with http:// ' +
+    'or https:// is a URL — to read, open, fetch, or summarize it, call web (NOT read, ' +
+    'which is local files only, and NOT bash/curl). Call ONE tool for the job, not several ' +
+    'for the same thing. Do not use bash to read files or fetch URLs, and never invent a ' +
+    'tool or write a tool call as plain text. Available tools:';
   return [intro, ...hints.map((hint) => `- ${hint}`)].join('\n');
 }
 

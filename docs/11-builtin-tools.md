@@ -27,6 +27,7 @@ that scope permission rules and the prompt. Registered in `BUILTIN_TOOLS`
 | Permission key | the `path`, so a user can pre-approve a directory (`read:/home/me`). |
 | Risk | Low (read-only) — but still gated; default policy is `ask`. |
 | Errors | Missing path / unreadable file → the fs error is fed back to the model. |
+| URL guard | An `http(s)://` path returns a clear redirect to the `web` tool (not a raw `ENOENT` the small model misreads as "page not found") — AFM-41. |
 
 ## `bash` (`src/tools/builtin/bash.ts`) — **Shipped**
 

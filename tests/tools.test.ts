@@ -92,6 +92,13 @@ describe('toolGuidancePrompt', () => {
     expect(prompt).toContain('- bash —');
     expect(prompt).toContain('- web —');
   });
+
+  it('steers a URL to web, not read or bash (AFM-41)', () => {
+    const prompt = toolGuidancePrompt(registryFromNames(['read', 'bash', 'web']));
+    expect(prompt).toMatch(/https?:\/\/ is a URL/i);
+    expect(prompt).toMatch(/call web/i);
+    expect(prompt).toMatch(/ONE tool/i);
+  });
 });
 
 describe('registryFromNames', () => {
@@ -147,6 +154,13 @@ describe('read tool', () => {
 
   it('rejects a non-existent file (the fs error propagates)', async () => {
     await expect(readTool.run({ path: join(dir, 'nope.txt') }, {})).rejects.toThrow();
+  });
+
+  it('redirects a URL path to the web tool instead of a confusing fs error (AFM-41)', async () => {
+    const out = await readTool.run({ path: 'https://example.com/article' }, {});
+    expect(out).toMatch(/is a URL/);
+    expect(out).toMatch(/use the web tool/i);
+    expect(out).not.toMatch(/ENOENT/); // not framed as a failure the model misreads
   });
 
   it('caps a large file so it cannot overflow the model context (AFM-38)', async () => {

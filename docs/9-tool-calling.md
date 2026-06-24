@@ -54,8 +54,10 @@ TypeScript.
   tools are enabled the CLI auto-injects a **tool-use system preamble**
   (`toolGuidancePrompt`, built from the enabled tools' `usageHint`s, merged with any
   `-s`) so the small on-device model knows *when* to call a tool instead of falling
-  back on a "can't access files" refusal (AFM-36). The library stays unopinionated —
-  injection is CLI-only.
+  back on a "can't access files" refusal (AFM-36). The preamble also steers tool
+  *selection*: anything starting with `http(s)://` is a URL → call `web` (not `read`,
+  which is local-only, nor `bash`/`curl`), and call **one** tool per job, not several
+  for the same thing (AFM-41). The library stays unopinionated — injection is CLI-only.
 
 ## Design decisions
 
