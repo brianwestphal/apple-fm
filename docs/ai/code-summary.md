@@ -56,7 +56,7 @@ tests/            # protocol, cliArgs, session, helper, liveSession, docs, demo 
 | change Esc/interrupt of an in-flight reply (FR-15) | `repl.ts` (keypress → `AbortController`) + `session.ts`/`liveSession.ts` (`send(…, signal)` → `cancel` command) + `apple-fm-helper/main.swift` (`cancel` case + `sessionTurn` cancellation) + `docs/4-protocol.md` (`cancel`) + stub `cancel`/`STREAM_FOREVER`. |
 | change the on-device calls (probe/respond/stream) | `apple-fm-helper/main.swift` |
 | add or change a tool / the tool round-trip (FR-14) | `src/tools/` (registry + built-ins `read`/`bash`/`web`) + `liveSession.ts` (dispatcher) + `apple-fm-helper/Tools.swift` (`DynamicTool`) + `docs/4-protocol.md` + `docs/9-tool-calling.md` + `docs/11-builtin-tools.md`. Phases 1–4 shipped; only a `web` search backend remains (TC-9). |
-| change `web` page extraction / paging / cap (AFM-39) | `src/tools/builtin/web.ts` (`htmlToText` readability heuristic, `windowText` paging, `WEB_MAX_CHARS_ENV`) + `docs/12-web-extraction.md` (WX-1…7). Env: `APPLE_FM_WEB_MAX_CHARS` widens the per-fetch cap. |
+| change `web` page extraction / paging / cap (AFM-39/40) | `src/tools/builtin/web.ts` (`htmlToText` readability heuristic, `windowText` + `cleanCut` boundary-snapping paging, `WEB_MAX_CHARS_ENV`) + `docs/12-web-extraction.md` (WX-1…8). Env: `APPLE_FM_WEB_MAX_CHARS` widens the per-fetch cap. |
 | change tool permissions / the prompt | `src/tools/permissions.ts` (`PermissionPolicy`) + `liveSession.ts` (gate in `handleToolCall`) + `repl.ts` (`readlineAsker`, `/tools`) + `cliArgs.ts` (`--allow-tool`/`--deny-tool`/`--yes`) + `docs/10-permissions.md`. |
 
 ## Testing

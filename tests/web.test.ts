@@ -141,6 +141,36 @@ describe('web tool', () => {
     expect(paged).not.toContain(para); // the first 100 chars are skipped
   });
 
+  it('snaps a page cut to a paragraph boundary (WX-8), not mid-paragraph', async () => {
+    const page = `<html><body><main><p>${'A'.repeat(40)}</p><p>${'B'.repeat(40)}</p></main></body></html>`;
+    // Extracted text is "AAA…(40)\n\nBBB…(40)" (82 chars). A cap of 60 would cut mid-B
+    // char-wise; the clean cut lands at the \n\n (char 42) instead.
+    const out = await fetchUrl('https://example.com', { fetchImpl: stubFetch(page, htmlInit), maxChars: 60 });
+    expect(out).toContain('A'.repeat(40));
+    expect(out).not.toContain('B'); // the second paragraph is not split into this page
+    expect(out).toMatch(/offset=42 to continue/);
+  });
+
+  it('snaps a page cut to a word boundary (WX-8), not mid-word', async () => {
+    // Raw text (no paragraphs): a hard cut at 12 would split "cccc" → "cc"; the clean
+    // cut falls back to the last space (char 9 → next offset 10).
+    const out = await fetchUrl('https://example.com', {
+      fetchImpl: stubFetch('aaaa bbbb cccc dddd eeee', { headers: { 'content-type': 'text/plain' } }),
+      maxChars: 12,
+    });
+    expect(out).toContain('aaaa bbbb');
+    expect(out).not.toContain('cc'); // "cccc" is not split mid-word into this page
+    expect(out).toMatch(/offset=10 to continue/);
+  });
+
+  it('falls back to a hard cut when a token is longer than the cap (always progresses)', async () => {
+    const out = await fetchUrl('https://example.com/big', {
+      fetchImpl: stubFetch('x'.repeat(50_000), { headers: { 'content-type': 'text/plain' } }),
+    });
+    // No paragraph/line/word boundary in a wall of 'x' — hard cut at the cap.
+    expect(out).toMatch(/call again with offset=3000 to continue/);
+  });
+
   it('honors a per-fetch maxChars cap (configurable window)', async () => {
     const para = 'word '.repeat(400); // ~2000 chars of content
     const page = `<html><body><main><p>${para}</p></main></body></html>`;

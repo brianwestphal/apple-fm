@@ -118,16 +118,36 @@ function htmlToText(html: string): string {
 }
 
 /**
- * Return a `[offset, offset+max)` window of `text`, with a paging hint when more
- * remains so the model knows to call again with a higher `offset` rather than assume
- * the page ended. Mirrors how `read` pages a large file with `offset`/`limit`.
+ * Choose where to cut a `max`-char window so the page ends on a clean boundary
+ * instead of mid-word (WX-8). Prefer a paragraph break, then a line break, then a
+ * word boundary — but only when it lands past `min` so a page isn't shrunk too far;
+ * otherwise cut hard at `max`. The returned length is always in `(0, max]`, so paging
+ * always makes progress (a single token longer than `max` falls back to the hard cut).
+ */
+function cleanCut(window: string, max: number, min: number): number {
+  const para = window.lastIndexOf('\n\n');
+  if (para >= min) return para + 2;
+  const line = window.lastIndexOf('\n');
+  if (line >= min) return line + 1;
+  const space = window.lastIndexOf(' ');
+  if (space >= min) return space + 1;
+  return max;
+}
+
+/**
+ * Return a `[offset, offset+n)` window of `text`, with a paging hint when more
+ * remains so the model knows to call again with the exact next `offset` rather than
+ * assume the page ended. The cut snaps to a clean paragraph/line/word boundary so a
+ * page never splits mid-word (WX-8); the reported next offset is that boundary, so
+ * pages tile with no gap or overlap. Mirrors how `read` pages a large file.
  */
 function windowText(text: string, offset: number, max: number): string {
   const start = Math.min(Math.max(offset, 0), text.length);
   const slice = text.slice(start);
   if (slice.length <= max) return slice;
-  const remaining = text.length - (start + max);
-  return `${slice.slice(0, max)}\n…(${String(remaining)} more chars; call again with offset=${String(start + max)} to continue)`;
+  const cut = cleanCut(slice.slice(0, max), max, Math.floor(max / 2));
+  const remaining = text.length - (start + cut);
+  return `${slice.slice(0, cut).trimEnd()}\n…(${String(remaining)} more chars; call again with offset=${String(start + cut)} to continue)`;
 }
 
 /**
