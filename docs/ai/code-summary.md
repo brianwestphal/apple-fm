@@ -16,7 +16,7 @@ src/
   repl.ts         # interactive chat loop (runRepl) — readline over ChatSession
   cli.ts          # apple-fm bin (thin)
   index.ts        # public API surface
-  tools/          # tool calling (FR-14): Tool/ToolContext/ToolDefinition (types.ts), ToolRegistry (registry.ts), registryFromNames + BUILTIN_TOOLS (index.ts), builtin/read.ts + bash.ts, PermissionPolicy (permissions.ts)
+  tools/          # tool calling (FR-14): Tool/ToolContext/ToolDefinition (types.ts), ToolRegistry (registry.ts), registryFromNames + BUILTIN_TOOLS + toolGuidancePrompt (index.ts), builtin/read.ts + bash.ts, PermissionPolicy (permissions.ts), shared output cap MAX_TOOL_OUTPUT_CHARS (output.ts)
 apple-fm-helper/             # Swift FoundationModels CLI (--probe / --generate / --session); all *.swift compiled into one binary by scripts/build-apple-fm-helper.sh
   main.swift                 # entry point, output/emit, probe, generate, session loop (+ tool-call routing)
   GuidedGeneration.swift     # JSON Schema -> DynamicGenerationSchema/GenerationSchema (compileSchema)

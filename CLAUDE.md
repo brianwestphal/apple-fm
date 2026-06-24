@@ -47,6 +47,11 @@ Two layers, talking NDJSON (see [docs/4-protocol.md](docs/4-protocol.md)):
   - `cliArgs.ts` — `parseArgs()` + `USAGE` (pure, testable).
   - `repl.ts` — interactive chat loop (`runRepl`).
   - `cli.ts` — the `apple-fm` bin (thin).
+  - `tools/` — tool calling (FR-14): the `Tool`/`ToolContext`/`ToolDefinition`
+    contract (`types.ts`), `ToolRegistry` (`registry.ts`), `registryFromNames` +
+    `BUILTIN_TOOLS` + `toolGuidancePrompt` (`index.ts`), the `read`/`bash` built-ins
+    (`builtin/`), the per-call `PermissionPolicy` (`permissions.ts`), and the shared
+    output cap (`output.ts`). All local — no network. See [docs/9-tool-calling.md](docs/9-tool-calling.md).
   - `index.ts` — public API.
 
 ## Public API (`src/index.ts`)
@@ -57,11 +62,17 @@ import {
   ChatSession, LiveSession,
   encodeRequest, splitLines, parseEvent, flattenMessages,
   estimateTokens, estimateConversationTokens,
+  // Tool calling (FR-14)
+  ToolRegistry, registryFromNames, toolGuidancePrompt, BUILTIN_TOOLS,
+  readTool, bashTool, PermissionPolicy,
 } from 'apple-fm';
 import type {
   Message, Role, GenerateRequest, GenerateOptions, ProbeResult, UnavailableReason,
   HelperEvent, HelperOptions, DeltaHandler, SnapshotHandler,
   ChatSessionConfig, GenerateFn, ChatBackend, LiveSessionConfig,
+  // Tool calling (FR-14)
+  Tool, ToolContext, ToolDefinition,
+  PermissionMode, PermissionRequest, PermissionAsker, AskOutcome, PermissionPolicyConfig,
 } from 'apple-fm';
 ```
 
