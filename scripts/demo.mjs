@@ -195,7 +195,7 @@ const DEMOS = [
       eyebrow: 'Chat',
       headline: 'Multi-turn, auto-compacted',
       subtitle:
-        'apple-fm chat keeps the conversation and summarizes older turns near the context window. Slash commands like /compact and /clear are built in.',
+        'apple-fm chat keeps the conversation and summarizes older turns near the context window. Slash commands like /compact and /clear are built in, and Esc interrupts a reply mid-stream.',
     },
     cmd: 'apple-fm chat',
     chat: true, // composed turn-by-turn by buildChatSvg

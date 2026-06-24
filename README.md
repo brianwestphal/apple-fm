@@ -27,7 +27,11 @@ library, so you can use the on-device model from your terminal or your code.
 - **Long conversations stay coherent — and cheap.** `chat` holds one on-device
   session across turns, reusing the model's cache instead of replaying the
   transcript, and automatically summarizes older turns as the small context
-  window fills.
+  window fills. Press **Esc** to interrupt a reply mid-stream — the partial is kept.
+- **The model can use tools — locally.** Opt `chat` into permission-gated `read`
+  and `bash` tools (`--tools read,bash`) so the model can read a file or run a
+  command to answer you. Every call is approved per-use, and it's all on your
+  machine — still no network. Register your own `Tool` from the library, too.
 - **Lightweight, nothing to audit.** Zero runtime dependencies — apple-fm just
   talks to the on-device model and gets out of your way.
 - **Future-proof.** The helper resolves the current on-device model at runtime,
@@ -72,6 +76,7 @@ cat notes.md | apple-fm generate     # read the prompt from stdin
 apple-fm generate "…" --stream       # stream tokens as they arrive
 apple-fm generate "…" --schema shape.json   # structured/guided JSON output
 apple-fm chat                        # interactive chat (streamed, auto-compacted)
+apple-fm chat --tools read,bash      # let the model read files / run commands (gated)
 ```
 
 Run `apple-fm --help` for the full flag list.
@@ -104,6 +109,21 @@ replying to interrupt it (the partial reply is kept in context).
 <p align="center">
   <img src="assets/demos/chat.svg" alt="apple-fm chat answers a prompt, then /help lists the slash commands: /reset, /system, /clear, /compact, /help, /quit." width="820">
 </p>
+
+### Tool calling
+
+Opt `chat` into built-in tools and the on-device model can call them mid-reply to
+answer you — `read` (read a local file) and `bash` (run a shell command):
+
+```bash
+apple-fm chat --tools read,bash
+```
+
+Every call is **permission-gated**: you approve each one (`[y/N/a]`), or pre-approve
+with `--allow-tool "bash:git "` / auto-approve with `--yes`; non-interactive runs
+deny by default, so a script never silently runs a command. It stays **fully local** —
+tools run on your machine and nothing hits the network. Library consumers can register
+their own `Tool` (see [docs/9-tool-calling.md](docs/9-tool-calling.md)).
 
 ## Library
 
