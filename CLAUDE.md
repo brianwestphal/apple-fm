@@ -98,6 +98,33 @@ import type {
   speaks JSON. Keep `package.json` `dependencies` empty.
 - Public functions and exported types carry TSDoc.
 
+## Git
+
+- **Committing**: commit as needed without asking — when a unit of work is done,
+  go ahead and commit it.
+- **Pushing**: never `git push` without explicit permission. Ask first every time.
+
+## Code search (prefer ast-grep for structure)
+
+For **structural / syntax-aware** searches over source (`.ts` in `src/` & `tests/`,
+`.swift` in `apple-fm-helper/`), use **ast-grep** (the `ast-grep` skill, or the CLI:
+`ast-grep run --lang <ts|swift> -p '<pattern>' <path>`) rather than text grep — it
+matches the AST, so it skips comments/strings and catches multi-line/nested shapes.
+This is the same mindset as the project's strict-typed lint rules (`strict-boolean-expressions`,
+`consistent-type-imports`, `switch-exhaustiveness-check`). Good fits here: `$A as $B`
+casts and `JSON.parse($X) as $T` (the layering keeps casts rare, so flag them), truthy
+string checks that trip `strict-boolean-expressions`, `import type` shapes,
+`process.platform` guards in the Node layer, `spawn($$$)` / helper-process call sites,
+and — on the Swift side — `import FoundationModels` (should appear **only** in
+`apple-fm-helper/`), `#available(...)` / `if #available` gates, and specific
+call/`switch` shapes, plus codemod-style rewrites. **`--lang` matters: `ts` ≠ `swift`** —
+pick per file extension (this repo has no `.tsx` or Rust).
+
+Keep **text search** (ripgrep / the editor's grep / the Explore agent) for what it's
+best at: literal strings (e.g. `FEEDBACK NEEDED`, NDJSON event names), identifier/symbol
+lookups, **filenames**, and **non-code files** (the `docs/` markdown, `package.json`,
+NDJSON fixtures / logs) — there AST has nothing to match and text is simpler + faster.
+
 ## Commands
 
 ```bash

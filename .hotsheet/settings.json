@@ -1,7 +1,6 @@
 {
   "appName": "Apple FM",
   "ticketPrefix": "AFM",
-  "port": 4174,
   "terminals": [
     {
       "id": "claude",
@@ -13,13 +12,6 @@
       "fontSize": 17
     }
   ],
-  "drawer_open": "true",
-  "drawer_active_tab": "terminal:claude",
-  "drawer_expanded": "false",
-  "terminal_default": {
-    "theme": "github-dark",
-    "fontSize": 17
-  },
   "custom_commands": [
     {
       "name": "Commit Changes",
@@ -106,8 +98,5 @@
       "key": "bug",
       "text": "Read docs/ai/code-summary.md and docs/ai/requirements-summary.md if you haven't yet or if you feel you might be out-of-date.\n\nEvaluate current tests and add unit tests or test automation to protected against this kind of bug going forward, if applicable.\n"
     }
-  ],
-  "detail_visible": "true",
-  "detail_position": "side",
-  "ai_instructions_nudge_dismissed": true
+  ]
 }
