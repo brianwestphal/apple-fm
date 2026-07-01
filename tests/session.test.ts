@@ -199,6 +199,74 @@ describe('ChatSession compaction', () => {
     await session.compact();
     expect(summarizer.calls).toHaveLength(0);
   });
+
+  // AFM-54 — transition-matrix cases: the threshold is crossed more than once in a
+  // single session. Prior tests only ever asserted the *first* compaction; these
+  // drive the "compact → keep going → compact again" transition the coverage % hides.
+
+  it('compacts repeatedly across a session, folding the prior recap into each new summary (AFM-54)', async () => {
+    const { backend, calls } = recordingBackend();
+    const summarizer = recordingSummarizer();
+    const session = new ChatSession({
+      backend,
+      generateFn: summarizer.gen,
+      compactAtTokens: 0, // any non-empty transcript triggers compaction
+      keepRecentTurns: 1,
+    });
+    await session.send('a'); // no compaction (transcript empty at entry)
+    await session.send('b'); // 1st compaction fires before this turn
+    await session.send('c'); // 2nd compaction fires before this turn
+
+    // Two distinct threshold crossings, not one — the repeated transition.
+    expect(summarizer.calls).toHaveLength(2);
+    // The 2nd compaction must fold the recap the 1st produced (not just raw turns);
+    // otherwise repeated compaction silently drops earlier context.
+    expect(summarizer.calls[1]?.messages[0]?.content).toContain('Previous summary:\nSUMMARY');
+    // The latest reset carries the rolling recap into the effective system prompt.
+    const lastReset = [...calls].reverse().find((c) => c.kind === 'reset');
+    expect(lastReset?.system).toContain('Conversation so far:\nSUMMARY');
+  });
+
+  it('keeps converging when the recap itself stays over the threshold (no wedge) (AFM-54)', async () => {
+    const { backend } = recordingBackend();
+    // A recap ~100 tokens long: once it exists, the effective system prompt alone
+    // stays over the 5-token bound, so shouldCompact() is true on every later turn.
+    const bigSummary = 'x'.repeat(400);
+    const summarizerCalls: string[][] = [];
+    const gen: GenerateFn = (_system, messages) => {
+      summarizerCalls.push(messages.map((m) => m.content));
+      return Promise.resolve(bigSummary);
+    };
+    const session = new ChatSession({ backend, generateFn: gen, compactAtTokens: 5, keepRecentTurns: 1 });
+
+    // Every over-threshold send still completes and makes forward progress...
+    for (const t of ['one', 'two', 'three', 'four', 'five']) {
+      await expect(session.send(t)).resolves.toBe(`reply:${t}`);
+    }
+    // ...compacting on each crossing rather than looping/wedging on the oversized recap...
+    expect(summarizerCalls.length).toBeGreaterThanOrEqual(3);
+    // ...and history stays bounded (kept recent turn + the just-added user/assistant pair),
+    // proving the transcript does not grow unbounded despite the recap re-overflowing.
+    expect(session.history().length).toBeLessThanOrEqual(3);
+  });
+
+  it('resets to empty then compacts fresh — no stale recap carried across the reset (AFM-54)', async () => {
+    const { backend } = recordingBackend();
+    const summarizer = recordingSummarizer();
+    const session = new ChatSession({ backend, generateFn: summarizer.gen, compactAtTokens: 0, keepRecentTurns: 1 });
+    await session.send('a');
+    await session.send('b'); // 1st compaction (summary = SUMMARY)
+    expect(summarizer.calls).toHaveLength(1);
+
+    session.reset(); // drain to empty
+    expect(session.history()).toEqual([]);
+
+    await session.send('c'); // fresh transcript, no compaction at entry
+    await session.send('d'); // compaction on the refilled transcript
+    expect(summarizer.calls).toHaveLength(2);
+    // The post-reset compaction must NOT fold the pre-reset recap — reset() cleared it.
+    expect(summarizer.calls[1]?.messages[0]?.content).not.toContain('Previous summary:');
+  });
 });
 
 describe('ChatSession.reset / close', () => {

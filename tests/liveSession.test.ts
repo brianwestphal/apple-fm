@@ -136,6 +136,59 @@ describe('LiveSession', () => {
     }
   });
 
+  // AFM-53 — adversarial transition-matrix cases. Prior tests drive one command at a
+  // time from a settled state, so `pending.size` is never >1 and the dead→respawn
+  // side-path is only ever taken once. These exercise the transitions the coverage %
+  // hides: interleaved in-flight turns, a *second* crash/respawn, and close-while-busy.
+
+  it('demultiplexes two concurrent in-flight turns to the right awaiters (AFM-53)', async () => {
+    const session = new LiveSession({ binPath: STUB });
+    try {
+      await session.reset('');
+      const controller = new AbortController();
+      // Turn A (id "1") stays open — STREAM_FOREVER waits for a cancel — so it is
+      // still pending when turn B is dispatched: `pending` holds two entries at once.
+      const a = session.send('STREAM_FOREVER', undefined, controller.signal);
+      // Turn B (id "2") completes immediately, so its result returns *before* A's
+      // (out of order). It must route to B's awaiter, not the still-open A.
+      const b = parseResult(await session.send('hello'));
+      expect(b.prompt).toBe('hello');
+      // Now settle A; its partial must route back to A's awaiter, not B's.
+      controller.abort();
+      await expect(a).resolves.toBe('partial ');
+      // The session is still healthy for a subsequent turn.
+      expect(parseResult(await session.send('after')).prompt).toBe('after');
+    } finally {
+      session.close();
+    }
+  });
+
+  it('respawns again after a second crash (repeated dead → respawn) (AFM-53)', async () => {
+    const session = new LiveSession({ binPath: STUB });
+    try {
+      await session.reset('sys');
+      await expect(session.send('CRASH')).rejects.toThrow(/\[sessionClosed\]/); // crash #1
+      await session.reset('sys'); // respawn #1
+      expect(parseResult(await session.send('ok')).turns).toBe(1);
+      await expect(session.send('CRASH')).rejects.toThrow(/\[sessionClosed\]/); // crash #2
+      await session.reset('sys'); // respawn #2 — the repeated transition
+      expect(parseResult(await session.send('ok2')).turns).toBe(1);
+    } finally {
+      session.close();
+    }
+  });
+
+  it('close() while a turn is in flight rejects the pending send (AFM-53)', async () => {
+    const session = new LiveSession({ binPath: STUB });
+    await session.reset('');
+    // STREAM_FOREVER never settles on its own, so the send is still pending when we
+    // close — exercising rejectAll via the explicit close() call (not process exit).
+    const pending = session.send('STREAM_FOREVER');
+    await new Promise((resolve) => setTimeout(resolve, 30)); // let it register as in-flight
+    session.close();
+    await expect(pending).rejects.toThrow(/\[sessionClosed\] live session closed/);
+  });
+
   it('ignores malformed / non-object / mis-id-ed / unknown-type lines and still resolves', async () => {
     const session = new LiveSession({ binPath: STUB });
     try {
