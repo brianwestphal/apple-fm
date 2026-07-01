@@ -1,6 +1,8 @@
 {
   "appName": "Apple FM",
   "ticketPrefix": "AFM",
+  "secret": "429bb9fb7cd449fadf56b613b725e252",
+  "secretPathHash": "a423bfe8f580e01f",
   "terminals": [
     {
       "id": "claude",
@@ -17,13 +19,15 @@
       "name": "Commit Changes",
       "prompt": "make a commit message for the recently completed tickets, without wrapping long lines.  Don't include any co-authored by Anthropic type lines in the commit message.  add all unstaged changes to the git commit.  git commit with the message you generated but don't push",
       "icon": "send",
-      "color": "#3b82f6"
+      "color": "#3b82f6",
+      "id": "4dd844e1-b5ef-410f-98b8-1beed048fc07"
     },
     {
       "name": "Update Requirements",
       "prompt": "Update the requirements docs as appropriate",
       "icon": "file-text",
-      "color": "#6b7280"
+      "color": "#6b7280",
+      "id": "993c5ffa-c874-44e2-8a6c-f7deab91c1d0"
     },
     {
       "type": "group",
@@ -33,27 +37,32 @@
           "name": "Reqs ↔︎ Code",
           "prompt": "/check-requirements-against-code",
           "icon": "arrow-left-right",
-          "color": "#ec4899"
+          "color": "#ec4899",
+          "id": "b128c755-407e-4fac-b82d-b578ce464b74"
         },
         {
           "name": "Analyze Code Quality",
           "prompt": "/analyze-code-quality",
           "icon": "circle-check-big",
-          "color": "#8b5cf6"
+          "color": "#8b5cf6",
+          "id": "25704bc5-d66b-478a-a436-cfea82a6f055"
         },
         {
           "name": "Check Code Hygene",
           "prompt": "/check-code-hygiene",
           "icon": "soap-dispenser-droplet",
-          "color": "#f97316"
+          "color": "#f97316",
+          "id": "4f41ba30-e421-4a5c-9ead-b183b9e6f14d"
         },
         {
           "name": "Everything",
           "prompt": "do these sequentially, creating follow up tickets for all concerns encountered:\n/check-requirements-against-code\n/check-code-hygiene\n/analyze-code-quality\n",
           "icon": "balloon",
-          "color": "#e5e7eb"
+          "color": "#e5e7eb",
+          "id": "7a817bfc-cf99-4e24-bc62-19bce904acef"
         }
-      ]
+      ],
+      "id": "5a7f5340-356a-4514-b9ac-d24940bdb81f"
     },
     {
       "type": "group",
@@ -65,21 +74,25 @@
           "icon": "git-compare",
           "color": "#e5e7eb",
           "target": "shell",
-          "autoShowLog": true
+          "autoShowLog": true,
+          "id": "97e733fc-fa84-481c-b724-cf9a205421d5"
         },
         {
           "name": "git push",
           "prompt": "git push",
           "icon": "git-compare-arrows",
-          "target": "shell"
+          "target": "shell",
+          "id": "21505589-8ba7-4603-acc2-b139b5798859"
         }
-      ]
+      ],
+      "id": "e0eeee4f-79dd-45f5-9d71-f8b5974f6cb3"
     },
     {
       "name": "Prep Major Release",
       "prompt": "/prep-major-release",
       "icon": "wand",
-      "color": "#14b8a6"
+      "color": "#14b8a6",
+      "id": "6330becf-e3b1-4e8c-81ed-de9ef99070c0"
     }
   ],
   "auto_context": [
