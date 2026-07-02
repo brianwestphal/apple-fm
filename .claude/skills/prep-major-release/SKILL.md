@@ -47,7 +47,34 @@ goal is a README that honestly and compellingly reflects what apple-fm does *tod
    - Tighten prose so it stays compelling and scannable — lead with the benefit, not
      the mechanism. Don't pad with an imageless section if a bullet does the job.
 
-3. **Review the demo modes** in `scripts/demo.mjs` (the `DEMOS` array). Each entry is
+3. **Upgrade the demo tooling (`domotion-svg`) to the latest, if out of date.** The
+   demos are rendered with the `domotion` CLI from the `domotion-svg` dev-dependency, so
+   a release should capture on the current renderer. Do this *before* reviewing/capturing
+   demos so the review reflects what will actually ship.
+   - Compare installed vs. latest: `npm ls domotion-svg` (installed) against
+     `npm view domotion-svg version` (latest — or, if the npm cache is unwritable in this
+     environment, `curl -s https://registry.npmjs.org/domotion-svg | ...` reads the
+     `dist-tags.latest`). If they match, skip the rest of this step.
+   - If out of date, bump it: `npm install --save-dev domotion-svg@latest` (updates
+     `package.json` + the lockfile).
+   - **Then re-sync the demo pipeline to the new renderer.** `scripts/lib/window.mjs` and
+     `scripts/lib/cast.mjs` are **pure string transforms keyed off domotion's output
+     shape** (a frame is `<g class="f f-N">`; the cast frame wraps a nested `<svg>`), and
+     both are pinned by comment to a specific domotion version (search for `domotion 0.15`
+     and similar). A domotion upgrade can change that output shape and silently break the
+     window-dressing / title-card compositing.
+     - Run `npm test` — `tests/demo.test.ts` exercises the transforms and is the first
+       tripwire for shape drift. Fix any breakage in `window.mjs` / `cast.mjs` and their
+       tests.
+     - Update the version references in the docstrings/comments (`scripts/demo.mjs`,
+       `scripts/lib/*.mjs`, and this skill's examples) to the new version so they don't
+       lie about which renderer they target.
+     - Because the transform coupling is fragile and demo output is only truly verifiable
+       against the real on-device model (the user's capture step), **flag in your hand-off
+       report** that domotion was upgraded from X→Y and that the recaptured SVGs should be
+       eyeballed for regressions.
+
+4. **Review the demo modes** in `scripts/demo.mjs` (the `DEMOS` array). Each entry is
    a `{ slug, title{eyebrow,headline,subtitle}, cmd, capture }` (the `chat` one is
    composed turn-by-turn). For each, decide: does it still showcase a current,
    compelling capability? Consider **new / different / fewer**:
@@ -65,14 +92,16 @@ goal is a README that honestly and compellingly reflects what apple-fm does *tod
    - If you changed `scripts/demo.mjs`, run `npm test` — `tests/demo.test.ts` covers the
      pure demo-composition logic (`buildChatFrames` / `parseChatTranscript`).
 
-4. **Verify the non-capture changes.** `npm run lint && npm run typecheck && npm test`
+5. **Verify the non-capture changes.** `npm run lint && npm run typecheck && npm test`
    should stay green (README is prose; `demo.mjs` is covered by `demo.test.ts`). Fix any
    breakage before handing off.
 
-5. **Hand off the capture — do NOT run it yourself.** The demos are captured by
+6. **Hand off the capture — do NOT run it yourself.** The demos are captured by
    `npm run demo` (build + `node scripts/demo.mjs`), which runs the real on-device model
    and drives headless Chromium via domotion. Summarize for the user:
    - what you changed in the README and in the demo modes (added/removed/revised demos),
+   - **whether you upgraded `domotion-svg`** (from X→Y) — if so, call it out so the user
+     watches the recaptured SVGs for renderer regressions,
    - that they should now run `npm run demo` to (re)capture **all** demo SVGs (always all
      — minor rendering details drift between captures),
    - the capture requirements: **macOS 26+ Apple Silicon with the model ready**, and
@@ -85,9 +114,11 @@ goal is a README that honestly and compellingly reflects what apple-fm does *tod
 
 ## Don't
 
-- **Don't bump the version** in `package.json`. The release flow (`npm run release`)
-  derives the bump from conventional commits — a `feat!:` / `BREAKING CHANGE:` footer
-  yields a major bump automatically. See [docs/5-releasing.md](../../../docs/5-releasing.md).
+- **Don't bump the project version** in `package.json`. The release flow (`npm run
+  release`) derives the bump from conventional commits — a `feat!:` / `BREAKING CHANGE:`
+  footer yields a major bump automatically. See
+  [docs/5-releasing.md](../../../docs/5-releasing.md). (This is separate from the
+  `domotion-svg` **dev-dependency** bump in step 3, which you *should* do.)
 - **Don't capture demos** unless explicitly asked — that's the user's step (it needs the
   on-device model + an unsandboxed run).
 - **Don't invent features.** Everything advertised must trace to a Shipped FR/NFR or a
@@ -95,7 +126,8 @@ goal is a README that honestly and compellingly reflects what apple-fm does *tod
 
 ## Report
 
-End with: the README edits made (and why), the demo-mode changes (added / revised /
-removed, with the reasoning for any new-vs-prose call), the verify result
+End with: the README edits made (and why), any **`domotion-svg` upgrade** (X→Y, plus
+any `window.mjs` / `cast.mjs` transform fixes it required), the demo-mode changes (added /
+revised / removed, with the reasoning for any new-vs-prose call), the verify result
 (lint/typecheck/test), and a clear **"ready to capture — run `npm run demo` (unsandboxed)"**
 hand-off line.
