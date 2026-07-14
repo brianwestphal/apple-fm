@@ -15,8 +15,11 @@ what each built-in does, its arguments, and its safety properties.
 Every built-in implements the `Tool` contract (`src/tools/types.ts`): `name`,
 `description`, a JSON-Schema `parameters` (compiled to the model's argument schema,
 FR-8), `run(args)`, and the optional `permissionKey(args)` / `describe(args)` hooks
-that scope permission rules and the prompt. Registered in `BUILTIN_TOOLS`
-(`src/tools/index.ts`); `registryFromNames` builds a registry from their names.
+that scope permission rules and the prompt, plus the optional `matchKey(ruleKey,
+callKey, kind)` (how a rule's key matches this tool's key — see
+[10-permissions.md](10-permissions.md)) and `dangerous` (a high-risk tool a blanket
+`--yes` won't auto-approve). Registered in `BUILTIN_TOOLS` (`src/tools/index.ts`);
+`registryFromNames` builds a registry from their names.
 
 ## `read` (`src/tools/builtin/read.ts`) — **Shipped**
 
@@ -25,7 +28,7 @@ that scope permission rules and the prompt. Registered in `BUILTIN_TOOLS`
 | Purpose | Read a UTF-8 text file from the local filesystem. |
 | Arguments | `path` (string, required); `offset` (int ≥ 0), `limit` (int ≥ 1) — an optional 0-based line range. |
 | Result | The file contents (or the selected line range). |
-| Permission key | the `path`, so a user can pre-approve a directory (`read:/home/me`). |
+| Permission key | the `path`, so a user can pre-approve a directory (`read:/home/me`). `matchKey` resolves `..` and requires a path-separator boundary, so a directory grant covers its descendants but neither a name-prefix sibling (`/home/me-secret`) nor a traversal escape (`/home/me/../.ssh`) — AFM-63. (Resolves `..` but does not follow symlinks.) |
 | Risk | Low (read-only) — but still gated; default policy is `ask`. |
 | Errors | Missing path / unreadable file → the fs error is fed back to the model. |
 | URL guard | An `http(s)://` path returns a clear "this is a URL, not a local file; apple-fm cannot fetch URLs" message (not a raw `ENOENT` the small model misreads as "page not found") — AFM-41/43. |
@@ -37,22 +40,32 @@ that scope permission rules and the prompt. Registered in `BUILTIN_TOOLS`
 | Purpose | Run a shell command and return its exit code, stdout, and stderr. |
 | Arguments | `command` (string, required). |
 | Result | A status line (`exit code: N`, or a timeout / signal / failed-to-start note) plus `stdout:` / `stderr:` sections when non-empty. |
-| Permission key | the `command`, so a user can pre-approve a prefix (`--allow-tool "bash:git "`). |
-| Risk | **High** — arbitrary code execution. Default `ask`; **deny-by-default when non-interactive** (a script never silently runs a command unless `--allow-tool`/`--yes`). |
+| Permission key | the `command`. An **allow** rule must name the command *exactly* (`--allow-tool "bash:git status"` approves only `git status`); a **deny** rule is a broad best-effort token match. `dangerous: true`, so a blanket `--yes` never auto-approves it — see [10-permissions.md](10-permissions.md). |
+| Risk | **High** — arbitrary code execution. Default `ask`; **deny-by-default when non-interactive** and **never blanket-approved by `--yes`** (needs an explicit `--allow-tool bash`). |
 
-**Safety properties (BT-1…4):**
+**Safety properties (BT-1…6):**
 
 - **BT-1 No shell injection of model args.** The command is passed as a *single argv
   element* to `sh -c` (`spawn('/bin/sh', ['-c', command])`) — never concatenated into
   another shell string. The model's command is of course still executed by the shell
   (that is the tool's purpose); the gate is the permission prompt, not arg escaping.
-- **BT-2 Timeout-bounded.** A command running past the timeout (default 30 s) is
-  `SIGKILL`ed and reported as timed out, so a hang can't wedge the turn.
-- **BT-3 Output-capped.** stdout and stderr are each capped (8 000 chars) with a
-  "…(N more chars truncated)" note, so a runaway command can't blow the model's
-  context window.
+- **BT-2 Timeout-bounded, process-group kill.** A command running past the timeout
+  (default 30 s) is `SIGKILL`ed and reported as timed out. The child is spawned
+  `detached` and killed by **process group** (negative pid), so a backgrounded child
+  (`sleep 999 &`) can't outlive the timeout (AFM-65).
+- **BT-3 Output-capped, twice.** The returned report is clamped by `capOutput`, and the
+  live capture is separately bounded at `MAX_CAPTURE_CHARS` (256 KiB): a firehose
+  (`cat /dev/zero`, `yes`) is killed at the ceiling and reported as exceeding the output
+  limit, so it can't grow the Node heap before the timeout (AFM-65).
 - **BT-4 Non-zero exit is a normal result.** A failing command reports its exit code
   (not a thrown error), so the model can react to it; only an empty command rejects.
+- **BT-5 Exact-match grants (AFM-63).** `matchKey` for an `allow` requires the exact
+  command, so a single "always"/`--allow-tool` for a benign command can't be extended
+  with `;`/`&&`/`|` into something else.
+- **BT-6 Best-effort deny (AFM-67).** A `deny` rule matches the denied token at a
+  start/whitespace/`/` boundary anywhere in the normalized command (so `/bin/rm` and
+  `command rm` are caught, not just a leading `rm`) — but this is **not** a security
+  guarantee (`eval`, `$(…)`, aliases evade it); the real control is not enabling `bash`.
 
 > **Removed: `web` (fetch).** A networked `web` tool — GET an http(s) URL, return its
 > readability-extracted text — shipped under AFM-34 (`src/tools/builtin/web.ts`, with a

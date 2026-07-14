@@ -17,7 +17,7 @@ export type {
   PermissionPolicyConfig,
   PermissionRequest,
 } from './permissions.js';
-export { PermissionPolicy } from './permissions.js';
+export { PermissionPolicy, sanitizeForPrompt } from './permissions.js';
 export { ToolRegistry } from './registry.js';
 export type { Tool, ToolContext, ToolDefinition } from './types.js';
 

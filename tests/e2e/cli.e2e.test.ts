@@ -339,6 +339,22 @@ describe('apple-fm CLI (e2e)', () => {
     );
 
     it(
+      'does NOT blanket-approve bash under --yes (AFM-64): still denied non-interactively',
+      async () => {
+        // --yes auto-approves read but bash is `dangerous`, so a piped session (no TTY)
+        // must still refuse it — a blanket --yes can't hand the model arbitrary exec.
+        const turn = `TOOL bash ${JSON.stringify({ command: 'echo yes-should-not-run' })}`;
+        const { stdout, code } = await runCli(['chat', '--no-stream', '--tools', 'bash', '--yes'], {
+          input: `${turn}\n/quit\n`,
+        });
+        expect(stdout).toMatch(/denied by the user/);
+        expect(stdout).not.toContain('yes-should-not-run');
+        expect(code).toBe(0);
+      },
+      T,
+    );
+
+    it(
       'tells the model a URL is not a local file rather than a confusing fs error (AFM-41/43)',
       async () => {
         // apple-fm has no network tool: reading a URL returns a clear message, not ENOENT.

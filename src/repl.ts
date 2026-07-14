@@ -6,7 +6,7 @@
 import { createInterface, emitKeypressEvents, type Interface as ReadlineInterface } from 'node:readline';
 
 import { ChatSession } from './session.js';
-import { type PermissionAsker, PermissionPolicy, toolGuidancePrompt,type ToolRegistry } from './tools/index.js';
+import { type PermissionAsker, PermissionPolicy, sanitizeForPrompt, toolGuidancePrompt,type ToolRegistry } from './tools/index.js';
 import type { GenerateOptions } from './types.js';
 
 /** Options for {@link runRepl}. */
@@ -44,7 +44,9 @@ const HELP = `Commands:
 export function readlineAsker(rl: ReadlineInterface): PermissionAsker {
   return (request) =>
     new Promise((resolve) => {
-      rl.question(`\nRun ${request.description}? [y/N/a(lways)] `, (answer) => {
+      // Sanitize the model-controlled description so it can't spoof or scroll the
+      // approval prompt with control chars / ANSI (AFM-68).
+      rl.question(`\nRun ${sanitizeForPrompt(request.description)}? [y/N/a(lways)] `, (answer) => {
         const a = answer.trim().toLowerCase();
         if (a === 'a' || a === 'always') resolve('always');
         else resolve(a === 'y' || a === 'yes' ? 'once' : 'deny');

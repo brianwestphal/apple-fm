@@ -49,6 +49,26 @@ export interface Tool {
   describe?(args: Record<string, unknown>): string;
 
   /**
+   * Optional: does a permission rule's key match this call's key, for the given rule
+   * kind? Lets a tool define *safe* semantics for its own key type instead of the
+   * generic default. `bash` requires an **exact** command for an `allow` (a grant for
+   * `ls` never extends to `ls; rm -rf ~`) but a broad best-effort token match for a
+   * `deny`; `read` treats the key as a filesystem boundary (a directory grant covers
+   * its descendants, after resolving `..`). Omitted ⇒ the policy matches keys by
+   * **exact equality** — the safe default, never a prefix. (FR-14; AFM-63 / AFM-67.)
+   */
+  matchKey?(ruleKey: string, callKey: string, kind: 'allow' | 'deny'): boolean;
+
+  /**
+   * Optional: mark the tool as high-risk (e.g. `bash`, which runs arbitrary shell
+   * commands). A permissive policy **default** (`--yes`) does not blanket-approve a
+   * dangerous tool — it still requires an explicit allow rule or an interactive
+   * approval — so a single `--yes` can't silently hand the untrusted model arbitrary
+   * command execution. (FR-14; AFM-64.)
+   */
+  dangerous?: boolean;
+
+  /**
    * Optional one-line hint telling the model *when* to use this tool, folded into the
    * auto-injected tool-use system prompt (CLI only; see `toolGuidancePrompt`). Without
    * it, the tool's `name`/`description` are used.

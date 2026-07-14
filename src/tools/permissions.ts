@@ -8,13 +8,48 @@
  * (non-interactive / piped), `ask` denies — a script never silently runs a tool. An
  * "always" answer is remembered for the process lifetime.
  *
- * Rules are keyed by tool name, or by a finer `tool:keyPrefix` so that allowing one
- * command prefix (e.g. a `bash:git` rule, or `read:/etc`) doesn't allow all of the
- * tool. A keyed rule matches when the call's key *starts with* the rule's prefix.
+ * Rules are keyed by tool name, or by a finer `tool:key` so that allowing one
+ * command (a `bash:git status` rule) or one path (`read:/etc`) doesn't allow all of
+ * the tool. How a keyed rule's key matches a call's key is decided by the tool's
+ * {@link Tool.matchKey} — **exact equality** by default (never a prefix, so a grant
+ * can't be extended with shell metacharacters or `..`), `read` widening it to a
+ * resolved path boundary, `bash` keeping `allow` exact but making `deny` a broad
+ * best-effort token match (AFM-63 / AFM-67). A permissive *default* never
+ * blanket-approves a {@link Tool.dangerous} tool (AFM-64).
  */
 
 /** The three policy outcomes for a tool call. */
 export type PermissionMode = 'allow' | 'deny' | 'ask';
+
+/** Which rule set a match is being tested against (tools may match differently). */
+export type RuleKind = 'allow' | 'deny';
+
+/** How a tool's key is compared to a rule's key. Defaults to exact equality. */
+export type KeyMatcher = (ruleKey: string, callKey: string, kind: RuleKind) => boolean;
+
+/** Longest description shown in a permission prompt before it is elided (AFM-68). */
+const MAX_PROMPT_DESCRIPTION = 200;
+
+/**
+ * Make a model-controlled description safe to render in the interactive approval
+ * prompt (AFM-68). The command/path shown to the user is attacker-controlled, and the
+ * gate's whole value is informed consent — so strip ANSI escapes and control
+ * characters (which could rewrite the line, hide the real command, or scroll it
+ * off-screen) to a single line, and cap the length. Applied at the render site so it
+ * covers every tool's `describe`, not just the built-ins.
+ */
+export function sanitizeForPrompt(text: string): string {
+  const stripped = text
+    // ANSI CSI sequences (colors, cursor moves, line erase): ESC "[" … final byte.
+    // eslint-disable-next-line no-control-regex
+    .replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, "")
+    // Any remaining control characters (incl. \r \n \t and a bare ESC) -> a space.
+    // eslint-disable-next-line no-control-regex
+    .replace(/[\x00-\x1f\x7f]+/g, " ")
+    .trim();
+  if (stripped.length <= MAX_PROMPT_DESCRIPTION) return stripped;
+  return `${stripped.slice(0, MAX_PROMPT_DESCRIPTION)}… (${String(stripped.length - MAX_PROMPT_DESCRIPTION)} more chars)`;
+}
 
 /** What the user chose at an interactive prompt. */
 export type AskOutcome = 'once' | 'always' | 'deny';
@@ -29,6 +64,13 @@ export interface PermissionRequest {
   description: string;
   /** The raw arguments the model generated. */
   args: Record<string, unknown>;
+  /**
+   * How this tool compares a rule's key to {@link key} (from `Tool.matchKey`). Omitted
+   * ⇒ exact equality — a keyed rule matches only the identical key, never a prefix.
+   */
+  matchKey?: KeyMatcher;
+  /** High-risk tool (`Tool.dangerous`): a permissive default won't blanket-approve it. */
+  dangerous?: boolean;
 }
 
 /** Prompts the user to approve a call; the REPL provides this on a TTY. */
@@ -46,17 +88,22 @@ export interface PermissionPolicyConfig {
   asker?: PermissionAsker;
 }
 
+/** Default key comparison when a tool defines no `matchKey`: exact equality (safe). */
+const exactKeyMatch: KeyMatcher = (ruleKey, callKey) => ruleKey === callKey;
+
 /**
- * Whether a `tool` / `tool:keyPrefix` rule matches a request. A bare tool rule
- * (no colon) matches any call to that tool; a keyed rule matches when the call has a
- * key that starts with the rule's prefix. Rules are split on the *first* colon, so a
- * key that itself contains a colon (a URL, a path) still matches correctly.
+ * Whether a `tool` / `tool:key` rule matches a request, for the given rule kind. A
+ * bare tool rule (no colon) matches any call to that tool; a keyed rule matches when
+ * the call has a key and the tool's key matcher (exact by default) accepts the rule's
+ * key against it. Rules are split on the *first* colon, so a key that itself contains
+ * a colon (a URL, a path) still matches correctly.
  */
-function ruleMatches(rule: string, request: PermissionRequest): boolean {
+function ruleMatches(rule: string, request: PermissionRequest, kind: RuleKind): boolean {
   const colon = rule.indexOf(':');
   if (colon < 0) return rule === request.tool;
   if (rule.slice(0, colon) !== request.tool) return false;
-  return request.key !== undefined && request.key.startsWith(rule.slice(colon + 1));
+  if (request.key === undefined) return false;
+  return (request.matchKey ?? exactKeyMatch)(rule.slice(colon + 1), request.key, kind);
 }
 
 export class PermissionPolicy {
@@ -72,16 +119,22 @@ export class PermissionPolicy {
     this.asker = config.asker;
   }
 
-  /** Whether any rule in `set` matches the request. */
-  private matches(set: Set<string>, request: PermissionRequest): boolean {
-    for (const rule of set) if (ruleMatches(rule, request)) return true;
+  /** Whether any rule in `set` matches the request, evaluated as the given kind. */
+  private matches(set: Set<string>, request: PermissionRequest, kind: RuleKind): boolean {
+    for (const rule of set) if (ruleMatches(rule, request, kind)) return true;
     return false;
   }
 
-  /** The static decision for a request, before any prompt. `deny` wins over `allow`. */
+  /**
+   * The static decision for a request, before any prompt. `deny` wins over `allow`. A
+   * permissive *default* (`allow`, e.g. `--yes`) does **not** cover a `dangerous` tool:
+   * it downgrades to `ask` so a blanket approval can't silently grant `bash` arbitrary
+   * command execution (AFM-64). An explicit allow rule still grants it.
+   */
   decide(request: PermissionRequest): PermissionMode {
-    if (this.matches(this.deny, request)) return 'deny';
-    if (this.matches(this.allow, request)) return 'allow';
+    if (this.matches(this.deny, request, 'deny')) return 'deny';
+    if (this.matches(this.allow, request, 'allow')) return 'allow';
+    if (this.defaultMode === 'allow' && request.dangerous === true) return 'ask';
     return this.defaultMode;
   }
 

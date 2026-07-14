@@ -24,14 +24,15 @@ makes a policy decision.
 | ID | Requirement | Status | Notes |
 | --- | --- | --- | --- |
 | PERM-1 | Decide `allow` / `deny` / `ask` per call | **Shipped** | `PermissionPolicy.decide`. Default `ask`. **Deny wins** over allow. |
-| PERM-2 | Rules keyed by tool, or by a finer `tool:keyPrefix` | **Shipped** | A keyed rule matches when the call's key *starts with* the prefix (e.g. a `bash:git` rule, or `read:/home/me`). A keyed rule does **not** allow the whole tool. The key comes from the tool's optional `permissionKey(args)` (`read` → the path). |
-| PERM-3 | Prompt the user on `ask` | **Shipped** | The REPL shows `Run <description>? [y/N/a(lways)]`; `y` = once, `a` = always, anything else = deny. `describe(args)` supplies the text (`read /etc/hosts`). |
+| PERM-2 | Rules keyed by tool, or by a finer `tool:key` | **Shipped** | A bare `tool` rule matches any call; a keyed rule matches per the tool's `matchKey(ruleKey, callKey, kind)` — **exact equality by default** (never a prefix). `read` widens it to a *resolved path boundary* (a dir grant covers descendants, `..` and name-prefix siblings excluded); `bash` keeps `allow` exact but makes `deny` a broad best-effort token match. Key comes from `permissionKey(args)`. A keyed rule does **not** allow the whole tool. (AFM-63 / AFM-67.) |
+| PERM-3 | Prompt the user on `ask` | **Shipped** | The REPL shows `Run <description>? [y/N/a(lways)]`; `y` = once, `a` = always, anything else = deny. `describe(args)` supplies the text (`read /etc/hosts`), run through `sanitizeForPrompt` — control chars / ANSI stripped and length capped so a model-crafted command can't spoof or scroll the prompt (AFM-68). |
 | PERM-4 | "Always" persists for the process lifetime | **Shipped** | An `always` answer adds an allow rule (keyed to that call) for the rest of the run. Not yet persisted to disk (open item). |
 | PERM-5 | Non-interactive ⇒ deny unless pre-authorized | **Shipped** | No asker (piped / not a TTY) ⇒ `ask` denies. A script never silently runs a tool. Pre-authorize with `--allow-tool` / `--yes`. |
 | PERM-6 | A refusal lets the model continue | **Shipped** | A denied/failed call is fed back as the tool **result** (a message), not a throwing `tool_error` — on-device a thrown tool error aborts the whole turn (see below). The model reads the message and carries on. |
 | PERM-7 | CLI control | **Shipped** | `--allow-tool <rule>` / `--deny-tool <rule>` (repeatable; `tool` or `tool:keyPrefix`), `--yes` (approve all), and the `/tools` REPL command. |
 | PERM-8 | Programmatic control | **Shipped** | `new PermissionPolicy({ default, allow, deny, asker })`, passed to `ChatSession` / `LiveSession` via `permission`. Exported from `apple-fm`. |
 | PERM-9 | Persist "always" grants to config | **Deferred** | Process-lifetime only today; a written allowlist is a possible follow-up. |
+| PERM-10 | A permissive default never blanket-approves a `dangerous` tool | **Shipped** | A tool may set `dangerous: true` (`bash`). When the *default* is `allow` (`--yes`), a dangerous tool still `ask`s — so `--yes` can't silently hand the untrusted model arbitrary command execution, interactively or piped. An explicit `--allow-tool bash` still grants it. (AFM-64.) |
 
 ## How it works
 
@@ -58,9 +59,11 @@ routine refusals.
 ```
 apple-fm chat --tools read                          # read is enabled; each call prompts
 apple-fm chat --tools read --allow-tool read        # pre-approve all read calls
-apple-fm chat --tools read --allow-tool read:/srv   # pre-approve reads under /srv
-apple-fm chat --tools bash --deny-tool bash:rm      # never run bash commands starting "rm"
-apple-fm chat --tools read --yes                    # approve everything (use with care)
+apple-fm chat --tools read --allow-tool read:/srv   # pre-approve reads under /srv (and only under it)
+apple-fm chat --tools bash --allow-tool "bash:git status"  # pre-approve exactly `git status`
+apple-fm chat --tools bash --deny-tool bash:rm      # best-effort block of commands invoking rm
+apple-fm chat --tools read,bash --yes               # auto-approve read; bash still prompts
+apple-fm chat --tools bash --yes --allow-tool bash  # …add this to also auto-approve bash (use with care)
 ```
 
 In the REPL, `/tools` lists the enabled tools.
@@ -68,10 +71,13 @@ In the REPL, `/tools` lists the enabled tools.
 ## Testing
 
 - **Unit** (`tests/permissions.test.ts`): the decide matrix (default, allow, deny,
-  deny-wins, keyed prefix matching, bare-vs-keyed), `authorize` (allow/deny without
-  prompting, ask-with-no-asker denies, once vs always, "always" memory, asker-throws
-  ⇒ deny), and the REPL `readlineAsker` answer parsing (y / yes / a / always / empty /
-  other).
+  deny-wins, exact keyed matching, bare-vs-keyed), the tool-specific matchers via the
+  registry (bash exact-allow / best-effort-deny, read path-boundary + `..`-escape,
+  the `--yes` dangerous downgrade), `sanitizeForPrompt` (newline/ANSI/length), `authorize`
+  (allow/deny without prompting, ask-with-no-asker denies, once vs always, "always"
+  memory + read descendant extension, asker-throws ⇒ deny), and the REPL `readlineAsker`
+  answer parsing. Per-tool `matchKey`/`dangerous` also in `tests/tools.test.ts` (read)
+  and `tests/bash.test.ts` (bash + the output-limit kill).
 - **Integration** (`tests/liveSession.test.ts`): the gate in the dispatcher — allowed
   runs, denied is refused (tool never runs, refusal fed back), non-interactive denies,
   asker approval runs.
@@ -80,9 +86,26 @@ In the REPL, `/tools` lists the enabled tools.
 - **On-device** (AF-2): allowed `read` returns the file; denied `read` → the model
   reports it couldn't access the file (verified manually in the AFM-32 session).
 
+## Hardening (AFM-63 / 64 / 67 / 68)
+
+An adversarial review (treating the on-device model as untrusted) tightened the gate:
+
+- **Exact-match grants for `bash`** (AFM-63): an `allow` rule / "always" no longer
+  matches by *prefix*, so approving `ls` can't be extended to `ls; curl … | sh`.
+- **Path-boundary grants for `read`** (AFM-63): `matchKey` resolves `..` and requires a
+  separator boundary, so a directory grant can't be traversed out of or leaked to a
+  name-prefix sibling. (Resolves `..` but not symlinks — a possible follow-up.)
+- **`--yes` never covers a `dangerous` tool** (AFM-64, PERM-10 above).
+- **Best-effort `deny` for `bash`** (AFM-67): a deny matches the token at a word/path
+  boundary anywhere in the command (catching `/bin/rm`, `command rm`) — explicitly *not*
+  a security guarantee; the real control is not enabling `bash`.
+- **Sanitized prompt** (AFM-68, PERM-3 above): the model-controlled description is
+  stripped of control chars / ANSI and length-capped before display.
+
 ## Open items
 
 - Persist "always" grants (PERM-9).
 - Surface tool activity / the granted decision in the REPL transcript (TC-8 in
   [9-tool-calling.md](9-tool-calling.md)).
-- `bash` (AFM-33) leans on this gate; its `permissionKey` is the command (prefix rules).
+- `read` grant matching resolves `..` but not symlinks — a symlink inside an approved
+  dir can still point outside it (`realpath` check is a possible follow-up).

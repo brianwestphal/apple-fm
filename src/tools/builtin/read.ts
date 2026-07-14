@@ -7,6 +7,7 @@
  * a large file without pulling the whole thing into context.
  */
 import { readFile } from 'node:fs/promises';
+import { resolve, sep } from 'node:path';
 
 import { capOutput } from '../output.js';
 import type { Tool } from '../types.js';
@@ -34,6 +35,17 @@ export const readTool: Tool = {
   // Scope permission rules / "always" grants to the path, so a user can approve a
   // directory once (`read:/Users/me/project`) without allowing every read.
   permissionKey: (args) => (typeof args.path === 'string' ? args.path : undefined),
+  // A path rule covers a file exactly or a directory and everything *inside* it —
+  // but only after resolving `..`, and only across a real path-separator boundary, so
+  // `read:/proj` neither leaks `/proj-secret` nor lets `/proj/../.ssh/id_rsa` escape
+  // the grant (AFM-63). Same test for allow and deny. NOTE: this resolves `..` but
+  // does not follow symlinks — a symlink *inside* an approved dir can still point out
+  // (a `realpath` check is a possible follow-up).
+  matchKey: (ruleKey, callKey) => {
+    const rulePath = resolve(ruleKey);
+    const callPath = resolve(callKey);
+    return callPath === rulePath || callPath.startsWith(rulePath + sep);
+  },
   describe: (args) => `read ${typeof args.path === 'string' ? args.path : '(no path)'}`,
   usageHint:
     'read — read a LOCAL file by its path; use it whenever the user references a file path ' +

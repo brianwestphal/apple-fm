@@ -47,17 +47,21 @@ Chat flags:
       --no-stream         Disable token streaming
       --compact-at <n>    Compact the transcript past <n> estimated tokens
       --tools <a,b>       Enable built-in tools the model may call (read, bash)
-      --allow-tool <rule> Pre-approve a tool (e.g. read, or read:/path). Repeatable
-      --deny-tool <rule>  Always deny a tool (same syntax). Repeatable
-      --yes               Auto-approve every tool call (use with care)
+      --allow-tool <rule> Pre-approve a tool (read, read:/path, or bash:<exact cmd>).
+                          A read path grant covers that dir; a bash grant is the
+                          EXACT command only. Repeatable
+      --deny-tool <rule>  Deny a tool (same syntax; a bash deny is best-effort).
+                          Repeatable
+      --yes               Auto-approve tool calls — except bash, which still prompts
+                          (add --allow-tool bash to include it). Use with care
 
 Global:
   -h, --help              Show this help
   -v, --version           Show version
 
-The helper binary is found via APPLE_FM_BIN, then the bundled bin/apple-fm-helper,
-then apple-fm-helper on PATH. Requires macOS 26+ on Apple Silicon with Apple
-Intelligence enabled.`;
+The helper binary is found via APPLE_FM_BIN (an explicit override, trusted as-is),
+otherwise the bundled bin/apple-fm-helper shipped with the package. Requires macOS
+26+ on Apple Silicon with Apple Intelligence enabled.`;
 
 /** Parse a numeric flag value, throwing a clear error on garbage. */
 function parseNumber(flag: string, value: string | undefined): number {

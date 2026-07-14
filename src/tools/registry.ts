@@ -61,6 +61,10 @@ export class ToolRegistry {
       key: tool.permissionKey?.(args),
       description: tool.describe?.(args) ?? `${name} ${JSON.stringify(args)}`,
       args,
+      // Carry the tool's own key-matching + risk semantics so the policy can apply
+      // them without knowing about specific tools (AFM-63 / AFM-64 / AFM-67).
+      matchKey: tool.matchKey?.bind(tool),
+      dangerous: tool.dangerous,
     };
   }
 

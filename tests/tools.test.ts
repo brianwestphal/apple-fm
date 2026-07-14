@@ -174,4 +174,14 @@ describe('read tool', () => {
     expect(readTool.describe?.({ path: '/a/b' })).toBe('read /a/b');
     expect(readTool.describe?.({})).toBe('read (no path)');
   });
+
+  it('matchKey treats a grant as a resolved path boundary (AFM-63)', () => {
+    // Exact file + descendants of a directory match…
+    expect(readTool.matchKey?.('/proj', '/proj', 'allow')).toBe(true);
+    expect(readTool.matchKey?.('/proj', '/proj/src/a.ts', 'allow')).toBe(true);
+    // …but a `..` escape and a name-prefix sibling do not.
+    expect(readTool.matchKey?.('/proj', '/proj/../.ssh/id_rsa', 'allow')).toBe(false);
+    expect(readTool.matchKey?.('/proj', '/proj-secrets/x', 'allow')).toBe(false);
+    expect(readTool.dangerous).toBeUndefined(); // read is not high-risk
+  });
 });

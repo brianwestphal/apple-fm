@@ -47,9 +47,11 @@ export function unsupportedPlatformError(): Error {
 }
 
 /**
- * Resolve the helper binary path: `APPLE_FM_BIN`, then the prebuilt binary
- * bundled with the package (`bin/apple-fm-helper`), then bare `apple-fm-helper`
- * to be found on `PATH`.
+ * Resolve the helper binary path: an explicit `binPath`, then the `APPLE_FM_BIN`
+ * override (trusted as-is — an advanced/testing escape hatch), then the prebuilt
+ * binary bundled with the package (`bin/apple-fm-helper`), addressed by an absolute
+ * path relative to this module. There is **no bare-name `PATH` lookup** — the helper
+ * is never resolved off `PATH`, so it can't be shadowed by a planted binary (AFM-66).
  */
 export function resolveHelperPath(options: HelperOptions = {}): string {
   if (options.binPath !== undefined && options.binPath.length > 0) return options.binPath;
