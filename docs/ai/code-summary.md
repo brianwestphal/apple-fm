@@ -8,7 +8,7 @@ changes.
 ```
 src/
   types.ts        # shared types: Message, GenerateRequest, ProbeResult, HelperEvent, HelperOptions
-  protocol.ts     # pure NDJSON: encodeRequest, splitLines, parseEvent, flattenMessages, estimateTokens, estimateConversationTokens
+  protocol.ts     # pure NDJSON: encodeRequest, splitLines, parseEvent, parseProbeResult, flattenMessages, estimateTokens, estimateConversationTokens
   helper.ts       # process layer: resolveHelperPath, probe, generate (spawn helper, stream, timeout)
   liveSession.ts  # LiveSession: one long-lived `--session` helper; ChatBackend (turn/reset/close, id-correlated)
   session.ts      # ChatSession (multi-turn over a LiveSession backend + auto-compaction); GenerateFn

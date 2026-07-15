@@ -14,9 +14,11 @@ name: Release
 # One-time setup (npm trusted publishing + Apple signing secrets) is documented
 # step-by-step in docs/5-releasing.md.
 
-permissions:
-  contents: write
-  id-token: write   # npm OIDC trusted publishing
+# Least privilege (AFM-80): no workflow-wide `permissions` block — each job grants
+# only what it needs. `contents: write` lives solely on `create-release` (it cuts the
+# GitHub Release); `id-token: write` lives solely on `npm-publish` (npm OIDC trusted
+# publishing). Every validation/build job runs read-only, so a compromised action in,
+# say, the lint job cannot mint an OIDC token or push a release.
 
 on:
   push:
@@ -38,6 +40,8 @@ jobs:
 
   test:
     runs-on: macos-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -47,6 +51,8 @@ jobs:
 
   lint:
     runs-on: macos-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -56,6 +62,8 @@ jobs:
 
   typecheck:
     runs-on: macos-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -65,6 +73,8 @@ jobs:
 
   npm-dry-run:
     runs-on: macos-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -77,6 +87,8 @@ jobs:
 
   detect:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     outputs:
       version: ${{ steps.extract.outputs.version }}
       is_beta: ${{ steps.extract.outputs.is_beta }}
@@ -103,6 +115,8 @@ jobs:
   # package (helper as source + build script), so a release is never blocked.
   apple-fm:
     runs-on: macos-26
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -148,6 +162,8 @@ jobs:
   create-release:
     needs: [test, lint, typecheck, npm-dry-run, detect]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write   # cut the GitHub Release (create tag-associated release + notes)
     steps:
       - uses: actions/checkout@v4
       - name: Extract release notes from CHANGELOG (stable)
@@ -209,6 +225,9 @@ jobs:
       needs.create-release.result == 'success' &&
       needs.detect.result == 'success'
     runs-on: macos-latest
+    permissions:
+      contents: read     # checkout only
+      id-token: write    # npm OIDC trusted publishing
     environment: npm-publish
     steps:
       - uses: actions/checkout@v4

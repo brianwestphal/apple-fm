@@ -28,9 +28,10 @@ callKey, kind)` (how a rule's key matches this tool's key — see
 | Purpose | Read a UTF-8 text file from the local filesystem. |
 | Arguments | `path` (string, required); `offset` (int ≥ 0), `limit` (int ≥ 1) — an optional 0-based line range. |
 | Result | The file contents (or the selected line range). |
-| Permission key | the `path`, so a user can pre-approve a directory (`read:/home/me`). `matchKey` resolves `..` and requires a path-separator boundary, so a directory grant covers its descendants but neither a name-prefix sibling (`/home/me-secret`) nor a traversal escape (`/home/me/../.ssh`) — AFM-63. (Resolves `..` but does not follow symlinks.) |
+| Permission key | the `path`, so a user can pre-approve a directory (`read:/home/me`). `matchKey` resolves the **real** path — collapsing `..` **and following symlinks** — and requires a path-separator boundary, so a directory grant covers its descendants but neither a name-prefix sibling (`/home/me-secret`), a traversal escape (`/home/me/../.ssh`), nor a symlink inside the grant that points outside it (`/home/me/link → /etc/shadow`) — AFM-63 / AFM-76. |
 | Risk | Low (read-only) — but still gated; default policy is `ask`. |
-| Errors | Missing path / unreadable file → the fs error is fed back to the model. |
+| Bounded read (AFM-77) | The read is bounded so an approved call can't hang or exhaust memory: `stat` **refuses non-regular files** (a fifo would block forever waiting for a writer; a device like `/dev/zero` streams unbounded), only a bounded byte prefix (1 MiB) is pulled from disk (a multi-GB file can't OOM — `offset`/`limit` page within that prefix), and a timeout backstops an exotic blocking filesystem. |
+| Errors | Missing path / unreadable file → the fs error is fed back to the model; a non-regular file (fifo / device / directory) is refused with a clear message. |
 | URL guard | An `http(s)://` path returns a clear "this is a URL, not a local file; apple-fm cannot fetch URLs" message (not a raw `ENOENT` the small model misreads as "page not found") — AFM-41/43. |
 
 ## `bash` (`src/tools/builtin/bash.ts`) — **Shipped**
@@ -66,6 +67,19 @@ callKey, kind)` (how a rule's key matches this tool's key — see
   start/whitespace/`/` boundary anywhere in the normalized command (so `/bin/rm` and
   `command rm` are caught, not just a leading `rm`) — but this is **not** a security
   guarantee (`eval`, `$(…)`, aliases evade it); the real control is not enabling `bash`.
+- **BT-7 Scoped environment (AFM-70).** The child gets a **small safe allowlist**
+  (`PATH`, `HOME`, `USER`, `SHELL`, `PWD`, `TMPDIR`, locale, `TERM`, `TZ`) — **not** the
+  CLI's full `process.env` — so an approved command (`env`, `echo $AWS_SECRET_ACCESS_KEY`)
+  can't exfiltrate secrets the CLI process happens to hold. Opt back into full
+  inheritance with `runShellCommand(cmd, { inheritEnv: true })` when a command needs it.
+- **BT-8 Exit-based resolution — no pipe-holding hang (AFM-69).** The run resolves on the
+  shell's own `exit` (process end), not `close` (stdio EOF). A backgrounded or
+  session-detached (`setsid`) grandchild that inherits the shell's stdout pipe used to
+  defer `close` — up to the timeout for a same-group child, and *indefinitely* for a
+  detached one. On exit the process group is reaped (closing a same-group child's pipe)
+  and, if a detached child still holds the pipe, the call resolves after a short grace
+  window instead of hanging. A `cmd &` no longer blocks the tool call to the child's
+  natural lifetime, and a detached child can no longer wedge it past the timeout.
 
 > **Removed: `web` (fetch).** A networked `web` tool — GET an http(s) URL, return its
 > readability-extracted text — shipped under AFM-34 (`src/tools/builtin/web.ts`, with a

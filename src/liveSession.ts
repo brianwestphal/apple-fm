@@ -12,7 +12,7 @@ import { type ChildProcessWithoutNullStreams,spawn } from 'node:child_process';
 import { isPlatformSupported, resolveHelperPath, unsupportedPlatformError, usingBundledHelper } from './helper.js';
 import { splitLines } from './protocol.js';
 import { dispatchToolCall } from './tools/dispatch.js';
-import type { PermissionPolicy, ToolRegistry } from './tools/index.js';
+import { PermissionPolicy, type ToolRegistry } from './tools/index.js';
 import type { DeltaHandler, GenerateOptions, HelperOptions, Message } from './types.js';
 
 const DEFAULT_TURN_TIMEOUT_MS = 120_000;
@@ -28,8 +28,15 @@ export interface LiveSessionConfig extends HelperOptions {
   tools?: ToolRegistry;
   /**
    * Per-call permission policy consulted before each tool runs (FR-14 phase 2).
-   * Omitted ⇒ tools run without a gate (registry-only). A refused call becomes a
-   * `tool_error`.
+   *
+   * **Safe by default (AFM-78):** when {@link tools} are registered and this is
+   * omitted, the session installs a **fail-closed** policy (default `ask`, no asker ⇒
+   * every tool call is denied) rather than running tools ungated. So a `tool_call` —
+   * including one emitted by a compromised/replaced helper — never runs without an
+   * explicit decision. To actually let tools run, supply a policy with `allow` rules,
+   * an interactive `asker`, or `{ default: 'allow' }` (a deliberate opt-in; a `dangerous`
+   * tool like `bash` still requires an explicit allow — AFM-64). A refused call is fed
+   * back to the model as the tool result.
    */
   permission?: PermissionPolicy;
 }
@@ -74,7 +81,11 @@ export class LiveSession implements ChatBackend {
     this.timeoutMs = config.timeoutMs ?? DEFAULT_TURN_TIMEOUT_MS;
     this.options = config.options;
     this.tools = config.tools !== undefined && config.tools.size > 0 ? config.tools : undefined;
-    this.permission = config.permission;
+    // Safe by default (AFM-78): if tools are registered but no policy was supplied, fall
+    // back to a fail-closed policy (default `ask`, no asker ⇒ deny) so tools are never
+    // run ungated. An explicit policy — including a deliberate `{ default: 'allow' }` —
+    // overrides this.
+    this.permission = config.permission ?? (this.tools !== undefined ? new PermissionPolicy() : undefined);
     this.bundled = usingBundledHelper(config);
   }
 

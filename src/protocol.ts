@@ -3,7 +3,7 @@
  * Swift helper, plus small pure helpers used by both the one-shot and chat
  * paths. Everything here is pure and unit-tested directly — no I/O.
  */
-import type { GenerateRequest, HelperEvent, Message } from './types.js';
+import type { GenerateRequest, HelperEvent, Message, ProbeResult, UnavailableReason } from './types.js';
 
 /** Encode a generation request as the single JSON line the helper reads. */
 export function encodeRequest(request: GenerateRequest): string {
@@ -51,6 +51,39 @@ export function parseEvent(line: string): HelperEvent {
       break;
   }
   throw new Error(`malformed helper event: ${line}`);
+}
+
+/** The known reasons the model can be unavailable (see {@link UnavailableReason}). */
+const UNAVAILABLE_REASONS: readonly string[] = [
+  'deviceNotEligible',
+  'appleIntelligenceNotEnabled',
+  'modelNotReady',
+  'unsupportedPlatform',
+  'unknown',
+];
+
+/**
+ * Parse the single bare JSON line emitted by `--probe` into a validated
+ * {@link ProbeResult}. Unlike {@link parseEvent} this is not an NDJSON event — the line
+ * *is* the result — but it is validated the same way so a malformed/hostile probe line
+ * (non-boolean `available`, a missing or unknown `reason`) surfaces a clear protocol
+ * error instead of being cast blindly and handed to callers (AFM-79). A throw here is
+ * turned into a clean rejection by `helper.ts`'s `runHelper` delivery path.
+ */
+export function parseProbeResult(line: string): ProbeResult {
+  const value: unknown = JSON.parse(line);
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    throw new Error(`malformed probe result: ${line}`);
+  }
+  const record = value as Record<string, unknown>;
+  if (typeof record.available !== 'boolean') {
+    throw new Error(`malformed probe result (available must be a boolean): ${line}`);
+  }
+  if (record.available) return { available: true };
+  if (typeof record.reason !== 'string' || !UNAVAILABLE_REASONS.includes(record.reason)) {
+    throw new Error(`malformed probe result (missing/unknown reason): ${line}`);
+  }
+  return { available: false, reason: record.reason as UnavailableReason };
 }
 
 /**

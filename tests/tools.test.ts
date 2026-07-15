@@ -4,12 +4,14 @@
  * round-trip through a live session (dispatcher + protocol) is covered in
  * `liveSession.test.ts`; here we test the pieces in isolation.
  */
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
+import { readTextFile, withTimeout } from '../src/tools/builtin/read.js';
 import type { Tool } from '../src/tools/index.js';
 import { BUILTIN_TOOLS, readTool, registryFromNames, toolGuidancePrompt, ToolRegistry } from '../src/tools/index.js';
 
@@ -183,5 +185,63 @@ describe('read tool', () => {
     expect(readTool.matchKey?.('/proj', '/proj/../.ssh/id_rsa', 'allow')).toBe(false);
     expect(readTool.matchKey?.('/proj', '/proj-secrets/x', 'allow')).toBe(false);
     expect(readTool.dangerous).toBeUndefined(); // read is not high-risk
+  });
+
+  it('matchKey enforces the boundary against the REAL path — a symlink inside an approved dir cannot escape (AFM-76)', () => {
+    const approved = mkdtempSync(join(tmpdir(), 'afm-approved-'));
+    const outsideDir = mkdtempSync(join(tmpdir(), 'afm-outside-'));
+    try {
+      const secret = join(outsideDir, 'secret.txt');
+      writeFileSync(secret, 'AWS_SECRET=leaked', 'utf8');
+      // A symlink textually inside the grant but pointing outside it.
+      const link = join(approved, 'notes.txt');
+      symlinkSync(secret, link);
+      // Previously matchKey used only resolve() (textual) and returned true → escape.
+      // Now it resolves the real path and rejects the boundary escape.
+      expect(readTool.matchKey?.(approved, link, 'allow')).toBe(false);
+      expect(readTool.matchKey?.(approved, link, 'deny')).toBe(false);
+      // …and read() (which follows the symlink) is therefore never authorized for it,
+      // while a genuine file inside the approved dir still matches — even though tmpdir
+      // may contain symlinked components (macOS /var → /private/var).
+      const real = join(approved, 'real.txt');
+      writeFileSync(real, 'ok', 'utf8');
+      expect(readTool.matchKey?.(approved, real, 'allow')).toBe(true);
+    } finally {
+      rmSync(approved, { recursive: true, force: true });
+      rmSync(outsideDir, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses a named pipe (fifo) instead of hanging forever (AFM-77)', async () => {
+    const fifo = join(dir, 'afm-fifo');
+    execFileSync('mkfifo', [fifo]);
+    try {
+      // With no writer this used to block indefinitely; now `stat` rejects it promptly.
+      await expect(readTool.run({ path: fifo }, {})).rejects.toThrow(/named pipe|not a regular file/i);
+    } finally {
+      rmSync(fifo, { force: true });
+    }
+  }, 3000);
+
+  it('refuses a character device (/dev/null) rather than reading it unbounded (AFM-77)', async () => {
+    await expect(readTool.run({ path: '/dev/null' }, {})).rejects.toThrow(/character device|not a regular file/i);
+  });
+
+  it('bounds the bytes pulled from disk so a huge file cannot OOM (AFM-77)', async () => {
+    const bounded = join(dir, 'bounded.txt');
+    writeFileSync(bounded, 'x'.repeat(5000), 'utf8');
+    // Only the first maxBytes are read — not all 5000 — so memory stays bounded
+    // regardless of file size.
+    await expect(readTextFile(bounded, {}, { maxBytes: 100 })).resolves.toBe('x'.repeat(100));
+  });
+
+  it('withTimeout rejects a read that never settles (AFM-77 backstop)', async () => {
+    const never = new Promise<string>(() => undefined);
+    await expect(withTimeout(never, 20, '/blocked')).rejects.toThrow(/timed out after 20ms/);
+  });
+
+  it('withTimeout normalizes a non-Error rejection and clears its timer', async () => {
+    // A rejection before the deadline propagates as an Error (string reason wrapped).
+    await expect(withTimeout(Promise.reject('nope'), 1000, '/x')).rejects.toThrow(/nope/);
   });
 });

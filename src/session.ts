@@ -40,7 +40,13 @@ export interface ChatSessionConfig {
   helper?: HelperOptions;
   /** Tools the model may call mid-turn (FR-14). Ignored when a custom `backend` is set. */
   tools?: ToolRegistry;
-  /** Per-call permission policy for tools (FR-14 phase 2). Ignored when a custom `backend` is set. */
+  /**
+   * Per-call permission policy for tools (FR-14 phase 2). Ignored when a custom
+   * `backend` is set. Safe by default: with `tools` set but no policy, the default
+   * live-session backend installs a **fail-closed** policy (all tool calls denied) —
+   * supply a policy with `allow` rules / an `asker` / `{ default: 'allow' }` to let tools
+   * run (AFM-78).
+   */
   permission?: PermissionPolicy;
   /** Override the live-session backend (tests inject a fake here). */
   backend?: ChatBackend;

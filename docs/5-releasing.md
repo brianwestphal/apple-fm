@@ -53,12 +53,27 @@ No npm token is stored. npm trusts the GitHub workflow directly.
    - **Workflow filename:** `release.yml`
    - **Environment:** `npm-publish`
 3. In GitHub → repo **Settings → Environments → New environment** → name it
-   exactly **`npm-publish`** (the `npm-publish` job references it). No secrets or
-   protection rules are required, but you can add a required reviewer here if you
-   want a manual gate before publish.
+   exactly **`npm-publish`** (the `npm-publish` job references it). No secrets are
+   required.
+   - **Recommended (AFM-80): add a required reviewer.** Under the environment's
+     **Deployment protection rules**, enable **Required reviewers** and add yourself
+     (and/or a co-maintainer). Because *any* `v*` tag push otherwise auto-publishes to
+     npm `latest` with no human gate, this puts a manual approve step in front of every
+     publish — so a stray or malicious tag push (compromised account, mis-scripted
+     release) can't ship arbitrary code to npm without someone clicking **Approve**. A
+     short **wait timer** is a lighter-weight alternative if you release solo. This is a
+     one-time GitHub repo-settings action; the workflow already targets the environment.
 
-That's it — `release.yml` already requests `id-token: write` and runs
+That's it — `release.yml` already requests `id-token: write` (scoped to just the
+`npm-publish` job — see the least-privilege note below) and runs
 `npm publish --provenance`.
+
+> **Least privilege (AFM-80).** `release.yml` has **no** workflow-wide `permissions`
+> block. Each job grants only what it needs: `contents: write` on `create-release`
+> (cuts the GitHub Release) and `id-token: write` on `npm-publish` (OIDC) only; every
+> validation/build job (`test`, `lint`, `typecheck`, `npm-dry-run`, `detect`,
+> `apple-fm`) is read-only. So a compromised third-party action in, say, the lint job
+> can neither mint a publish token nor push a release.
 
 ### B. Apple signing + notarization secrets
 

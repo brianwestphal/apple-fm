@@ -230,7 +230,12 @@ describe('LiveSession', () => {
 
     it('round-trips a model tool call: dispatch → run → feed the result back', async () => {
       const { tool, calls } = spyTool();
-      const session = new LiveSession({ binPath: STUB, tools: new ToolRegistry([tool]) });
+      // An explicit allow policy — the default with no policy is now fail-closed (AFM-78).
+      const session = new LiveSession({
+        binPath: STUB,
+        tools: new ToolRegistry([tool]),
+        permission: new PermissionPolicy({ default: 'allow' }),
+      });
       try {
         await session.reset('sys'); // tools bind at reset
         // The stub's `TOOL <name> <jsonArgs>` sentinel emits a tool_call, then
@@ -250,7 +255,11 @@ describe('LiveSession', () => {
         parameters: { type: 'object', properties: {} },
         run: () => Promise.reject(new Error('disk on fire')),
       };
-      const session = new LiveSession({ binPath: STUB, tools: new ToolRegistry([tool]) });
+      const session = new LiveSession({
+        binPath: STUB,
+        tools: new ToolRegistry([tool]),
+        permission: new PermissionPolicy({ default: 'allow' }),
+      });
       try {
         await session.reset('sys');
         // A thrown tool error aborts the whole turn on-device, so the dispatcher
@@ -263,12 +272,31 @@ describe('LiveSession', () => {
 
     it('keeps the session alive after a tool round-trip', async () => {
       const { tool } = spyTool();
-      const session = new LiveSession({ binPath: STUB, tools: new ToolRegistry([tool]) });
+      const session = new LiveSession({
+        binPath: STUB,
+        tools: new ToolRegistry([tool]),
+        permission: new PermissionPolicy({ default: 'allow' }),
+      });
       try {
         await session.reset('sys');
         await session.send('TOOL fake {"path":"a"}');
         const after = parseResult(await session.send('ok'));
         expect(after.turns).toBe(2); // the tool turn counted, then a normal turn
+      } finally {
+        session.close();
+      }
+    });
+
+    it('is fail-closed: tools registered but NO permission policy ⇒ the tool never runs (AFM-78)', async () => {
+      const { tool, calls } = spyTool();
+      // No `permission` supplied — previously this ran the tool ungated. It must now
+      // default to a fail-closed policy so a tool_call (incl. one from a compromised
+      // helper) is denied rather than executed.
+      const session = new LiveSession({ binPath: STUB, tools: new ToolRegistry([tool]) });
+      try {
+        await session.reset('sys');
+        await expect(session.send('TOOL fake {"path":"x"}')).resolves.toMatch(/denied by the user/);
+        expect(calls).toEqual([]); // the tool was never invoked
       } finally {
         session.close();
       }

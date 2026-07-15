@@ -14,6 +14,7 @@ beforeAll(() => {
 afterEach(() => {
   Reflect.deleteProperty(process.env, HELPER_BIN_ENV);
   delete process.env.STUB_UNAVAILABLE;
+  delete process.env.STUB_BAD_PROBE;
   delete process.env.STUB_HANG;
 });
 
@@ -78,6 +79,11 @@ describe('probe', () => {
       available: false,
       reason: 'appleIntelligenceNotEnabled',
     });
+  });
+
+  it('rejects a malformed probe line instead of casting it blindly (AFM-79)', async () => {
+    process.env.STUB_BAD_PROBE = '1'; // helper emits { available: "yes" }
+    await expect(probe({ binPath: STUB })).rejects.toThrow(/malformed probe result/);
   });
 
   it('times out a hung helper', async () => {

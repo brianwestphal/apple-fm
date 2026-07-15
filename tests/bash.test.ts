@@ -71,4 +71,69 @@ describe('bash tool', () => {
   it('runs through the tool surface (run delegates to the shell)', async () => {
     await expect(bashTool.run({ command: 'echo via-run' }, {})).resolves.toContain('via-run');
   });
+
+  // AFM-69 — resolve on the shell's `exit`, not `close`. A backgrounded child inherits
+  // sh's stdout pipe, so waiting for `close` (pipe EOF) blocked the tool call until that
+  // child finished (`sleep 3 & echo done` used to take ~3s). Now the run resolves once
+  // sh exits, reaping same-group children so it doesn't dangle.
+  it('does not block on a backgrounded pipe-holding child (AFM-69)', async () => {
+    const start = Date.now();
+    const out = await runShellCommand('sleep 3 & echo done', { timeoutMs: 10_000 });
+    const elapsed = Date.now() - start;
+    expect(out).toContain('done');
+    expect(elapsed).toBeLessThan(1500); // ≪ the backgrounded sleep's 3s lifetime
+  });
+
+  it('a pipe-holding child cannot push resolution past the timeout (AFM-69)', async () => {
+    // sh exits immediately (echo, sleep backgrounded); even with a short timeout the
+    // run resolves promptly instead of waiting for the 5s sleep that holds the pipe.
+    const start = Date.now();
+    const out = await runShellCommand('sleep 5 & echo done', { timeoutMs: 300 });
+    const elapsed = Date.now() - start;
+    expect(out).toContain('done');
+    expect(elapsed).toBeLessThan(1500);
+  });
+
+  it('a session-detached (setsid) child holding the pipe does not hang the call (AFM-69)', async () => {
+    // A perl child that setsid()s escapes sh's process group (so the group-kill misses
+    // it) and holds sh's inherited stdout pipe — the exact case that used to hang the
+    // tool call forever. The run must still resolve within the grace window.
+    const start = Date.now();
+    const out = await runShellCommand(
+      `perl -e 'use POSIX; POSIX::setsid(); sleep 5' & echo done`,
+      { timeoutMs: 10_000 },
+    );
+    const elapsed = Date.now() - start;
+    expect(out).toContain('done');
+    expect(elapsed).toBeLessThan(2000); // resolves via exit + grace, not the child's 5s life
+  }, 15_000);
+
+  // AFM-70 — the child gets a scoped environment, not the CLI's full process.env, so an
+  // approved command can't read secrets the CLI process happens to hold.
+  it('does not expose parent secrets to the command by default (AFM-70)', async () => {
+    process.env.SECRET_CANARY = 'leaked-value';
+    try {
+      const out = await runShellCommand('echo "canary=[$SECRET_CANARY]"');
+      expect(out).toContain('canary=[]'); // unset in the scoped child
+      expect(out).not.toContain('leaked-value');
+    } finally {
+      delete process.env.SECRET_CANARY;
+    }
+  });
+
+  it('still passes through the safe allowlist (HOME/PATH) so commands work (AFM-70)', async () => {
+    const out = await runShellCommand('echo "home=[$HOME]"; command -v sh >/dev/null && echo path-ok');
+    expect(out).toMatch(/home=\[.+\]/); // HOME is allowlisted and non-empty
+    expect(out).toContain('path-ok'); // PATH is allowlisted so binaries resolve
+  });
+
+  it('inheritEnv opts back into the full parent environment (AFM-70)', async () => {
+    process.env.SECRET_CANARY = 'opt-in-value';
+    try {
+      const out = await runShellCommand('echo "canary=[$SECRET_CANARY]"', { inheritEnv: true });
+      expect(out).toContain('canary=[opt-in-value]');
+    } finally {
+      delete process.env.SECRET_CANARY;
+    }
+  });
 });

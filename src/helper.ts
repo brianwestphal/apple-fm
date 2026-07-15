@@ -7,7 +7,7 @@
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-import { encodeRequest, parseEvent, splitLines } from './protocol.js';
+import { encodeRequest, parseEvent, parseProbeResult, splitLines } from './protocol.js';
 import type { DeltaHandler, GenerateRequest, HelperOptions, ProbeResult, SnapshotHandler } from './types.js';
 
 /** Environment variable that pins the helper binary path. */
@@ -149,9 +149,10 @@ export async function probe(options: HelperOptions = {}): Promise<ProbeResult> {
   }
   let result: ProbeResult | undefined;
   // `--probe` emits a single bare JSON line that *is* the ProbeResult (not an
-  // NDJSON event); the last such line wins.
+  // NDJSON event); the last such line wins. Validate its shape (AFM-79) rather than
+  // casting a possibly-malformed line straight to ProbeResult.
   await runHelper(['--probe'], options, undefined, (line) => {
-    result = JSON.parse(line) as ProbeResult;
+    result = parseProbeResult(line);
   });
   if (result === undefined) throw new Error('apple-fm helper --probe produced no result');
   return result;

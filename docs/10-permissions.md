@@ -94,7 +94,8 @@ An adversarial review (treating the on-device model as untrusted) tightened the 
   matches by *prefix*, so approving `ls` can't be extended to `ls; curl … | sh`.
 - **Path-boundary grants for `read`** (AFM-63): `matchKey` resolves `..` and requires a
   separator boundary, so a directory grant can't be traversed out of or leaked to a
-  name-prefix sibling. (Resolves `..` but not symlinks — a possible follow-up.)
+  name-prefix sibling. It resolves the **real** path (following symlinks), so a symlink
+  inside an approved directory that points outside it is rejected, not read (AFM-76).
 - **`--yes` never covers a `dangerous` tool** (AFM-64, PERM-10 above).
 - **Best-effort `deny` for `bash`** (AFM-67): a deny matches the token at a word/path
   boundary anywhere in the command (catching `/bin/rm`, `command rm`) — explicitly *not*
@@ -102,10 +103,20 @@ An adversarial review (treating the on-device model as untrusted) tightened the 
 - **Sanitized prompt** (AFM-68, PERM-3 above): the model-controlled description is
   stripped of control chars / ANSI and length-capped before display.
 
+## Safe-by-default gate (AFM-78)
+
+The gate is only as safe as its default. When a `LiveSession` / `ChatSession` is given
+`tools` but **no** `permission` policy, the default backend installs a **fail-closed**
+policy (default `ask`, no asker ⇒ every tool call denied) rather than running tools
+ungated — so a `tool_call`, including one emitted by a compromised/replaced helper,
+never runs without an explicit decision. Letting tools run is a deliberate choice: pass
+a policy with `allow` rules, an interactive `asker`, or `{ default: 'allow' }` (a
+`dangerous` tool still needs an explicit allow — AFM-64). The CLI was always safe
+(`repl.ts` builds a policy whenever `--tools` is set); this closes the **library-API**
+footgun where omitting the policy meant ungated execution.
+
 ## Open items
 
 - Persist "always" grants (PERM-9).
 - Surface tool activity / the granted decision in the REPL transcript (TC-8 in
   [9-tool-calling.md](9-tool-calling.md)).
-- `read` grant matching resolves `..` but not symlinks — a symlink inside an approved
-  dir can still point outside it (`realpath` check is a possible follow-up).

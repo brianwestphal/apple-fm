@@ -6,6 +6,7 @@ import {
   estimateTokens,
   flattenMessages,
   parseEvent,
+  parseProbeResult,
   splitLines,
 } from '../src/protocol.js';
 
@@ -46,6 +47,38 @@ describe('parseEvent', () => {
     expect(() => parseEvent('{"type":"nope"}')).toThrow(/malformed/);
     expect(() => parseEvent('{"type":"delta"}')).toThrow(/malformed/);
     expect(() => parseEvent('42')).toThrow(/malformed/);
+  });
+});
+
+describe('parseProbeResult', () => {
+  it('accepts a well-formed available result (ignores any stray fields)', () => {
+    expect(parseProbeResult('{"available":true}')).toEqual({ available: true });
+    // available:true short-circuits — a spurious reason is dropped, not surfaced.
+    expect(parseProbeResult('{"available":true,"reason":"whatever"}')).toEqual({ available: true });
+  });
+
+  it('accepts an unavailable result with a known reason', () => {
+    expect(parseProbeResult('{"available":false,"reason":"modelNotReady"}')).toEqual({
+      available: false,
+      reason: 'modelNotReady',
+    });
+  });
+
+  it('rejects a non-object / array line', () => {
+    expect(() => parseProbeResult('42')).toThrow(/malformed probe result/);
+    expect(() => parseProbeResult('null')).toThrow(/malformed probe result/);
+    expect(() => parseProbeResult('[1,2]')).toThrow(/malformed probe result/);
+  });
+
+  it('rejects a non-boolean available (AFM-79)', () => {
+    expect(() => parseProbeResult('{"available":"yes"}')).toThrow(/available must be a boolean/);
+    expect(() => parseProbeResult('{"available":1}')).toThrow(/available must be a boolean/);
+  });
+
+  it('rejects an unavailable result whose reason is missing, non-string, or unknown', () => {
+    expect(() => parseProbeResult('{"available":false}')).toThrow(/missing\/unknown reason/);
+    expect(() => parseProbeResult('{"available":false,"reason":{}}')).toThrow(/missing\/unknown reason/);
+    expect(() => parseProbeResult('{"available":false,"reason":"bogus"}')).toThrow(/missing\/unknown reason/);
   });
 });
 

@@ -5,6 +5,7 @@
  * NDJSON protocol. Behavior is steered by env vars and by the request body.
  *
  *   STUB_UNAVAILABLE=1   --probe reports unavailable
+ *   STUB_BAD_PROBE=1     --probe emits a malformed probe line (non-boolean available)
  *   STUB_HANG=1          never exits (to exercise the timeout)
  *
  * For --generate:
@@ -94,7 +95,11 @@ function sampleFromSchema(schema) {
 if (process.env.STUB_HANG === '1') {
   setInterval(() => undefined, 1000);
 } else if (args.includes('--probe')) {
-  if (process.env.STUB_UNAVAILABLE === '1') {
+  if (process.env.STUB_BAD_PROBE === '1') {
+    // A malformed probe line: `available` is not a boolean. Exercises the Node-side
+    // shape validation (AFM-79), which must reject rather than cast it blindly.
+    process.stdout.write(JSON.stringify({ available: 'yes' }) + '\n');
+  } else if (process.env.STUB_UNAVAILABLE === '1') {
     process.stdout.write(JSON.stringify({ available: false, reason: 'appleIntelligenceNotEnabled' }) + '\n');
   } else {
     process.stdout.write(JSON.stringify({ available: true }) + '\n');

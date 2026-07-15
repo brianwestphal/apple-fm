@@ -16,7 +16,12 @@ import type { ToolRegistry } from './registry.js';
 export interface ToolCallDeps {
   /** Tools the model may call (undefined ⇒ none registered). */
   tools: ToolRegistry | undefined;
-  /** Permission policy consulted before a tool runs (undefined ⇒ no gate). */
+  /**
+   * Permission policy consulted before a tool runs. `undefined` ⇒ **no gate** (tools run
+   * ungated) — so callers handling untrusted input must supply one. `LiveSession`
+   * defaults to a fail-closed policy when tools are registered but none is given, so this
+   * ungated path is only reached by a caller that deliberately passes `undefined` (AFM-78).
+   */
   permission: PermissionPolicy | undefined;
   /** Send a command line back to the helper (the `callId` is added by the caller). */
   send: (command: Record<string, unknown>) => void;
