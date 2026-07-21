@@ -242,6 +242,8 @@ describe('read tool', () => {
 
   it('withTimeout normalizes a non-Error rejection and clears its timer', async () => {
     // A rejection before the deadline propagates as an Error (string reason wrapped).
+    // The non-Error rejection is the whole point of the test — that's what withTimeout normalizes.
+    // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors
     await expect(withTimeout(Promise.reject('nope'), 1000, '/x')).rejects.toThrow(/nope/);
   });
 });

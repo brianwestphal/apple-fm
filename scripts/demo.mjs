@@ -4,7 +4,7 @@
  *
  * Each demo runs the real built CLI (`dist/cli.js`) against the on-device model
  * and captures its actual transcript, then renders that transcript as a polished
- * animated SVG with domotion 0.15:
+ * animated SVG with domotion 0.21:
  *
  *   1. the captured session is replayed as an asciinema `cast` (cast.mjs) — real
  *      typing, ANSI color, cursor and timing, with a short blank lead-in;
