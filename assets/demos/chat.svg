@@ -23,45 +23,44 @@
   @keyframes afm-title{0%{opacity:1}16.153%{opacity:1}19.824%{opacity:0}96.329%{opacity:0}100%{opacity:1}}</style>
   <g clip-path="url(#viewport-clip)">
   <g class="f f-0" transform="translate(72,80)"><rect x="0" y="0" width="737" height="444" rx="11" fill="#0d1117"/></g><g class="f f-0" clip-path="url(#afm-winclip)" transform="translate(72,114)">
-<svg xmlns="http://www.w3.org/2000/svg" width="737" height="410" viewBox="0 0 737 410"><style>@keyframes cf0_ln1o{0%{opacity:0}25.5255%{opacity:1}100%{opacity:1}}
-.cf0_anim-ln1{animation:cf0_ln1o 13.320s step-end infinite}
-@keyframes cf0_ln2o{0%{opacity:0}31.2312%{opacity:1}100%{opacity:1}}
-.cf0_anim-ln2{animation:cf0_ln2o 13.320s step-end infinite}
-@keyframes cf0_ln3o{0%{opacity:0}36.4865%{opacity:1}100%{opacity:1}}
-.cf0_anim-ln3{animation:cf0_ln3o 13.320s step-end infinite}
-@keyframes cf0_ln4o{0%{opacity:0}42.1922%{opacity:1}100%{opacity:1}}
-.cf0_anim-ln4{animation:cf0_ln4o 13.320s step-end infinite}
-@keyframes cf0_ln5o{0%{opacity:0}45.1952%{opacity:1}100%{opacity:1}}
-.cf0_anim-ln5{animation:cf0_ln5o 13.320s step-end infinite}
-@keyframes cf0_ln6o{0%{opacity:0}48.1982%{opacity:1}100%{opacity:1}}
-.cf0_anim-ln6{animation:cf0_ln6o 13.320s step-end infinite}
-@keyframes cf0_ln7o{0%{opacity:0}51.2012%{opacity:1}100%{opacity:1}}
-.cf0_anim-ln7{animation:cf0_ln7o 13.320s step-end infinite}
-@keyframes cf0_ln8o{0%{opacity:0}54.2042%{opacity:1}100%{opacity:1}}
-.cf0_anim-ln8{animation:cf0_ln8o 13.320s step-end infinite}
-@keyframes cf0_ln9o{0%{opacity:0}57.2072%{opacity:1}100%{opacity:1}}
-.cf0_anim-ln9{animation:cf0_ln9o 13.320s step-end infinite}
-@keyframes cf0_ln10o{0%{opacity:0}60.2102%{opacity:1}100%{opacity:1}}
-.cf0_anim-ln10{animation:cf0_ln10o 13.320s step-end infinite}
-@keyframes cf0_ln11o{0%{opacity:0}63.2132%{opacity:1}100%{opacity:1}}
-.cf0_anim-ln11{animation:cf0_ln11o 13.320s step-end infinite}
-@keyframes cf0_ln12o{0%{opacity:0}66.2162%{opacity:1}100%{opacity:1}}
-.cf0_anim-ln12{animation:cf0_ln12o 13.320s step-end infinite}
-@keyframes cf0_ln13o{0%{opacity:0}72.2222%{opacity:1}100%{opacity:1}}
-.cf0_anim-ln13{animation:cf0_ln13o 13.320s step-end infinite}
-@keyframes cf0_ln14o{0%{opacity:0}75.2252%{opacity:1}100%{opacity:1}}
-.cf0_anim-ln14{animation:cf0_ln14o 13.320s step-end infinite}
-@keyframes cf0_ln15o{0%{opacity:0}80.4805%{opacity:1}100%{opacity:1}}
-.cf0_anim-ln15{animation:cf0_ln15o 13.320s step-end infinite}
-@keyframes cf0_ln16o{0%{opacity:0}83.4835%{opacity:1}100%{opacity:1}}
-.cf0_anim-ln16{animation:cf0_ln16o 13.320s step-end infinite}
-@keyframes cf0_tcurp{0%{transform:translate(16.00px,37.00px)}24.5495%{transform:translate(16.00px,37.00px)}25.5255%{transform:translate(16.00px,58.00px)}30.2553%{transform:translate(16.00px,58.00px)}31.2312%{transform:translate(16.00px,79.00px)}35.5105%{transform:translate(16.00px,79.00px)}36.4865%{transform:translate(16.00px,100.00px)}41.2162%{transform:translate(16.00px,100.00px)}42.1922%{transform:translate(16.00px,121.00px)}44.2192%{transform:translate(16.00px,121.00px)}45.1952%{transform:translate(16.00px,142.00px)}47.2222%{transform:translate(16.00px,142.00px)}48.1982%{transform:translate(16.00px,163.00px)}50.2252%{transform:translate(16.00px,163.00px)}51.2012%{transform:translate(16.00px,184.00px)}53.2282%{transform:translate(16.00px,184.00px)}54.2042%{transform:translate(16.00px,205.00px)}56.2312%{transform:translate(16.00px,205.00px)}57.2072%{transform:translate(16.00px,226.00px)}59.2342%{transform:translate(16.00px,226.00px)}60.2102%{transform:translate(16.00px,247.00px)}62.2372%{transform:translate(16.00px,247.00px)}63.2132%{transform:translate(16.00px,268.00px)}65.2402%{transform:translate(16.00px,268.00px)}66.2162%{transform:translate(16.00px,289.00px)}71.2462%{transform:translate(16.00px,289.00px)}72.2222%{transform:translate(16.00px,331.00px)}74.2492%{transform:translate(16.00px,331.00px)}75.2252%{transform:translate(16.00px,352.00px)}79.5045%{transform:translate(16.00px,352.00px)}80.4805%{transform:translate(16.00px,373.00px)}82.5075%{transform:translate(16.00px,373.00px)}83.4835%{transform:translate(34.55px,373.00px)}100%{transform:translate(34.55px,373.00px)}}
-@keyframes cf0_tcurv{0%{opacity:0}25.5255%{opacity:0}31.2312%{opacity:0}36.4865%{opacity:0}42.1922%{opacity:0}45.1952%{opacity:0}48.1982%{opacity:0}51.2012%{opacity:0}54.2042%{opacity:0}57.2072%{opacity:0}60.2102%{opacity:0}63.2132%{opacity:0}66.2162%{opacity:0}72.2222%{opacity:0}75.2252%{opacity:0}80.4805%{opacity:0}83.4835%{opacity:0}100%{opacity:0}}
+<svg xmlns="http://www.w3.org/2000/svg" width="737" height="410" viewBox="0 0 737 410"><style>@keyframes cf0_ln1o { 0% { opacity:0 } 0% { opacity:0 } 24.9633% { opacity:1 } 97.7974% { opacity:1 } 100% { opacity:1 } }
+.cf0_anim-ln1{animation:cf0_ln1o 13.62s step-end infinite}
+@keyframes cf0_ln2o { 0% { opacity:0 } 0% { opacity:0 } 30.5433% { opacity:1 } 97.7974% { opacity:1 } 100% { opacity:1 } }
+.cf0_anim-ln2{animation:cf0_ln2o 13.62s step-end infinite}
+@keyframes cf0_ln3o { 0% { opacity:0 } 0% { opacity:0 } 35.6828% { opacity:1 } 97.7974% { opacity:1 } 100% { opacity:1 } }
+.cf0_anim-ln3{animation:cf0_ln3o 13.62s step-end infinite}
+@keyframes cf0_ln4o { 0% { opacity:0 } 0% { opacity:0 } 41.2629% { opacity:1 } 97.7974% { opacity:1 } 100% { opacity:1 } }
+.cf0_anim-ln4{animation:cf0_ln4o 13.62s step-end infinite}
+@keyframes cf0_ln5o { 0% { opacity:0 } 0% { opacity:0 } 44.1997% { opacity:1 } 97.7974% { opacity:1 } 100% { opacity:1 } }
+.cf0_anim-ln5{animation:cf0_ln5o 13.62s step-end infinite}
+@keyframes cf0_ln6o { 0% { opacity:0 } 0% { opacity:0 } 47.1366% { opacity:1 } 97.7974% { opacity:1 } 100% { opacity:1 } }
+.cf0_anim-ln6{animation:cf0_ln6o 13.62s step-end infinite}
+@keyframes cf0_ln7o { 0% { opacity:0 } 0% { opacity:0 } 50.0734% { opacity:1 } 97.7974% { opacity:1 } 100% { opacity:1 } }
+.cf0_anim-ln7{animation:cf0_ln7o 13.62s step-end infinite}
+@keyframes cf0_ln8o { 0% { opacity:0 } 0% { opacity:0 } 53.0103% { opacity:1 } 97.7974% { opacity:1 } 100% { opacity:1 } }
+.cf0_anim-ln8{animation:cf0_ln8o 13.62s step-end infinite}
+@keyframes cf0_ln9o { 0% { opacity:0 } 0% { opacity:0 } 55.9471% { opacity:1 } 97.7974% { opacity:1 } 100% { opacity:1 } }
+.cf0_anim-ln9{animation:cf0_ln9o 13.62s step-end infinite}
+@keyframes cf0_ln10o { 0% { opacity:0 } 0% { opacity:0 } 58.884% { opacity:1 } 97.7974% { opacity:1 } 100% { opacity:1 } }
+.cf0_anim-ln10{animation:cf0_ln10o 13.62s step-end infinite}
+@keyframes cf0_ln11o { 0% { opacity:0 } 0% { opacity:0 } 61.8208% { opacity:1 } 97.7974% { opacity:1 } 100% { opacity:1 } }
+.cf0_anim-ln11{animation:cf0_ln11o 13.62s step-end infinite}
+@keyframes cf0_ln12o { 0% { opacity:0 } 0% { opacity:0 } 64.7577% { opacity:1 } 97.7974% { opacity:1 } 100% { opacity:1 } }
+.cf0_anim-ln12{animation:cf0_ln12o 13.62s step-end infinite}
+@keyframes cf0_ln13o { 0% { opacity:0 } 0% { opacity:0 } 70.6314% { opacity:1 } 97.7974% { opacity:1 } 100% { opacity:1 } }
+.cf0_anim-ln13{animation:cf0_ln13o 13.62s step-end infinite}
+@keyframes cf0_ln14o { 0% { opacity:0 } 0% { opacity:0 } 73.5683% { opacity:1 } 97.7974% { opacity:1 } 100% { opacity:1 } }
+.cf0_anim-ln14{animation:cf0_ln14o 13.62s step-end infinite}
+@keyframes cf0_ln15o { 0% { opacity:0 } 0% { opacity:0 } 78.7078% { opacity:1 } 97.7974% { opacity:1 } 100% { opacity:1 } }
+.cf0_anim-ln15{animation:cf0_ln15o 13.62s step-end infinite}
+@keyframes cf0_ln16o { 0% { opacity:0 } 0% { opacity:0 } 81.6447% { opacity:1 } 97.7974% { opacity:1 } 100% { opacity:1 } }
+.cf0_anim-ln16{animation:cf0_ln16o 13.62s step-end infinite}
+@keyframes cf0_tcurp { 0% { transform:translate(16.00px,37.00px) } 0% { transform:translate(16.00px,37.00px) } 24.0088% { transform:translate(16.00px,37.00px) } 24.9633% { transform:translate(16.00px,58.00px) } 29.5889% { transform:translate(16.00px,58.00px) } 30.5433% { transform:translate(16.00px,79.00px) } 34.7283% { transform:translate(16.00px,79.00px) } 35.6828% { transform:translate(16.00px,100.00px) } 40.3084% { transform:translate(16.00px,100.00px) } 41.2629% { transform:translate(16.00px,121.00px) } 43.2452% { transform:translate(16.00px,121.00px) } 44.1997% { transform:translate(16.00px,142.00px) } 46.1821% { transform:translate(16.00px,142.00px) } 47.1366% { transform:translate(16.00px,163.00px) } 49.1189% { transform:translate(16.00px,163.00px) } 50.0734% { transform:translate(16.00px,184.00px) } 52.0558% { transform:translate(16.00px,184.00px) } 53.0103% { transform:translate(16.00px,205.00px) } 54.9926% { transform:translate(16.00px,205.00px) } 55.9471% { transform:translate(16.00px,226.00px) } 57.9295% { transform:translate(16.00px,226.00px) } 58.884% { transform:translate(16.00px,247.00px) } 60.8663% { transform:translate(16.00px,247.00px) } 61.8208% { transform:translate(16.00px,268.00px) } 63.8032% { transform:translate(16.00px,268.00px) } 64.7577% { transform:translate(16.00px,289.00px) } 69.6769% { transform:translate(16.00px,289.00px) } 70.6314% { transform:translate(16.00px,331.00px) } 72.6138% { transform:translate(16.00px,331.00px) } 73.5683% { transform:translate(16.00px,352.00px) } 77.7533% { transform:translate(16.00px,352.00px) } 78.7078% { transform:translate(16.00px,373.00px) } 80.6902% { transform:translate(16.00px,373.00px) } 81.6447% { transform:translate(34.55px,373.00px) } 97.7974% { transform:translate(34.55px,373.00px) } 100% { transform:translate(34.55px,373.00px) } }
+@keyframes cf0_tcurv { 0% { opacity:0 } 0% { opacity:0 } 24.9633% { opacity:0 } 30.5433% { opacity:0 } 35.6828% { opacity:0 } 41.2629% { opacity:0 } 44.1997% { opacity:0 } 47.1366% { opacity:0 } 50.0734% { opacity:0 } 53.0103% { opacity:0 } 55.9471% { opacity:0 } 58.884% { opacity:0 } 61.8208% { opacity:0 } 64.7577% { opacity:0 } 70.6314% { opacity:0 } 73.5683% { opacity:0 } 78.7078% { opacity:0 } 81.6447% { opacity:0 } 97.7974% { opacity:0 } 100% { opacity:0 } }
 @keyframes cf0_tcurb{0%{opacity:1}50%{opacity:0}100%{opacity:1}}
-.cf0_tcur-v{animation:cf0_tcurv 13.320s step-end infinite}
-.cf0_tcur-p{animation:cf0_tcurp 13.320s linear infinite}
+.cf0_tcur-v{animation:cf0_tcurv 13.62s step-end infinite}
+.cf0_tcur-p{animation:cf0_tcurp 13.62s linear infinite}
 .cf0_tcur-b{animation:cf0_tcurb 1.06s step-end infinite}</style>  <defs><clipPath id="cf0_ti-cp0"><rect x="0" y="0" width="737" height="410"/></clipPath><clipPath id="cf0_ti-ov1"><rect x="0" y="0" width="737" height="410" rx="0"  /></clipPath><clipPath id="cf0_ti-ct2"><rect x="16" y="16" width="556.4" height="21" /></clipPath><clipPath id="cf0_ti-ct3"><rect x="16" y="37" width="491.5" height="21" /></clipPath><clipPath id="cf0_ti-ct4"><rect x="16" y="38" width="9.3" height="18" /></clipPath><clipPath id="cf0_ti-ct5"><rect x="16" y="58" width="129.8" height="21" /></clipPath><clipPath id="cf0_ti-ct6"><rect x="16" y="79" width="64.9" height="21" /></clipPath><clipPath id="cf0_ti-ct7"><rect x="16" y="80" width="9.3" height="18" /></clipPath><clipPath id="cf0_ti-ct8"><rect x="16" y="100" width="83.5" height="21" /></clipPath><clipPath id="cf0_ti-ct9"><rect x="16" y="121" width="658.4" height="21" /></clipPath><clipPath id="cf0_ti-ct10"><rect x="16" y="142" width="565.6" height="21" /></clipPath><clipPath id="cf0_ti-ct11"><rect x="16" y="163" width="565.6" height="21" /></clipPath><clipPath id="cf0_ti-ct12"><rect x="16" y="184" width="120.5" height="21" /></clipPath><clipPath id="cf0_ti-ct13"><rect x="16" y="205" width="519.3" height="21" /></clipPath><clipPath id="cf0_ti-ct14"><rect x="16" y="226" width="491.5" height="21" /></clipPath><clipPath id="cf0_ti-ct15"><rect x="16" y="247" width="315.3" height="21" /></clipPath><clipPath id="cf0_ti-ct16"><rect x="16" y="268" width="454.4" height="21" /></clipPath><clipPath id="cf0_ti-ct17"><rect x="16" y="310" width="667.6" height="21" /></clipPath><clipPath id="cf0_ti-ct18"><rect x="16" y="331" width="64.9" height="21" /></clipPath><clipPath id="cf0_ti-ct19"><rect x="16" y="352" width="64.9" height="21" /></clipPath><clipPath id="cf0_ti-ct20"><rect x="16" y="353" width="9.3" height="18" /></clipPath><clipPath id="cf0_ti-ct21"><rect x="16" y="374" width="9.3" height="18" /></clipPath></defs>
-  <rect x="0" y="0" width="1280" height="410" rx="0" fill="rgb(30,30,30)" />
   <g clip-path="url(#cf0_ti-cp0)">
   <rect x="0" y="0" width="737" height="410" rx="0" fill="rgb(30,30,30)" />
   <g clip-path="url(#cf0_ti-ov1)">
@@ -123,4 +122,4 @@
   </g><g class="cf0_tcur-v"><g class="cf0_tcur-p"><rect class="cf0_tcur-b" x="0.00" y="0.00" width="9.28" height="21.00" fill="#d4d4d4" fill-opacity="0.7"/></g></g></svg>
   </g>
   </g>
-<g class="f f-0" transform="translate(72,80)"><path d="M0 34 V11 a11 11 0 0 1 11 -11 H726 a11 11 0 0 1 11 11 V34 Z" fill="#161b22"/><line x1="0" y1="34" x2="737" y2="34" stroke="#21262d" stroke-width="1"/><circle cx="19" cy="17" r="6" fill="#ff5f56"/><circle cx="39" cy="17" r="6" fill="#febc2e"/><circle cx="59" cy="17" r="6" fill="#28c840"/><text x="369" y="22" text-anchor="middle" fill="#7d8590" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="12">apple-fm</text><rect x="0.5" y="0.5" width="736" height="443" rx="11" fill="none" stroke="#30363d" stroke-width="1"/></g><g style="animation:afm-title 13.62s infinite ease-in-out"><g><rect x="42" y="58" width="797" height="488" rx="14" fill="#0d1117" stroke="#30363d" stroke-width="1"/><text x="440" y="199" text-anchor="middle" fill="#7ee787" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="12" font-weight="600" letter-spacing="2.6">CHAT</text><text x="440" y="241" text-anchor="middle" fill="#e6edf3" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif" font-size="30" font-weight="700">Multi-turn,</text><text x="440" y="277" text-anchor="middle" fill="#e6edf3" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif" font-size="30" font-weight="700">auto-compacted</text><rect x="417" y="319" width="46" height="3" rx="1.5" fill="#7ee787"/><text x="440" y="356" text-anchor="middle" fill="#8b949e" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif" font-size="15">apple-fm chat keeps the conversation and summarizes</text><text x="440" y="379" text-anchor="middle" fill="#8b949e" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif" font-size="15">older turns near the context window. Slash commands</text><text x="440" y="402" text-anchor="middle" fill="#8b949e" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif" font-size="15">like /compact and /clear are built in, and Esc</text><text x="440" y="425" text-anchor="middle" fill="#8b949e" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif" font-size="15">interrupts a reply mid-stream.</text></g></g></svg>
+<g class="f f-0" transform="translate(72,80)"><path d="M0 34 V11 a11 11 0 0 1 11 -11 H726 a11 11 0 0 1 11 11 V34 Z" fill="#161b22"/><line x1="0" y1="34" x2="737" y2="34" stroke="#21262d" stroke-width="1"/><circle cx="19" cy="17" r="6" fill="#ff5f56"/><circle cx="39" cy="17" r="6" fill="#febc2e"/><circle cx="59" cy="17" r="6" fill="#28c840"/><text x="369" y="22" text-anchor="middle" fill="#7d8590" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="12">apple-fm</text><rect x="0.5" y="0.5" width="736" height="443" rx="11" fill="none" stroke="#30363d" stroke-width="1"/></g><g style="animation:afm-title 13.62s infinite ease-in-out"><g><defs><linearGradient id="afm-card-grad" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#161d2b"/><stop offset="1" stop-color="#0a0d13"/></linearGradient></defs><rect x="42" y="58" width="797" height="488" rx="14" fill="url(#afm-card-grad)" stroke="#30363d" stroke-width="1"/><text x="440" y="199" text-anchor="middle" fill="#7ee787" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="12" font-weight="600" letter-spacing="2.6">CHAT</text><text x="440" y="241" text-anchor="middle" fill="#e6edf3" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif" font-size="30" font-weight="700">Multi-turn,</text><text x="440" y="277" text-anchor="middle" fill="#e6edf3" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif" font-size="30" font-weight="700">auto-compacted</text><rect x="417" y="319" width="46" height="3" rx="1.5" fill="#7ee787"/><text x="440" y="356" text-anchor="middle" fill="#8b949e" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif" font-size="15">apple-fm chat keeps the conversation and summarizes</text><text x="440" y="379" text-anchor="middle" fill="#8b949e" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif" font-size="15">older turns near the context window. Slash commands</text><text x="440" y="402" text-anchor="middle" fill="#8b949e" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif" font-size="15">like /compact and /clear are built in, and Esc</text><text x="440" y="425" text-anchor="middle" fill="#8b949e" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif" font-size="15">interrupts a reply mid-stream.</text></g></g></svg>
