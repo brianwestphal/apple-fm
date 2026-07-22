@@ -4,6 +4,18 @@ All notable changes to apple-fm are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/); this project adheres to
 semantic versioning.
 
+## [1.2.0] - 2026-07-22
+
+
+### Features
+- Tool calling: the model can now invoke built-in `read` and `bash` tools during chat, each gated by a per-call permission prompt.
+- Press **Esc** to interrupt an in-flight reply.
+
+### Fixes
+- Hardened the `read`/`bash` tools and the permission gate against untrusted model output, and tightened probe parsing.
+- Tool output is now capped to the on-device context window.
+- Model-runtime errors (including context-window-exceeded, which now triggers a compaction retry) surface as clean, readable errors.
+
 ## [1.0.1] - 2026-06-20
 
 
