@@ -15,6 +15,7 @@ import { describe, expect, it } from 'vitest';
 
 import { parseChatTranscript } from '../scripts/demo.mjs';
 import { chatCast, colorizeLine, oneShotCast, serializeCast } from '../scripts/lib/cast.mjs';
+import { titleCardSvg } from '../scripts/lib/terminal.mjs';
 import { decorateWindow, terminalDims, WINDOW_BAR } from '../scripts/lib/window.mjs';
 
 const ESC = '\x1b';
@@ -45,6 +46,15 @@ const parse = (raw: string, turns: { input: string }[]): Transcript =>
 const decorate = (svg: string, opts: { canvasW: number; canvasH: number; title?: string }): string =>
   decorateWindow(svg, opts);
 const dims = (svg: string): Dims => terminalDims(svg);
+const card = (args: {
+  eyebrow: string;
+  headline: string;
+  subtitle: string;
+  canvasW: number;
+  canvasH: number;
+  coverW?: number;
+  coverH?: number;
+}): string => titleCardSvg(args);
 const BAR = WINDOW_BAR as number;
 
 /** Parse a cast string back into its header + events for assertions. */
@@ -206,5 +216,31 @@ describe('decorateWindow', () => {
 
   it('throws when the composed SVG has no terminal frame', () => {
     expect(() => dims('<svg><defs></defs></svg>')).toThrow(/terminal frame/);
+  });
+});
+
+describe('titleCardSvg', () => {
+  const svg = card({
+    eyebrow: 'Chat',
+    headline: 'Multi-turn, auto-compacted',
+    subtitle: 'Keeps the conversation and summarizes older turns near the window.',
+    canvasW: 880,
+    canvasH: 420,
+  });
+
+  it('paints the card with a self-contained gradient and rounded corners', () => {
+    // The gradient is defined inline (the card embeds as a bare <g> with no shared defs).
+    expect(svg).toContain('<linearGradient id="afm-card-grad"');
+    expect(svg).toContain('stop-color="#161d2b"'); // lighter top stop
+    expect(svg).toContain('stop-color="#0a0d13"'); // darker bottom stop
+    expect(svg).toContain('fill="url(#afm-card-grad)"'); // the card rect uses it
+    expect(svg).toContain('rx="14"'); // rounded card corners
+  });
+
+  it('renders the uppercased eyebrow, the wrapped headline, and the subtitle', () => {
+    expect(svg).toContain('>CHAT</text>'); // eyebrow uppercased
+    expect(svg).toContain('>Multi-turn,</text>'); // headline wraps at 24 chars
+    expect(svg).toContain('>auto-compacted</text>');
+    expect(svg).toContain('summarizes'); // subtitle text present
   });
 });

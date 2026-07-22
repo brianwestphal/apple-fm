@@ -9,7 +9,8 @@
  *   1. the captured session is replayed as an asciinema `cast` (cast.mjs) — real
  *      typing, ANSI color, cursor and timing, with a short blank lead-in;
  *   2. `domotion animate` renders that cast as a single real animated terminal
- *      frame (a single frame keeps the cast's clock in sync — see window.mjs);
+ *      frame — a blinking block caret follows the typing (TERM_OPTS.cursor), and a
+ *      single frame keeps the cast's clock in sync (see window.mjs);
  *   3. the terminal is dressed as a macOS window — drop shadow, rounded corners,
  *      traffic-light title bar — and a title card (terminal.mjs) is layered over
  *      the lead-in and fades away to reveal the terminal, all on a transparent
@@ -45,7 +46,8 @@ const OUT_DIR = join(ROOT, 'assets', 'demos');
 const COLS = 76;
 const FONT_SIZE = 15;
 const TAIL_MS = 2200; // hold on the final terminal screen before the loop
-const TERM_OPTS = { theme: 'dark', fontSize: FONT_SIZE, cols: COLS, tailMs: TAIL_MS };
+const CURSOR = 'block'; // a real blinking caret that follows the cast's cursor (domotion 0.21+)
+const TERM_OPTS = { theme: 'dark', fontSize: FONT_SIZE, cols: COLS, tailMs: TAIL_MS, cursor: CURSOR };
 
 /** Wrap a long line on spaces so wide model output fits the terminal canvas. */
 function wrap(text, width = COLS - 2) {
@@ -246,7 +248,7 @@ async function terminalRender(castPath) {
   const tmp = join(dir, 'dim.svg');
   const r = spawnSync(
     DOMOTION,
-    ['term', '--cast', castPath, '-o', tmp, '--theme', TERM_OPTS.theme, '--font-size', String(FONT_SIZE), '--cols', String(COLS), '--tail-ms', String(TAIL_MS)],
+    ['term', '--cast', castPath, '-o', tmp, '--theme', TERM_OPTS.theme, '--font-size', String(FONT_SIZE), '--cols', String(COLS), '--tail-ms', String(TAIL_MS), '--cursor', CURSOR],
     { encoding: 'utf8' },
   );
   if (r.status !== 0) throw new Error(`domotion term failed:\n${r.stderr}`);

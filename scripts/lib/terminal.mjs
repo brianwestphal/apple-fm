@@ -7,9 +7,9 @@
  * HTML) so it composes into the demo with no id collisions and no font-glyph
  * duplication.
  *
- * The card is a centered dark panel mirroring the terminal window's surface, so
- * the two read as one family. Being its own dark panel, the card's text stays
- * legible on any README background, light or dark.
+ * The card is a centered dark panel with a subtle top-lit gradient, mirroring the
+ * terminal window's surface so the two read as one family. Being its own dark
+ * panel, the card's text stays legible on any README background, light or dark.
  */
 
 /** Shared canvas width for every demo SVG (px). */
@@ -76,9 +76,17 @@ export function titleCardSvg({
 
   // Vertically center the text block within the (possibly taller) card.
   let y = cardY + Math.round((cardH - contentH) / 2) + EYEBROW_H;
+  // A subtle top-lit gradient on the card — a touch lighter than the terminal's
+  // `#0d1117` surface at the top, settling to a hair darker at the bottom, so the
+  // card reads as a lit panel of the same family rather than a flat rectangle.
+  // Defined inline (the card is embedded as a bare <g>, with no shared <defs>); the
+  // id is card-local, and each demo is its own SVG so it can't collide.
   const parts = [
+    `<defs><linearGradient id="afm-card-grad" x1="0" y1="0" x2="0" y2="1">` +
+      `<stop offset="0" stop-color="#161d2b"/><stop offset="1" stop-color="#0a0d13"/>` +
+      `</linearGradient></defs>`,
     `<rect x="${cardX}" y="${cardY}" width="${cardW}" height="${cardH}" rx="14" ` +
-      `fill="#0d1117" stroke="#30363d" stroke-width="1"/>`,
+      `fill="url(#afm-card-grad)" stroke="#30363d" stroke-width="1"/>`,
     `<text x="${cx}" y="${y}" text-anchor="middle" fill="${esc(accent)}" font-family="${MONO}" ` +
       `font-size="12" font-weight="600" letter-spacing="2.6">${esc(eyebrow.toUpperCase())}</text>`,
   ];
