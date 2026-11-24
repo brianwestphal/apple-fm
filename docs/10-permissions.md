@@ -129,7 +129,5 @@ A settings file would also need ownership and scope rules of its own. The
 current explicit flags and library configuration meet the repeatability use case
 while keeping saved transcripts portable.
 
-## Open items
-
-- Surface tool activity / the granted decision in the REPL transcript (TC-8 in
-  [9-tool-calling.md](9-tool-calling.md)).
+The interactive REPL reports requested tools and their outcome on stderr. See
+[tool activity](9-tool-calling.md) for the library callback and piped behavior.

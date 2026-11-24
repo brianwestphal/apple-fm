@@ -19,7 +19,7 @@ export type {
 } from './permissions.js';
 export { PermissionPolicy, sanitizeForPrompt } from './permissions.js';
 export { ToolRegistry } from './registry.js';
-export type { Tool, ToolContext, ToolDefinition } from './types.js';
+export type { Tool, ToolActivity, ToolContext, ToolDefinition } from './types.js';
 
 /** The built-in tools, keyed by name. All run locally — apple-fm makes no network calls. */
 export const BUILTIN_TOOLS: Readonly<Record<string, Tool>> = { read: readTool, bash: bashTool };

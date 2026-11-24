@@ -75,7 +75,8 @@ export async function runRepl(opts: ReplOptions): Promise<void> {
   const rl = createInterface({ input: process.stdin, output: process.stdout });
   // Only prompt for permission on a real TTY; piped/non-interactive input gets no
   // asker, so `ask` denies — a script never silently runs a tool.
-  const asker = process.stdin.isTTY ? readlineAsker(rl) : undefined;
+  const interactive = process.stdin.isTTY;
+  const asker = interactive ? readlineAsker(rl) : undefined;
   const permission =
     opts.tools !== undefined
       ? new PermissionPolicy({
@@ -100,6 +101,10 @@ export async function runRepl(opts: ReplOptions): Promise<void> {
     compactAtTokens: opts.compactAtTokens,
     tools: opts.tools,
     permission,
+    onToolActivity: interactive ? ({ tool, action, status }) => {
+      const message = status === 'requested' ? action : `${tool} ${status}`;
+      process.stderr.write(`\n[tool] ${message}\n`);
+    } : undefined,
   });
   if (opts.saved !== undefined) {
     rl.pause();
@@ -124,7 +129,7 @@ export async function runRepl(opts: ReplOptions): Promise<void> {
   const onKeypress = (_str: string | undefined, key: { name?: string } | undefined): void => {
     if (key?.name === 'escape') active?.abort();
   };
-  if (process.stdin.isTTY) {
+  if (interactive) {
     emitKeypressEvents(process.stdin, rl);
     process.stdin.on('keypress', onKeypress);
     rl.once('close', () => {
@@ -181,7 +186,7 @@ export async function runRepl(opts: ReplOptions): Promise<void> {
     prompt();
   }
 
-  if (process.stdin.isTTY) process.stdin.off('keypress', onKeypress);
+  if (interactive) process.stdin.off('keypress', onKeypress);
   rl.close();
   // Tear down the persistent live-session helper process.
   session.close();

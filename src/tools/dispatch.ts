@@ -10,9 +10,9 @@
  * docs/9-tool-calling.md.
  */
 import { capOutput } from './output.js';
-import type { PermissionPolicy } from './permissions.js';
+import { type PermissionPolicy,sanitizeForPrompt } from './permissions.js';
 import { toolPermissionRequest,type ToolRegistry } from './registry.js';
-import type { PreparedToolCall } from './types.js';
+import type { PreparedToolCall, ToolActivity } from './types.js';
 
 /** Collaborators the dispatcher needs from the owning live session. */
 export interface ToolCallDeps {
@@ -29,6 +29,7 @@ export interface ToolCallDeps {
   isCurrent?: () => boolean;
   /** Signaled when the originating turn settles or is interrupted. */
   signal?: AbortSignal;
+  onActivity?: (event: ToolActivity) => void;
   /** Send a command line back to the helper (the `callId` is added by the caller). */
   send: (command: Record<string, unknown>) => void;
 }
@@ -47,6 +48,16 @@ export async function dispatchToolCall(event: Record<string, unknown>, deps: Too
       : {};
   if (callId === undefined || name === undefined || deps.isCurrent?.() === false) return;
 
+  let action = name;
+  const report = (status: ToolActivity['status']): void => {
+    if (deps.onActivity === undefined || deps.isCurrent?.() === false) return;
+    try {
+      deps.onActivity({ tool: sanitizeForPrompt(name), action: sanitizeForPrompt(action), status });
+    } catch {
+      // Presentation cannot affect permission or the tool result.
+    }
+  };
+
   const reply = (command: Record<string, unknown>): void => {
     if (deps.isCurrent?.() === false) return;
     deps.send({ ...command, callId });
@@ -54,6 +65,7 @@ export async function dispatchToolCall(event: Record<string, unknown>, deps: Too
 
   const tool = deps.tools?.get(name);
   if (tool === undefined) {
+    report('failed');
     reply({ type: 'tool_result', content: capOutput(`Unknown tool "${name}".`) });
     return;
   }
@@ -62,30 +74,37 @@ export async function dispatchToolCall(event: Record<string, unknown>, deps: Too
   try {
     if (tool.prepare !== undefined) prepared = await tool.prepare(args, context);
   } catch (error) {
+    report('failed');
     reply({ type: 'tool_result', content: capOutput(`The "${name}" tool failed: ${error instanceof Error ? error.message : String(error)}`) });
     return;
   }
   if (deps.isCurrent?.() === false) return;
   // Permission gate (phase 2): refuse → tell the model it was denied; it continues.
-  if (deps.permission !== undefined) {
+  if (deps.permission !== undefined || deps.onActivity !== undefined) {
     let allowed: boolean;
     try {
       const request = prepared?.request ?? toolPermissionRequest(tool, args);
+      action = request.description;
+      report('requested');
       request.signal = deps.signal;
-      allowed = await deps.permission.authorize(request, deps.isCurrent);
+      allowed = deps.permission === undefined || (await deps.permission.authorize(request, deps.isCurrent));
     } catch {
+      report('failed');
       reply({ type: 'tool_result', content: 'The tool could not be authorized.' });
       return;
     }
     if (deps.isCurrent?.() === false) return;
     if (!allowed) {
+      report('denied');
       reply({ type: 'tool_result', content: capOutput(`Permission to use the "${name}" tool was denied by the user.`) });
       return;
     }
   }
   try {
     reply({ type: 'tool_result', content: await (prepared?.run() ?? tool.run(args, context)) });
+    report('completed');
   } catch (error) {
+    report('failed');
     reply({ type: 'tool_result', content: capOutput(`The "${name}" tool failed: ${error instanceof Error ? error.message : String(error)}`) });
   }
 }

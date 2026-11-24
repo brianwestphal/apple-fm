@@ -16,6 +16,13 @@ export interface PreparedToolCall {
   run(): Promise<string>;
 }
 
+/** A sanitized update about a tool invocation in a live turn. */
+export interface ToolActivity {
+  tool: string;
+  action: string;
+  status: 'requested' | 'completed' | 'denied' | 'failed';
+}
+
 /**
  * Context handed to {@link Tool.run} for cooperative cancellation.
  */

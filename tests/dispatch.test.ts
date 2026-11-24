@@ -7,7 +7,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { dispatchToolCall } from '../src/tools/dispatch.js';
-import { PermissionPolicy, type Tool, ToolRegistry } from '../src/tools/index.js';
+import { PermissionPolicy, type Tool, type ToolActivity, ToolRegistry } from '../src/tools/index.js';
 
 /** A registry with one echo tool, plus a `sent` recorder for the deps. */
 function harness(tool?: Tool) {
@@ -102,5 +102,26 @@ describe('dispatchToolCall', () => {
     await dispatchToolCall({ callId: '7:1', name: 'echo' }, { ...deps, permission });
     expect(run).not.toHaveBeenCalled();
     expect(sent).toEqual([{ type: 'tool_result', callId: '7:1', content: 'The tool could not be authorized.' }]);
+  });
+
+  it('reports a sanitized requested action and denial (AFM-N3PJE5)', async () => {
+    const { deps } = harness({ ...echoTool, describe: () => '\u001b[31mred\u001b[0m\nword\u202E' });
+    const activity: ToolActivity[] = [];
+    const permission = new PermissionPolicy({ deny: ['echo'] });
+    await dispatchToolCall({ callId: '8:1', name: 'echo' }, {
+      ...deps, permission, onActivity: (event) => { activity.push(event); },
+    });
+    expect(activity).toEqual([
+      { tool: 'echo', action: 'red word', status: 'requested' },
+      { tool: 'echo', action: 'red word', status: 'denied' },
+    ]);
+  });
+
+  it('keeps tool results intact if the activity display fails (AFM-N3PJE5)', async () => {
+    const { sent, deps } = harness(echoTool);
+    await dispatchToolCall({ callId: '9:1', name: 'echo', arguments: { v: 'original' } }, {
+      ...deps, onActivity: () => { throw new Error('display unavailable'); },
+    });
+    expect(sent).toEqual([{ type: 'tool_result', callId: '9:1', content: 'echo:original' }]);
   });
 });

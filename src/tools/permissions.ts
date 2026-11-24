@@ -43,9 +43,8 @@ export function sanitizeForPrompt(text: string): string {
     // ANSI CSI sequences (colors, cursor moves, line erase): ESC "[" … final byte.
     // eslint-disable-next-line no-control-regex
     .replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, "")
-    // Any remaining control characters (incl. \r \n \t and a bare ESC) -> a space.
-    // eslint-disable-next-line no-control-regex
-    .replace(/[\x00-\x1f\x7f]+/g, " ")
+    // Strip remaining control and formatting characters, including bidi overrides.
+    .replace(/[\p{Cc}\p{Cf}]+/gu, " ")
     .trim();
   if (stripped.length <= MAX_PROMPT_DESCRIPTION) return stripped;
   return `${stripped.slice(0, MAX_PROMPT_DESCRIPTION)}… (${String(stripped.length - MAX_PROMPT_DESCRIPTION)} more chars)`;

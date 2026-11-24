@@ -40,6 +40,7 @@ export type {
   PermissionPolicyConfig,
   PermissionRequest,
   Tool,
+  ToolActivity,
   ToolContext,
   ToolDefinition,
 } from './tools/index.js';

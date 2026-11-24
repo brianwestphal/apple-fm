@@ -37,7 +37,7 @@ TypeScript.
 | TC-6 | `bash` built-in tool | **Shipped** (phase 3) | `src/tools/builtin/bash.ts`: run a shell command via `sh -c`, report exit code + stdout/stderr. High-risk; behind the permission gate (deny-by-default non-interactive); timeout-bounded; output-capped. On-device verified. See [11-builtin-tools.md](11-builtin-tools.md). |
 | TC-7 | `web` built-in tool (fetch) | **Removed** (AFM-43) | Shipped under AFM-34 (a permission-gated, off-by-default URL fetch), then removed: the on-device model was too unreliable with it to be worth the network-egress complexity. apple-fm makes no network calls; NFR-1 restored. |
 | TC-9 | `web` search backend | **Dropped** (AFM-43) | Was a follow-up to the `web` tool; dropped along with it. |
-| TC-8 | Surface tool activity to the user | **Deferred** (phase 2+) | The REPL should show which tool ran with what arguments (today the round-trip is silent except for the final answer). |
+| TC-8 | Surface tool activity to the user | **Shipped** | Interactive chat reports the sanitized action and the tool's completion, refusal, or failure on stderr. Piped chat emits its normal stdout and error output (AFM-N3PJE5). |
 
 ## Phase 1 surface (shipped)
 
@@ -94,7 +94,5 @@ TypeScript.
 - **On-device** (AF-2): `npm run test:device` checks a permission-gated `read` round-trip
   during streaming. See the [device smoke instructions](manual-test-plan.md).
 
-## Open items
-
-- Tool-activity display (TC-8): the REPL doesn't yet show which tool ran / what was
-  approved, only the final answer.
+Library callers can observe the same sanitized action and status updates through
+`LiveSessionConfig.onToolActivity` or `ChatSessionConfig.onToolActivity`.

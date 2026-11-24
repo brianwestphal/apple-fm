@@ -13,6 +13,7 @@ import { assertSupportedModel, isPlatformSupported, resolveHelperPath, unsupport
 import { assertHelperFrameSize, helperDiagnostic, helperError, MAX_HELPER_STDERR_CHARS, parseContextSize, parseTokenCountResult, splitLines } from './protocol.js';
 import { dispatchToolCall } from './tools/dispatch.js';
 import { PermissionPolicy, type ToolRegistry } from './tools/index.js';
+import type { ToolActivity } from './tools/types.js';
 import type { DeltaHandler, GenerateOptions, HelperOptions, Message, ModelId } from './types.js';
 
 const DEFAULT_TURN_TIMEOUT_MS = 120_000;
@@ -28,6 +29,8 @@ export interface LiveSessionConfig extends HelperOptions {
    * constructed. Their definitions bind on reset and transcript import.
    */
   tools?: ToolRegistry;
+  /** Observe sanitized tool actions and outcomes for the current turn. */
+  onToolActivity?: (event: ToolActivity) => void;
   /**
    * Per-call permission policy consulted before each tool runs (FR-14 phase 2).
    *
@@ -82,6 +85,7 @@ export class LiveSession implements ChatBackend {
   private readonly options: GenerateOptions | undefined;
   private readonly tools: ToolRegistry | undefined;
   private readonly permission: PermissionPolicy | undefined;
+  private readonly onToolActivity: LiveSessionConfig['onToolActivity'];
   /** Whether we'd spawn the bundled macOS helper (subject to the platform gate). */
   private readonly bundled: boolean;
   private child: ChildProcessWithoutNullStreams | undefined;
@@ -97,6 +101,7 @@ export class LiveSession implements ChatBackend {
     this.timeoutMs = config.timeoutMs ?? DEFAULT_TURN_TIMEOUT_MS;
     this.options = config.options;
     this.tools = config.tools !== undefined && config.tools.size > 0 ? config.tools.snapshot() : undefined;
+    this.onToolActivity = config.onToolActivity;
     // Safe by default (AFM-78): if tools are registered but no policy was supplied, fall
     // back to a fail-closed policy (default `ask`, no asker ⇒ deny) so tools are never
     // run ungated. An explicit policy — including a deliberate `{ default: 'allow' }` —
@@ -297,6 +302,7 @@ export class LiveSession implements ChatBackend {
       permission: this.permission,
       isCurrent,
       signal: pending.toolLifetime?.signal,
+      onActivity: this.onToolActivity,
       send: (command) => {
         if (!isCurrent()) return;
         const line = JSON.stringify(command);

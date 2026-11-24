@@ -10,7 +10,7 @@
  * coherent without the caller managing any of it.
  */
 import { generate as helperGenerate } from './helper.js';
-import { type ChatBackend,LiveSession } from './liveSession.js';
+import { type ChatBackend,LiveSession, type LiveSessionConfig } from './liveSession.js';
 import { estimateConversationTokens, flattenMessages } from './protocol.js';
 import type { PermissionPolicy, ToolRegistry } from './tools/index.js';
 import type { DeltaHandler, GenerateOptions, HelperOptions, Message, ModelId } from './types.js';
@@ -78,6 +78,8 @@ export interface ChatSessionConfig {
   helper?: HelperOptions;
   /** Tools the model may call mid-turn (FR-14). Ignored when a custom `backend` is set. */
   tools?: ToolRegistry;
+  /** Observe tool activity from the default live backend. */
+  onToolActivity?: LiveSessionConfig['onToolActivity'];
   /**
    * Per-call permission policy for tools (FR-14 phase 2). Ignored when a custom
    * `backend` is set. Safe by default: with `tools` set but no policy, the default
@@ -145,6 +147,7 @@ export class ChatSession {
         options: config.options,
         tools: config.tools,
         permission: config.permission,
+        onToolActivity: config.onToolActivity,
       });
     this.generateFn = config.generateFn ?? defaultGenerateFn(config);
   }

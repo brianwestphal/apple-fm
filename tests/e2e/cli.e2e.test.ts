@@ -419,7 +419,7 @@ describe('apple-fm CLI (e2e)', () => {
   });
 
   describe('chat (REPL)', () => {
-    it('routes answers to each displayed permission request and exits on EOF (AFM-FT19DR)', async () => {
+    it('routes answers, reports tool activity and exits on EOF (AFM-FT19DR, AFM-N3PJE5)', async () => {
       const cli = spawn(process.execPath, ['--import', 'tsx', '--import', INTERACTIVE_STDIN, CLI,
         'chat', '--no-stream', '--tools', 'read'], {
         cwd: ROOT,
@@ -427,8 +427,11 @@ describe('apple-fm CLI (e2e)', () => {
         stdio: ['pipe', 'pipe', 'pipe'],
       });
       let output = '';
+      let stderr = '';
       cli.stdout.setEncoding('utf8');
       cli.stdout.on('data', (chunk: string) => { output += chunk; });
+      cli.stderr.setEncoding('utf8');
+      cli.stderr.on('data', (chunk: string) => { stderr += chunk; });
       const exited = new Promise<number | null>((resolve, reject) => {
         cli.once('close', resolve);
         cli.once('error', reject);
@@ -453,6 +456,11 @@ describe('apple-fm CLI (e2e)', () => {
         await waitForText('Run read /after?');
         cli.stdin.end();
         await expect(exited).resolves.toBe(0);
+        expect(stderr).toContain('[tool] read /first');
+        expect(stderr).toContain('[tool] read denied');
+        expect(stderr).toContain('[tool] read completed');
+        expect(stderr).not.toContain('the-eagle-has-landed');
+        expect(output).not.toContain('[tool]');
       } finally {
         cli.stdin.end();
         if (cli.exitCode === null) cli.kill();
@@ -487,10 +495,11 @@ describe('apple-fm CLI (e2e)', () => {
         // --no-stream so the REPL prints the final reply (the tool turn emits a
         // single `result`, not deltas).
         const turn = `TOOL read ${JSON.stringify({ path: READ_SAMPLE })}`;
-        const { stdout, code } = await runCli(['chat', '--no-stream', '--tools', 'read', '--allow-tool', 'read'], {
+        const { stdout, stderr, code } = await runCli(['chat', '--no-stream', '--tools', 'read', '--allow-tool', 'read'], {
           input: `${turn}\n/quit\n`,
         });
         expect(stdout).toContain('the-eagle-has-landed'); // the file content, via the tool
+        expect(stderr).toBe('');
         expect(code).toBe(0);
       },
       T,
