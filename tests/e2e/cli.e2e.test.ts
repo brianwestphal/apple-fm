@@ -15,6 +15,9 @@
  */
 import { spawn } from 'node:child_process';
 import { chmodSync, readFileSync } from 'node:fs';
+import { mkdtemp, rm, stat, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { beforeAll, describe, expect, it } from 'vitest';
@@ -105,6 +108,78 @@ describe('apple-fm CLI (e2e)', () => {
     ])('prints a token count for $args or stdin', async ({ args, input }) => {
       const { stdout, code } = await runCli(['tokens', ...args], { input });
       expect(stdout).toBe('10\n');
+      expect(code).toBe(0);
+    }, T);
+  });
+
+  describe('chat persistence', () => {
+    it('saves privately, resumes in a new process, and refuses to overwrite', async () => {
+      const directory = await mkdtemp(join(tmpdir(), 'apple-fm-chat-'));
+      try {
+        const file = join(directory, 'room.json');
+        const first = await runCli(['chat', '--no-stream', '--system', 'sys'], {
+          input: `first\n/save ${file}\n/save ${file}\n/quit\n`,
+        });
+        expect(first.code).toBe(0);
+        expect(first.stdout).toContain('(saved)');
+        expect(first.stdout).toContain('EEXIST');
+        expect((await stat(file)).mode & 0o777).toBe(0o600);
+        const second = await runCli(['chat', '--no-stream', '--resume', file], {
+          input: 'second\n/quit\n',
+        });
+        expect(second.stderr).toBe('');
+        expect(second.code).toBe(0);
+        expect(second.stdout).toContain('"instructions":"sys","turns":2,"prompt":"second"');
+      } finally {
+        await rm(directory, { recursive: true, force: true });
+      }
+    }, T);
+
+    it('requires the same tools and rejects an invalid native transcript', async () => {
+      const directory = await mkdtemp(join(tmpdir(), 'apple-fm-chat-'));
+      try {
+        const file = join(directory, 'room.json');
+        await writeFile(file, JSON.stringify({
+          version: 1, system: '', messages: [], tools: ['read'], transcript: 'invalid',
+        }));
+        const mismatch = await runCli(['chat', '--resume', file]);
+        expect(mismatch.stderr).toContain('same --tools list');
+        expect(mismatch.code).toBe(1);
+        const invalid = await runCli(['chat', '--resume', file, '--tools', 'read']);
+        expect(invalid.stderr).toContain('invalid native transcript');
+        expect(invalid.code).toBe(1);
+      } finally {
+        await rm(directory, { recursive: true, force: true });
+      }
+    }, T);
+
+    it('does not carry forward tool approvals in a resumed chat', async () => {
+      const directory = await mkdtemp(join(tmpdir(), 'apple-fm-chat-'));
+      try {
+        const file = join(directory, 'room.json');
+        const turn = `TOOL read ${JSON.stringify({ path: READ_SAMPLE })}`;
+        const original = await runCli(['chat', '--no-stream', '--tools', 'read', '--yes'], {
+          input: `${turn}\n/save ${file}\n/quit\n`,
+        });
+        expect(original.stdout).toContain('the-eagle-has-landed');
+        expect(original.code).toBe(0);
+        const resumed = await runCli(['chat', '--no-stream', '--tools', 'read', '--resume', file], {
+          input: `${turn}\n/quit\n`,
+        });
+        expect(resumed.stdout).toContain('denied by the user');
+        expect(resumed.stdout).not.toContain('the-eagle-has-landed');
+        expect(resumed.code).toBe(0);
+      } finally {
+        await rm(directory, { recursive: true, force: true });
+      }
+    }, T);
+
+    it('does not send transcript commands to an older helper', async () => {
+      const { stdout, code } = await runCli(['chat'], {
+        env: { STUB_LEGACY_TRANSCRIPT: '1' },
+        input: '/save unused.json\n/quit\n',
+      });
+      expect(stdout).toContain('native transcript persistence requires a current apple-fm helper');
       expect(code).toBe(0);
     }, T);
   });

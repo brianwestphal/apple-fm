@@ -63,6 +63,10 @@ export interface ChatBackend {
   reset(system: string, seed: Message[]): Promise<void>;
   /** Native token budget for the active transcript plus the next prompt, if supported. */
   tokenBudget?(prompt: string): Promise<{ tokens: number; contextSize: number } | undefined>;
+  /** Serialize the active native transcript, when the backend supports it. */
+  exportTranscript?(): Promise<string>;
+  /** Replace the native transcript after validating it against the enabled tools. */
+  importTranscript?(transcript: string): Promise<void>;
   /** Tear down the backend. */
   close(): void;
 }
@@ -78,6 +82,7 @@ export class LiveSession implements ChatBackend {
   private child: ChildProcessWithoutNullStreams | undefined;
   private buffer = '';
   private contextSize?: number;
+  private transcriptPersistence = false;
   private nextId = 0;
   private readonly pending = new Map<string, Pending>();
 
@@ -136,6 +141,25 @@ export class LiveSession implements ChatBackend {
     }
   }
 
+  /** Serialize the active native transcript without starting another helper. */
+  exportTranscript(): Promise<string> {
+    this.requireTranscriptPersistence();
+    return this.dispatch({ type: 'export_transcript' }, undefined);
+  }
+
+  /** Restore the transcript using the currently configured tools. */
+  async importTranscript(transcript: string): Promise<void> {
+    this.requireTranscriptPersistence();
+    await this.dispatch({ type: 'import_transcript', content: transcript, tools: this.tools?.definitions() }, undefined);
+  }
+
+  private requireTranscriptPersistence(): void {
+    const child = this.child;
+    if (!this.transcriptPersistence || child === undefined || child.exitCode !== null || child.killed) {
+      throw new Error('native transcript persistence requires a current apple-fm helper');
+    }
+  }
+
   /** Tear down the helper process and reject any in-flight commands. */
   close(): void {
     const child = this.child;
@@ -157,6 +181,7 @@ export class LiveSession implements ChatBackend {
     if (existing !== undefined && existing.exitCode === null && !existing.killed) return existing;
     if (existing !== undefined) this.rejectAll(new Error('[sessionClosed] live session helper exited'));
     this.contextSize = undefined;
+    this.transcriptPersistence = false;
     const child = spawn(this.command, ['--session'], { stdio: ['pipe', 'pipe', 'pipe'] });
     this.buffer = '';
     child.stdout.setEncoding('utf8');
@@ -215,6 +240,7 @@ export class LiveSession implements ChatBackend {
         void this.handleToolCall(id, pending, event);
         break;
       case 'ready':
+        this.transcriptPersistence = event.transcriptPersistence === true;
         this.contextSize =
           typeof event.contextSize === 'number' && Number.isSafeInteger(event.contextSize) && event.contextSize > 0
             ? event.contextSize

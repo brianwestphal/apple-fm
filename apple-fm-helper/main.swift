@@ -121,7 +121,7 @@ private func emitDelta(_ text: String, id: String? = nil) {
 
 private func emitReady(_ id: String?) {
     let capability = modelContextSize().map { ",\"contextSize\":\($0)" } ?? ""
-    emit("{\"type\":\"ready\"\(idField(id))\(capability)}")
+    emit("{\"type\":\"ready\"\(idField(id))\(capability),\"transcriptPersistence\":true}")
 }
 
 /// A full partial value for guided streaming (replace semantics, not a suffix).
@@ -534,6 +534,35 @@ private func runSession() async -> Never {
                 // Interrupt the in-flight turn (FR-15). Turns are serial, so the one
                 // live task is the target; it ends by emitting its partial `result`.
                 currentTurn?.cancel()
+            case "export_transcript":
+                await currentTurn?.value
+                do {
+                    let data = try JSONEncoder().encode(session.transcript)
+                    emitResult(String(decoding: data, as: UTF8.self), id: command.id)
+                } catch {
+                    emitError("transcriptError", "could not encode native transcript", id: command.id)
+                }
+            case "import_transcript":
+                await currentTurn?.value
+                guard let content = command.content,
+                      let transcript = try? JSONDecoder().decode(Transcript.self, from: Data(content.utf8))
+                else {
+                    emitError("transcriptError", "invalid or incompatible native transcript", id: command.id)
+                    continue
+                }
+                let tools = buildTools(command.tools ?? [], bridge: bridge)
+                let expected = Set(transcript.flatMap { entry -> [String] in
+                    if case .instructions(let instructions) = entry {
+                        return instructions.toolDefinitions.map(\.name)
+                    }
+                    return []
+                })
+                guard expected == Set(tools.map(\.name)) else {
+                    emitError("transcriptError", "enabled tools do not match the native transcript", id: command.id)
+                    continue
+                }
+                session = LanguageModelSession(tools: tools, transcript: transcript)
+                emitReady(command.id)
             case "count_tokens":
                 await currentTurn?.value
                 if #available(macOS 26.4, *) {

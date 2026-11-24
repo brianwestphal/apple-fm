@@ -52,6 +52,10 @@ where available.
 On macOS 27 and later, `apple-fm generate --image photo.png "Describe this image"`
 analyzes a local image. It also supports guided JSON output with `--schema`.
 
+In chat, use `/save session.json` and later `apple-fm chat --resume session.json`
+to continue the conversation. If you enabled tools, pass the same `--tools` list
+when resuming.
+
 Use `generate --sampling greedy` to select the highest-probability token at each step.
 
 Use `apple-fm generate --use-case content-tagging "A picnic at the beach"` to

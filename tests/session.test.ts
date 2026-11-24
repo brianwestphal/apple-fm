@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { ChatBackend } from '../src/liveSession.js';
-import { ChatSession, type GenerateFn } from '../src/session.js';
+import { ChatSession, type GenerateFn, parseSavedChat } from '../src/session.js';
 import type { Message } from '../src/types.js';
 
 type BackendCall =
@@ -168,6 +168,43 @@ describe('ChatSession.send', () => {
     await session.send('hi');
     session.history().pop();
     expect(session.history()).toHaveLength(2);
+  });
+});
+
+describe('saved chats', () => {
+  const saved = {
+    version: 1, system: 'system', messages: [{ role: 'user', content: 'hello' }],
+    tools: [], transcript: 'native',
+  };
+
+  it('validates the version and message shape', () => {
+    expect(parseSavedChat(JSON.stringify(saved))).toEqual(saved);
+    expect(() => parseSavedChat(JSON.stringify({ ...saved, version: 2 }))).toThrow(/version/);
+    expect(() => parseSavedChat(JSON.stringify({ ...saved, messages: [{ role: 'system', content: 'hello' }] })))
+      .toThrow(/invalid apple-fm chat file/);
+  });
+
+  it('restores native context and keeps it active for the next turn', async () => {
+    const { backend, calls } = recordingBackend();
+    const restored: string[] = [];
+    backend.importTranscript = (transcript) => {
+      restored.push(transcript);
+      return Promise.resolve();
+    };
+    backend.exportTranscript = () => Promise.resolve('new native');
+    const session = new ChatSession({ backend });
+    await session.resumeTranscript(parseSavedChat(JSON.stringify(saved)));
+    await session.send('continue');
+    expect(restored).toEqual(['native']);
+    expect(calls.filter(({ kind }) => kind === 'reset')).toHaveLength(1);
+    expect(await session.saveTranscript()).toMatchObject({
+      system: 'system', transcript: 'new native',
+      messages: [
+        { role: 'user', content: 'hello' },
+        { role: 'user', content: 'continue' },
+        { role: 'assistant', content: 'reply:continue' },
+      ],
+    });
   });
 });
 

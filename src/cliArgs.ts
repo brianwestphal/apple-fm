@@ -26,6 +26,7 @@ export type ParsedArgs =
     }
   | {
       command: 'chat';
+      resumeFile?: string;
       model?: ModelId;
       system?: string;
       stream: boolean;
@@ -57,6 +58,7 @@ Generate flags:
       --max-tokens <n>    Maximum response tokens
 
 Chat flags:
+      --resume <file>    Resume a saved chat transcript
       --model <id>       Model ID from probe (default: on-device)
   -s, --system <text>     System instructions
       --no-stream         Disable token streaming
@@ -192,6 +194,12 @@ function parseChat(argv: string[]): ParsedArgs {
     const arg = argv[i];
     if (arg === undefined) continue;
     switch (arg) {
+      case '--resume':
+        result.resumeFile = takeValue(argv, i++, arg);
+        if (result.resumeFile.length === 0 || result.resumeFile.startsWith('--')) {
+          throw new Error('--resume requires a file path');
+        }
+        break;
       case '--model':
         result.model = parseModel(argv[++i]);
         break;
@@ -220,6 +228,9 @@ function parseChat(argv: string[]): ParsedArgs {
       default:
         throw new Error(`unknown flag "${arg}"`);
     }
+  }
+  if (result.resumeFile !== undefined && result.system !== undefined) {
+    throw new Error('--resume already contains system instructions; omit --system');
   }
   return result;
 }

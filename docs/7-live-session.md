@@ -113,3 +113,16 @@ These are additive: `--probe` / `--generate` and their wire shapes are untouched
 
 Implementation is tracked separately so this doc can land first — see the tickets
 created from AFM-12.
+
+## Save and resume
+
+In chat, `/save <file>` writes a new JSON snapshot containing the native
+Foundation Models transcript, the current instructions, recent turns, and the
+compaction summary (AFM-3YNEKV). The CLI creates the file with mode `0600` and
+refuses to replace an existing path. The transcript can contain tool inputs and
+outputs.
+
+Resume with `apple-fm chat --resume <file>`. Use the same `--tools` selection as
+the saved chat. Tool approvals come from the new invocation. The restored
+transcript already includes system instructions. Use `/system` to start a fresh
+context with different instructions.

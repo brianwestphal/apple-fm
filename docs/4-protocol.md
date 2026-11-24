@@ -32,11 +32,6 @@ On macOS 26.4 and later, probe can include a top-level `contextSize` in tokens.
 Read a generation request with a `prompt` and emit the decimal native token
 count in `result.content`. Older macOS releases report an `unsupported` error.
 
-A session helper that supports native accounting advertises `contextSize` in
-its `ready` reply. Clients can then send a correlated `count_tokens` command with
-the next `prompt`. Its `result.content` reports the transcript and prompt counts
-combined. Clients use the existing estimate when the advertisement is absent.
-
 ## `--tag-content`
 
 Takes the same request JSON as `--generate` and runs the content-tagging
@@ -142,6 +137,20 @@ Events are the same vocabulary as `--generate` (`delta` / `result` / `error`) pl
 A turn `error` is reported **per-turn** and does not end the session — the loop
 keeps running for the next command (`contextWindowExceeded` lets the Node side
 compact, `reset`, and retry). Only stdin EOF (or a fatal read error) stops it.
+
+### Transcript persistence and token accounting
+
+Persistent helpers can advertise `transcriptPersistence: true` in a `ready`
+reply. `export_transcript` emits the JSON-encoded Apple transcript in the
+correlated `result.content`. `import_transcript` accepts that string as
+`content` alongside current tool definitions. It emits `ready` after validating
+the transcript and matching its tool names, or `transcriptError` on failure.
+Clients only send these commands after the helper advertises support.
+
+A session helper that supports native accounting advertises `contextSize` in
+its `ready` reply. Clients can then send a correlated `count_tokens` command with
+the next `prompt`. Its `result.content` reports the transcript and prompt counts
+combined. Clients use the existing estimate when the advertisement is absent.
 
 ### Tool calling (FR-14)
 

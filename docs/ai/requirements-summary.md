@@ -35,6 +35,8 @@ Keep status markers in sync with the implementation.
 
 - **FR-19 Greedy sampling** — Shipped. `generate --sampling greedy` opts into Apple’s greedy mode.
 
+- **FR-20 Save and resume chat** — Shipped. `/save` and `chat --resume` persist native context while tool approval stays with the caller.
+
 ## Non-functional
 
 - **NFR-1 Offline and on-device** — Shipped. Inference and built-in tools run locally without an API key.

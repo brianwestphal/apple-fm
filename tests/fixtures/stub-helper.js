@@ -227,6 +227,22 @@ if (process.env.STUB_HANG === '1') {
       }
       return;
     }
+    if (cmd.type === 'export_transcript') {
+      write({ type: 'result', id: cmd.id, content: JSON.stringify({ instructions, turns }) });
+      return;
+    }
+    if (cmd.type === 'import_transcript') {
+      try {
+        const snapshot = JSON.parse(cmd.content);
+        if (typeof snapshot.instructions !== 'string' || !Number.isInteger(snapshot.turns)) throw new Error('invalid');
+        ({ instructions, turns } = snapshot);
+        offeredTools = (cmd.tools ?? []).map((tool) => tool.name);
+        write({ type: 'ready', id: cmd.id, transcriptPersistence: true });
+      } catch {
+        write({ type: 'error', id: cmd.id, code: 'transcriptError', message: 'invalid native transcript' });
+      }
+      return;
+    }
     if (cmd.type === 'count_tokens') {
       write({ type: 'result', id: cmd.id, content: String(100 + cmd.prompt.length) });
       return;
@@ -236,7 +252,7 @@ if (process.env.STUB_HANG === '1') {
       instructions = (cmd.system ?? '') + (seed.length > 0 ? ` [seed:${seed.length}]` : '');
       offeredTools = Array.isArray(cmd.tools) ? cmd.tools.map((t) => t && t.name).filter(Boolean) : [];
       turns = 0;
-      write({ type: 'ready', id: cmd.id, ...(process.env.STUB_TOKEN_BUDGET === '1' ? { contextSize: 4096 } : {}) });
+      write({ type: 'ready', id: cmd.id, transcriptPersistence: process.env.STUB_LEGACY_TRANSCRIPT !== '1', ...(process.env.STUB_TOKEN_BUDGET === '1' ? { contextSize: 4096 } : {}) });
       return;
     }
     const prompt = cmd.prompt ?? '';

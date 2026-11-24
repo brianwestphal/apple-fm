@@ -3,14 +3,17 @@
  * {@link ChatSession}: it streams replies to stdout and handles a few slash
  * commands. All conversation/compaction logic lives in `session.ts`.
  */
+import { link, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { dirname, join, resolve } from 'node:path';
 import { createInterface, emitKeypressEvents, type Interface as ReadlineInterface } from 'node:readline';
 
-import { ChatSession } from './session.js';
+import { ChatSession, type SavedChat } from './session.js';
 import { type PermissionAsker, PermissionPolicy, sanitizeForPrompt, toolGuidancePrompt,type ToolRegistry } from './tools/index.js';
 import type { GenerateOptions, ModelId } from './types.js';
 
 /** Options for {@link runRepl}. */
 export interface ReplOptions {
+  saved?: SavedChat;
   model?: ModelId;
   system?: string;
   stream: boolean;
@@ -31,6 +34,7 @@ const HELP = `Commands:
   /system <text>    Replace the system instructions and reset
   /clear            Clear the conversation context (keep system instructions)
   /compact          Compact the conversation context now
+  /save <file>      Save the native transcript to a new file
   /tools            List the tools the model may call
   /help             Show this help
   /quit             Quit (alias /exit, or Ctrl-D)
@@ -53,6 +57,19 @@ export function readlineAsker(rl: ReadlineInterface): PermissionAsker {
         else resolve(a === 'y' || a === 'yes' ? 'once' : 'deny');
       });
     });
+}
+
+async function writeSavedChat(path: string, saved: SavedChat): Promise<void> {
+  const destination = resolve(path);
+  const staging = await mkdtemp(join(dirname(destination), '.apple-fm-save-'));
+  try {
+    const file = join(staging, 'session.json');
+    await writeFile(file, `${JSON.stringify(saved)}\n`, { mode: 0o600, flag: 'wx' });
+    // Publish the complete file atomically. A pre-existing destination stays intact.
+    await link(file, destination);
+  } finally {
+    await rm(staging, { recursive: true, force: true });
+  }
 }
 
 /** Run the interactive chat loop until EOF or `/quit`. */
@@ -86,6 +103,17 @@ export async function runRepl(opts: ReplOptions): Promise<void> {
     tools: opts.tools,
     permission,
   });
+  if (opts.saved !== undefined) {
+    rl.pause();
+    try {
+      await session.resumeTranscript(opts.saved);
+      rl.resume();
+    } catch (error) {
+      session.close();
+      rl.close();
+      throw error;
+    }
+  }
   process.stdout.write("apple-fm chat — Ctrl-D or /quit to quit, /help for commands.\n");
 
   // Esc interrupts the in-flight reply (FR-15). Only on a real TTY (keypress events
@@ -125,6 +153,18 @@ export async function runRepl(opts: ReplOptions): Promise<void> {
       try {
         await session.compact();
         process.stdout.write('(compacted)\n');
+      } catch (error) {
+        process.stdout.write(`error: ${error instanceof Error ? error.message : String(error)}\n`);
+      }
+      rl.prompt();
+      continue;
+    }
+    if (text === '/save' || text.startsWith('/save ')) {
+      const path = text.slice('/save'.length).trim();
+      try {
+        if (path.length === 0) throw new Error('/save requires a file path');
+        await writeSavedChat(path, await session.saveTranscript());
+        process.stdout.write('(saved)\n');
       } catch (error) {
         process.stdout.write(`error: ${error instanceof Error ? error.message : String(error)}\n`);
       }

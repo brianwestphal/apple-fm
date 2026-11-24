@@ -9,6 +9,7 @@ import { readFile } from 'node:fs/promises';
 import { parseArgs, USAGE } from './cliArgs.js';
 import { countTokens, generate, probe } from './helper.js';
 import { runRepl } from './repl.js';
+import { parseSavedChat } from './session.js';
 import { registryFromNames } from './tools/index.js';
 import type { GenerateOptions, GenerateRequest } from './types.js';
 
@@ -81,7 +82,9 @@ async function main(): Promise<void> {
     }
     case 'chat': {
       const tools = args.tools !== undefined ? registryFromNames(args.tools) : undefined;
+      const saved = args.resumeFile === undefined ? undefined : parseSavedChat(await readFile(args.resumeFile, 'utf8'));
       await runRepl({
+        saved,
         model: args.model,
         system: args.system,
         stream: args.stream,

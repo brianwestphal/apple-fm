@@ -22,6 +22,42 @@ export type GenerateFn = (
   onDelta?: DeltaHandler,
 ) => Promise<string>;
 
+/** Versioned snapshot for saving and resuming a chat. */
+export interface SavedChat {
+  version: 1;
+  system: string;
+  summary?: string;
+  messages: Message[];
+  tools: string[];
+  transcript: string;
+}
+
+/** Read and validate an apple-fm chat snapshot before sending it to the helper. */
+export function parseSavedChat(text: string): SavedChat {
+  const value: unknown = JSON.parse(text);
+  if (typeof value !== 'object' || value === null || !('version' in value) || value.version !== 1) {
+    throw new Error('unsupported apple-fm chat file version');
+  }
+  const record = value as Record<string, unknown>;
+  const { system, summary, messages, tools, transcript } = record;
+  if (
+    typeof system !== 'string' ||
+    (summary !== undefined && typeof summary !== 'string') ||
+    typeof transcript !== 'string' ||
+    !Array.isArray(tools) || !tools.every((tool: unknown): tool is string => typeof tool === 'string') ||
+    !Array.isArray(messages) || !messages.every(isSavedMessage)
+  ) {
+    throw new Error('invalid apple-fm chat file');
+  }
+  return { version: 1, system, summary, messages, tools, transcript };
+}
+
+function isSavedMessage(value: unknown): value is Message {
+  return typeof value === 'object' && value !== null && 'role' in value &&
+    (value.role === 'user' || value.role === 'assistant') &&
+    'content' in value && typeof value.content === 'string';
+}
+
 /** Configuration for a {@link ChatSession}. */
 export interface ChatSessionConfig {
   /** Model used for chat and compaction. Defaults to on-device. */
@@ -86,6 +122,7 @@ export class ChatSession {
   private readonly keepRecentTurns: number;
   private readonly backend: ChatBackend;
   private readonly generateFn: GenerateFn;
+  private readonly tools?: ToolRegistry;
   private messages: Message[] = [];
   /** Recap of turns dropped by compaction; folded into the system prompt. */
   private summary: string | undefined;
@@ -94,6 +131,7 @@ export class ChatSession {
 
   constructor(config: ChatSessionConfig = {}) {
     this.system = config.system ?? '';
+    this.tools = config.tools;
     this.compactAtTokens = config.compactAtTokens ?? DEFAULT_COMPACT_AT;
     this.keepRecentTurns = config.keepRecentTurns ?? DEFAULT_KEEP_RECENT;
     this.backend =
@@ -202,6 +240,35 @@ export class ChatSession {
     this.summary = (await this.generateFn(SUMMARIZE_SYSTEM, [{ role: 'user', content: transcript }])).trim();
     this.messages = recent;
     this.backendInstructions = undefined;
+  }
+
+  /** Capture a versioned snapshot with the native session transcript. */
+  async saveTranscript(): Promise<SavedChat> {
+    if (this.backend.exportTranscript === undefined) throw new Error('backend cannot save a native transcript');
+    await this.ensureStarted();
+    return {
+      version: 1,
+      system: this.system,
+      summary: this.summary,
+      messages: this.history(),
+      tools: this.tools?.names().sort() ?? [],
+      transcript: await this.backend.exportTranscript(),
+    };
+  }
+
+  /** Resume a saved chat using this invocation's tool registry and permissions. */
+  async resumeTranscript(saved: SavedChat): Promise<void> {
+    if (this.backend.importTranscript === undefined) throw new Error('backend cannot resume a native transcript');
+    const tools = this.tools?.names().sort() ?? [];
+    if (JSON.stringify(tools) !== JSON.stringify([...saved.tools].sort())) {
+      throw new Error('enabled tools do not match the saved chat; use the same --tools list');
+    }
+    await this.ensureStarted();
+    await this.backend.importTranscript(saved.transcript);
+    this.system = saved.system;
+    this.summary = saved.summary;
+    this.messages = saved.messages.map((message) => ({ ...message }));
+    this.backendInstructions = this.effectiveSystem();
   }
 
   /** Clear the transcript and summary; optionally replace the system prompt. */

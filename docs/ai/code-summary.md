@@ -17,7 +17,7 @@ src/
   cli.ts          # apple-fm bin (thin)
   index.ts        # public API surface
   tools/          # tool calling (FR-14): Tool/ToolContext/ToolDefinition (types.ts), ToolRegistry (registry.ts), registryFromNames + BUILTIN_TOOLS + toolGuidancePrompt (index.ts), builtin/read.ts + bash.ts, PermissionPolicy (permissions.ts), dispatchToolCall (dispatch.ts), shared output cap MAX_TOOL_OUTPUT_CHARS (output.ts)
-apple-fm-helper/             # Swift FoundationModels CLI (--probe / --generate / --session); all *.swift compiled into one binary by scripts/build-apple-fm-helper.sh
+apple-fm-helper/             # Swift FoundationModels CLI (probe, token counts, text and image generation, tagging, and persistent chat); all *.swift compiled into one binary by scripts/build-apple-fm-helper.sh
   main.swift                 # entry point, output/emit, probe, generate, session loop (+ tool-call routing)
   GuidedGeneration.swift     # JSON Schema -> DynamicGenerationSchema/GenerationSchema (compileSchema)
   Tools.swift                # tool calling (FR-14): DynamicTool, ToolBridge (suspend/resume), buildTools
@@ -52,6 +52,7 @@ tests/            # protocol, cliArgs, session, helper, liveSession, docs, demo 
 | change chat behavior or compaction policy | `session.ts` (`ChatSession`, `SUMMARIZE_SYSTEM`) |
 | change guided generation (`--schema` → native) | `apple-fm-helper/GuidedGeneration.swift` (`dynamicSchema`, `compileSchema`) + `main.swift` (`generate`) |
 | add/change a CLI flag | `cliArgs.ts` (+ wire in `cli.ts`) |
+| change saved chat format or restore | `src/session.ts`, `src/repl.ts`, `src/liveSession.ts`, and `apple-fm-helper/main.swift` |
 | change interactive REPL commands | `repl.ts` |
 | change Esc/interrupt of an in-flight reply (FR-15) | `repl.ts` (keypress → `AbortController`) + `session.ts`/`liveSession.ts` (`send(…, signal)` → `cancel` command) + `apple-fm-helper/main.swift` (`cancel` case + `sessionTurn` cancellation) + `docs/4-protocol.md` (`cancel`) + stub `cancel`/`STREAM_FOREVER`. |
 | change image inputs | `src/cliArgs.ts`, `src/helper.ts`, `apple-fm-helper/main.swift`, and `scripts/build-apple-fm-helper.sh` |

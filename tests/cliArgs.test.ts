@@ -93,6 +93,13 @@ describe('parseArgs', () => {
     expect(parseArgs(['generate'])).toEqual({ command: 'generate', stream: false });
   });
 
+  it('parses resume only for chat and guards saved instructions', () => {
+    expect(parseArgs(['chat', '--resume', 'saved.json'])).toMatchObject({ resumeFile: 'saved.json' });
+    expect(() => parseArgs(['generate', '--resume', 'saved.json'])).toThrow(/unknown flag/);
+    expect(() => parseArgs(['chat', '--resume', 'saved.json', '--system', 'other'])).toThrow(/omit --system/);
+    expect(() => parseArgs(['chat', '--resume', '--no-stream'])).toThrow(/file path/);
+  });
+
   it('parses chat with streaming on by default and --no-stream / --compact-at', () => {
     expect(parseArgs(['chat'])).toEqual({ command: 'chat', stream: true });
     expect(parseArgs(['chat', '--no-stream', '--compact-at', '2000', '-s', 'hi'])).toEqual({
