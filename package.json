@@ -60,16 +60,24 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/node": "^25.9.3",
-    "@vitest/coverage-v8": "^4.1.9",
+    "@vitest/coverage-v8": "^4.1.12",
     "domotion-svg": "^0.35.0",
-    "eslint": "^10.5.0",
-    "eslint-plugin-import-x": "^4.16.2",
+    "eslint": "^10.15.0",
+    "eslint-plugin-import-x": "^4.18.1",
     "eslint-plugin-simple-import-sort": "^12.1.1",
-    "eslint-plugin-tsdoc": "^0.5.2",
+    "eslint-plugin-tsdoc": "^0.5.4",
     "tsup": "^8.5.1",
     "tsx": "^4.22.4",
     "typescript": "^5.9.3",
-    "typescript-eslint": "^8.61.1",
-    "vitest": "^4.1.9"
+    "typescript-eslint": "^8.74.0",
+    "vitest": "^4.1.12"
+  },
+  "overrides": {
+    "eslint-plugin-tsdoc": {
+      "@typescript-eslint/utils": "8.74.0"
+    },
+    "tsup": {
+      "esbuild": "^0.28.1"
+    }
   }
 }
