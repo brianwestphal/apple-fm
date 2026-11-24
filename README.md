@@ -1,8 +1,8 @@
 # apple-fm
 
 **Apple Intelligence from your command line and your code.** apple-fm gives you
-Apple's **Foundation Models** on **macOS 26+ / Apple Silicon**. By default,
-inference runs on-device and works offline without an API key.
+Apple's **Foundation Models** on **macOS 26+ / Apple Silicon**. Inference runs
+on-device and works offline without an API key.
 
 apple-fm provides a lightweight CLI and TypeScript library for the Foundation
 Models framework, including persistent, permission-gated chat.
@@ -13,25 +13,19 @@ Models framework, including persistent, permission-gated chat.
 
 ## Why apple-fm
 
-- **On-device by default.** Uses the model installed by Apple Intelligence and
-  keeps prompts on your Mac.
-- **One native helper.** Model discovery, token counting, generation, content
-  tagging, and chat share the same [NDJSON protocol](docs/4-protocol.md).
-- **Guaranteed structured output.** Hand it a JSON Schema and the output is
-  *guaranteed* to conform — native guided generation built on Apple's
-  `DynamicGenerationSchema`, not best-effort prompting. Stream it, too.
-- **Long conversations stay coherent — and cheap.** `chat` holds one model
-  session across turns, reusing the model's cache instead of replaying the
-  transcript, and automatically summarizes older turns as the small context
-  window fills. Press **Esc** to interrupt a reply mid-stream — the partial is kept.
-- **The model can use tools — locally.** Opt `chat` into permission-gated `read`
-  and `bash` tools (`--tools read,bash`) so the model can read a file or run a
-  command to answer you. Every call is approved per-use, and it's all on your
-  machine. Register your own `Tool` from the library, too.
-- **Zero Node runtime dependencies.** The package uses the native Foundation Models
-  helper for inference.
-- **Future-proof.** The helper resolves the current on-device model at runtime,
-  so OS and model updates are picked up without a rebuild.
+- **From shell or TypeScript.** Check model availability, generate or stream a
+  response, extract content tags, and count prompt tokens.
+- **Structured JSON.** Native guided generation enforces supported JSON Schema
+  constraints and can stream complete JSON snapshots.
+- **Compare local images.** Attach multiple images to one prompt on macOS 27+,
+  including prompts that return guided JSON.
+- **Pick up a chat later.** Save and resume a persistent session. Chat summarizes
+  older turns as context fills, `/usage` shows how much context is occupied, and
+  **Esc** interrupts a streamed reply while keeping the partial response.
+- **Permission-gated tools.** Enable local file reads and shell commands in chat,
+  or register your own tools through the TypeScript library.
+- **Zero Node runtime dependencies.** The Swift helper resolves Apple's current
+  on-device model at runtime.
 
 ## Model selection
 
@@ -48,9 +42,12 @@ count. It also reads text from stdin. `probe` reports the model's `contextSize`
 where available. In chat, `/usage` shows the current context count and capacity when
 native counting is available, or a labeled estimate on older helpers.
 
-On macOS 27 and later, `apple-fm generate --image photo.png "Describe this image"`
-analyzes a local image. Repeat `--image` to compare images in one prompt.
-Image prompts also support guided JSON output with `--schema`.
+On macOS 27 and later, repeat `--image` to compare local images in the order you
+attach them. Add `--schema` to return guided JSON.
+
+```sh
+apple-fm generate --image before.png --image after.png "What changed between these images?"
+```
 
 In chat, use `/save session.json` and later `apple-fm chat --resume session.json`
 to continue the conversation. If you enabled tools, pass the same `--tools` list
@@ -86,7 +83,7 @@ throw a clear `[unsupportedPlatform]` error. Gate on `isPlatformSupported()` or
 `probe()`:
 
 ```ts
-import { isPlatformSupported, probe, generate } from 'apple-fm';
+import { probe, generate } from 'apple-fm';
 
 if ((await probe()).available) {
   await generate({ prompt: '…' });
@@ -120,9 +117,9 @@ Before generating, confirm Apple Intelligence is ready on this machine.
 
 ### Structured output
 
-Pass a JSON Schema with `--schema` and apple-fm returns JSON **guaranteed to
-conform** to it — native guided generation, not prompt-and-hope — ready to pipe
-into the rest of your tooling.
+Pass a supported JSON Schema with `--schema` to get JSON that conforms to it.
+Apple's native guided generation enforces the supported constraints. See the
+[supported JSON Schema subset](docs/6-guided-generation.md).
 
 <p align="center">
   <img src="assets/demos/schema.svg" alt="apple-fm generate &quot;Recommend a classic sci-fi novel.&quot; --schema novel.json returns a JSON object with title, author, year, and why fields." width="880">
@@ -136,7 +133,7 @@ automatically near the context window. Use `/usage` to see context occupancy,
 commands. Press **Esc** while the model is replying to keep the partial reply.
 
 <p align="center">
-  <img src="assets/demos/chat.svg" alt="apple-fm chat answers a prompt and /help lists chat commands, including usage, save, and tools." width="880">
+  <img src="assets/demos/chat.svg" alt="An apple-fm chat session showing an on-device reply and the /usage command." width="880">
 </p>
 
 ### Tool calling
@@ -148,11 +145,12 @@ answer you — `read` (read a local file) and `bash` (run a shell command):
 apple-fm chat --tools read,bash
 ```
 
-Every call is **permission-gated**: you approve each one (`[y/N/a]`), or pre-approve
-with `--allow-tool "bash:git "` / auto-approve with `--yes`; non-interactive runs
-deny by default, so a script never silently runs a command. It stays **fully local** —
-tools run on your machine and nothing hits the network. Library consumers can register
-their own `Tool` (see [docs/9-tool-calling.md](docs/9-tool-calling.md)).
+Chat prompts for permission by default. Use `--allow-tool "bash:git status"` to
+approve that exact command in advance. With `--yes`, file reads are approved
+automatically and shell commands still require approval. In non-interactive chat,
+calls that require a prompt are denied. Approved shell commands run with your user
+permissions and can access the network. Library consumers can register their own
+`Tool`. See [tool calling](docs/9-tool-calling.md).
 
 ## Library
 
@@ -166,12 +164,23 @@ if ((await probe()).available) {
   // Streaming
   await generate({ prompt: '…', stream: true }, {}, (chunk) => process.stdout.write(chunk));
 
-  // Guaranteed structured output — pass a JSON Schema, get conforming JSON back
-  const json = await generate({ prompt: 'A classic sci-fi novel', schema: novelSchema });
+  // Guided output using a supported JSON Schema
+  const json = await generate({
+    prompt: 'Recommend a classic sci-fi novel',
+    schema: {
+      type: 'object',
+      properties: { title: { type: 'string' } },
+      required: ['title'],
+    },
+  });
 
   // Multi-turn chat: one persistent on-device session, auto-compacted
   const chat = new ChatSession({ system: 'You are a helpful assistant.' });
-  const reply = await chat.send('Hello');
+  try {
+    const reply = await chat.send('Hello');
+  } finally {
+    chat.close();
+  }
 }
 ```
 
@@ -180,12 +189,9 @@ documented in [docs/ai/code-summary.md](docs/ai/code-summary.md).
 
 ## How it works
 
-apple-fm talks to the same on-device model that powers Apple Intelligence —
-nothing is sent to the cloud. For chat it keeps one model session alive across
-turns so replies stay fast, and automatically summarizes older messages as the
-context window fills, so long conversations stay coherent and cheap. And because
-it resolves the current on-device model at runtime, OS and model updates are
-picked up automatically — no reinstall.
+The Node CLI and library talk to a Swift helper over newline-delimited JSON.
+The helper runs inference through Apple’s Foundation Models framework and keeps
+the native chat session alive across turns.
 
 ## Documentation
 

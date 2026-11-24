@@ -4,7 +4,7 @@
  *
  * Each demo runs the real built CLI (`dist/cli.js`) against the on-device model
  * and captures its actual transcript, then renders that transcript as a polished
- * animated SVG with domotion 0.21:
+ * animated SVG with domotion 0.35:
  *
  *   1. the captured session is replayed as an asciinema `cast` (cast.mjs) — real
  *      typing, ANSI color, cursor and timing, with a short blank lead-in;
@@ -46,7 +46,7 @@ const OUT_DIR = join(ROOT, 'assets', 'demos');
 const COLS = 76;
 const FONT_SIZE = 15;
 const TAIL_MS = 2200; // hold on the final terminal screen before the loop
-const CURSOR = 'block'; // a real blinking caret that follows the cast's cursor (domotion 0.21+)
+const CURSOR = 'block'; // a real blinking caret that follows the cast's cursor
 const TERM_OPTS = { theme: 'dark', fontSize: FONT_SIZE, cols: COLS, tailMs: TAIL_MS, cursor: CURSOR };
 
 /** Wrap a long line on spaces so wide model output fits the terminal canvas. */
@@ -139,7 +139,7 @@ export function parseChatTranscript(raw, turns) {
  * chat → a real multi-turn session captured as structured steps. We feed the
  * inputs on stdin (--no-stream so each reply prints whole); the REPL does not echo
  * piped stdin, so {@link parseChatTranscript} pairs our known inputs with the
- * captured replies / `/help` output.
+ * captured replies and slash-command output.
  */
 function captureChatSteps(turns) {
   const stdin = turns.map((t) => t.input).join('\n') + '\n';
@@ -164,7 +164,7 @@ const DEMOS = [
       eyebrow: 'Availability',
       headline: 'Is the model ready?',
       subtitle:
-        'apple-fm probe asks Apple Intelligence whether the on-device model is usable right now — no network, no API key.',
+        'Check whether the on-device model is ready and read its context capacity when available.',
     },
     cmd: 'apple-fm probe',
     cast: (leadIn) => oneShotCast({ cmd: 'apple-fm probe', outputLines: captureProbe(), leadIn }),
@@ -181,7 +181,7 @@ const DEMOS = [
     cast: (leadIn) =>
       oneShotCast({
         cmd: 'apple-fm generate "Explain a closure in one sentence."',
-        outputLines: captureGenerate('Explain what a closure is in programming, in one sentence.'),
+        outputLines: captureGenerate('Explain a closure in one sentence.'),
         leadIn,
       }),
   },
@@ -189,9 +189,9 @@ const DEMOS = [
     slug: 'schema',
     title: {
       eyebrow: 'Structured output',
-      headline: 'Guaranteed JSON output',
+      headline: 'JSON shaped by a schema',
       subtitle:
-        'Pass a JSON Schema with --schema and the output is guaranteed to conform — native guided generation, ready to pipe into the rest of your tooling.',
+        'Pass a supported JSON Schema to guide the model and pipe the resulting JSON into your tools.',
     },
     cmd: 'apple-fm generate "Recommend a classic sci-fi novel." --schema novel.json',
     cast: async (leadIn) => {
@@ -201,7 +201,7 @@ const DEMOS = [
       try {
         return oneShotCast({
           cmd: 'apple-fm generate "Recommend a classic sci-fi novel." --schema novel.json',
-          outputLines: captureSchema('Recommend one classic science-fiction novel.', schemaPath),
+          outputLines: captureSchema('Recommend a classic sci-fi novel.', schemaPath),
           leadIn,
         });
       } finally {
@@ -213,17 +213,17 @@ const DEMOS = [
     slug: 'chat',
     title: {
       eyebrow: 'Chat',
-      headline: 'Multi-turn, auto-compacted',
+      headline: 'Keep the conversation going',
       subtitle:
-        'apple-fm chat keeps the conversation and summarizes older turns near the context window. Slash commands like /compact and /clear are built in, and Esc interrupts a reply mid-stream.',
+        'Ask a follow-up in the same on-device session and use /usage to see how much context it occupies.',
     },
     cmd: 'apple-fm chat',
     cast: (leadIn) =>
       chatCast({
         ...captureChatSteps([
-          { input: 'Give me a two-word tagline for an on-device AI CLI.' },
+          { input: 'Give me a two-word tagline for an offline AI tool.' },
+          { input: 'Make that tagline about privacy.' },
           { input: '/usage' },
-          { input: '/help' },
           { input: '/quit' },
         ]),
         leadIn,

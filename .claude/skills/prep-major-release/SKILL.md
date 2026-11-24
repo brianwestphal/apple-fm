@@ -60,7 +60,7 @@ goal is a README that honestly and compellingly reflects what apple-fm does *tod
    - **Then re-sync the demo pipeline to the new renderer.** `scripts/lib/window.mjs` and
      `scripts/lib/cast.mjs` are **pure string transforms keyed off domotion's output
      shape** (a frame is `<g class="f f-N">`; the cast frame wraps a nested `<svg>`), and
-     both are pinned by comment to a specific domotion version (search for `domotion 0.15`
+     look for renderer version references (search for `domotion 0.35`
      and similar). A domotion upgrade can change that output shape and silently break the
      window-dressing / title-card compositing.
      - Run `npm test` — `tests/demo.test.ts` exercises the transforms and is the first

@@ -1,7 +1,7 @@
 /**
  * Synthesize asciinema v2 `.cast` recordings for the README demos.
  *
- * Domotion 0.21 renders a terminal recording (`domotion term` / a `cast` frame)
+ * Domotion 0.35 renders a terminal recording (`domotion term` / a `cast` frame)
  * into a real, animated terminal SVG — typing, ANSI colors, cursor and timing all
  * come from the recording. So instead of hand-rolling typing overlays in HTML, we
  * capture the *real* CLI transcript (see demo.mjs) and replay it here as a cast:
