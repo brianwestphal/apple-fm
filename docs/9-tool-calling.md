@@ -98,5 +98,3 @@ TypeScript.
 
 - Tool-activity display (TC-8): the REPL doesn't yet show which tool ran / what was
   approved, only the final answer.
-- Persist "always" permission grants beyond the process lifetime (PERM-9 in
-  [10-permissions.md](10-permissions.md)).

@@ -26,12 +26,12 @@ makes a policy decision.
 | PERM-1 | Decide `allow` / `deny` / `ask` per call | **Shipped** | `PermissionPolicy.decide`. Default `ask`. **Deny wins** over allow. |
 | PERM-2 | Rules keyed by tool, or by a finer `tool:key` | **Shipped** | A bare `tool` rule matches any call; a keyed rule matches per the tool's `matchKey(ruleKey, callKey, kind)` — **exact equality by default** (never a prefix). `read` widens it to a *resolved path boundary* (a dir grant covers descendants, `..` and name-prefix siblings excluded); `bash` keeps `allow` exact but makes `deny` a broad best-effort token match. Key comes from `permissionKey(args)`. A keyed rule does **not** allow the whole tool. (AFM-63 / AFM-67.) |
 | PERM-3 | Prompt the user on `ask` | **Shipped** | The REPL shows `Run <description>? [y/N/a(lways)]`. `y` allows once, `a` allows subsequent matching calls, and any other response denies. The terminal shows one pending request at a time in arrival order. Cancellation and EOF dismiss unanswered requests. The displayed description is sanitized and length-capped. |
-| PERM-4 | "Always" persists for the process lifetime | **Shipped** | An `always` answer adds an allow rule (keyed to that call) for the rest of the run. Not yet persisted to disk (open item). |
+| PERM-4 | "Always" persists for the process lifetime | **Shipped** | An `always` answer adds an in-memory allow rule for the current CLI invocation. Library callers control the lifetime of their `PermissionPolicy`. |
 | PERM-5 | Non-interactive ⇒ deny unless pre-authorized | **Shipped** | No asker (piped / not a TTY) ⇒ `ask` denies. A script never silently runs a tool. Pre-authorize with `--allow-tool` / `--yes`. |
 | PERM-6 | A refusal lets the model continue | **Shipped** | A denied/failed call is fed back as the tool **result** (a message), not a throwing `tool_error` — on-device a thrown tool error aborts the whole turn (see below). The model reads the message and carries on. |
 | PERM-7 | CLI control | **Shipped** | `--allow-tool <rule>` / `--deny-tool <rule>` (repeatable; `tool` or `tool:keyPrefix`), `--yes` (approve all), and the `/tools` REPL command. |
 | PERM-8 | Programmatic control | **Shipped** | `new PermissionPolicy({ default, allow, deny, asker })`, passed to `ChatSession` / `LiveSession` via `permission`. Exported from `apple-fm`. |
-| PERM-9 | Persist "always" grants to config | **Deferred** | Process-lifetime only today; a written allowlist is a possible follow-up. |
+| PERM-9 | Persist interactive grants to disk | **Dropped** | Interactive answers expire with the policy. Callers who want repeatable approvals supply explicit rules each run (AFM-4195V2). |
 | PERM-10 | A permissive default never blanket-approves a `dangerous` tool | **Shipped** | A tool may set `dangerous: true` (`bash`). When the *default* is `allow` (`--yes`), a dangerous tool still `ask`s — so `--yes` can't silently hand the untrusted model arbitrary command execution, interactively or piped. An explicit `--allow-tool bash` still grants it. (AFM-64.) |
 
 ## How it works
@@ -115,8 +115,21 @@ a policy with `allow` rules, an interactive `asker`, or `{ default: 'allow' }` (
 (`repl.ts` builds a policy whenever `--tools` is set); this closes the **library-API**
 footgun where omitting the policy meant ungated execution.
 
+## Approval lifetime (AFM-4195V2)
+
+Chat snapshots carry conversation state and the names of the enabled tools. On
+resume, the new invocation builds its own permission policy. `Always` applies to
+that policy's lifetime. For repeatable approvals, pass scoped `--allow-tool` and
+`--deny-tool` flags in a launcher you control, or construct a `PermissionPolicy`
+with explicit rules in the library.
+
+Writing grants from interactive answers would make a one-run decision survive
+changes to working directories, symlink targets, and the data a tool can access.
+A settings file would also need ownership and scope rules of its own. The
+current explicit flags and library configuration meet the repeatability use case
+while keeping saved transcripts portable.
+
 ## Open items
 
-- Persist "always" grants (PERM-9).
 - Surface tool activity / the granted decision in the REPL transcript (TC-8 in
   [9-tool-calling.md](9-tool-calling.md)).
