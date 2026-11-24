@@ -78,3 +78,24 @@ jobs:
             (.models | map(.id)) == ["on-device"] and
             .available == .models[0].available
           '
+      - uses: actions/upload-artifact@v4
+        if: matrix.runner == 'xcode-27'
+        with:
+          name: image-capable-helper
+          path: bin/apple-fm-helper
+
+  helper-macos-26-compatibility:
+    needs: helper-build
+    runs-on: macos-26
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: image-capable-helper
+      - name: Run the SDK 27 helper on macOS 26
+        run: |
+          chmod +x apple-fm-helper
+          ./apple-fm-helper --probe | jq -e '(.models | map(.id)) == ["on-device"]'
+          if output=$(printf '%s\n' '{"imagePath":"unused.png","prompt":"Describe it"}' | ./apple-fm-helper --generate-image); then
+            exit 1
+          fi
+          jq -e '.type == "error" and .code == "unsupported"' <<< "$output"

@@ -59,7 +59,8 @@ async function main(): Promise<void> {
       if (args.temperature !== undefined) options.temperature = args.temperature;
       if (args.maxTokens !== undefined) options.maxTokens = args.maxTokens;
       const request: GenerateRequest = {
-        model: args.model, useCase: args.useCase, prompt, system: args.system, options, stream: args.stream,
+        model: args.model, useCase: args.useCase, imagePath: args.imagePath, prompt,
+        system: args.system, options, stream: args.stream,
       };
       if (args.schemaFile !== undefined) request.schema = JSON.parse(await readFile(args.schemaFile, 'utf8'));
       const structured = args.schemaFile !== undefined;

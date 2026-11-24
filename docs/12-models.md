@@ -24,6 +24,14 @@ it. It compacts at the configured threshold or 75% of native capacity, whichever
 is lower. Older helpers, older releases, and failed counts use the existing
 length-based estimate (AFM-RT2FK2).
 
+## Image input
+
+Use `generate --image <file> "Describe this image"` on macOS 27 and later
+(AFM-K4DHM0). A prompt can also come from stdin. Image input works with the
+general use case, streaming, and guided JSON output. The library accepts a
+local path in `GenerateRequest.imagePath`. The helper must be built with the
+macOS 27 SDK. Its deployment target remains macOS 26.
+
 ## Content tagging
 
 With `generate --use-case content-tagging`, apple-fm uses the on-device

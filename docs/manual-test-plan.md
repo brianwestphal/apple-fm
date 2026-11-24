@@ -47,4 +47,7 @@ Build the helper and run it through the rebuilt CLI on macOS 26 and later.
 Verify that probe lists only `on-device`. Select `--model on-device` and verify a
 one-shot reply and a chat reply after `/clear`. Run `generate --use-case
 content-tagging "We had a picnic at the beach"` and verify stdout parses as a
-JSON array of relevant tags.
+JSON array of relevant tags. With an SDK 27 helper on macOS 27, run
+`generate --image` against a known image with and without `--schema`.
+Confirm that an unreadable image produces an error and that macOS 26 reports
+the image mode as unsupported.

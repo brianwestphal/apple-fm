@@ -20,6 +20,9 @@
 // APPLE_FM_BIN (or build it to ./bin/apple-fm-helper).
 import Foundation
 import FoundationModels
+#if APPLE_FM_IMAGES
+import ImageIO
+#endif
 
 // MARK: - Wire types
 
@@ -34,6 +37,7 @@ struct WireOptions: Decodable {
 }
 
 struct GenerateRequest: Decodable {
+    let imagePath: String?
     let system: String?
     let prompt: String?
     let messages: [WireMessage]?
@@ -270,12 +274,32 @@ private func tagContent(_ request: GenerateRequest) async -> Never {
     exit(0)
 }
 
-private func generate(_ request: GenerateRequest) async -> Never {
+private func generateImage(_ request: GenerateRequest) async -> Never {
+    #if APPLE_FM_IMAGES
+    if #available(macOS 27.0, *) {
+        guard let path = request.imagePath, !path.isEmpty else {
+            failEvent("badRequest", "expected a local image path")
+        }
+        let url = URL(fileURLWithPath: path)
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+              CGImageSourceGetCount(source) > 0 else {
+            failEvent("invalidImage", "could not read an image at \(path)")
+        }
+        let prompt = Prompt {
+            userPrompt(for: request)
+            Attachment(imageURL: url)
+        }
+        await generate(request, prompt: prompt)
+    }
+    #endif
+    failEvent("unsupported", "image input requires macOS 27 and a helper built with the macOS 27 SDK")
+}
+
+private func generate(_ request: GenerateRequest, prompt: Prompt) async -> Never {
     guard case .available = SystemLanguageModel.default.availability else {
         failEvent("unavailable", "Apple Foundation Models unavailable")
     }
     let session = LanguageModelSession(instructions: instructions(for: request))
-    let prompt = userPrompt(for: request)
     let options = generationOptions(request.options)
 
     // Native guided generation: guaranteed structure, or a clear error. Strict —
@@ -556,7 +580,11 @@ if args.contains("--probe") {
     dispatchMain()
 } else if args.contains("--generate") {
     let request = readRequest()
-    Task { await generate(request) }
+    Task { await generate(request, prompt: Prompt(userPrompt(for: request))) }
+    dispatchMain()
+} else if args.contains("--generate-image") {
+    let request = readRequest()
+    Task { await generateImage(request) }
     dispatchMain()
 } else if args.contains("--tag-content") {
     let request = readRequest()
@@ -566,6 +594,6 @@ if args.contains("--probe") {
     Task { await runSession() }
     dispatchMain()
 } else {
-    FileHandle.standardError.write(Data("usage: apple-fm-helper --probe | --tokens | --generate | --tag-content | --session\n".utf8))
+    FileHandle.standardError.write(Data("usage: apple-fm-helper --probe | --tokens | --generate | --generate-image | --tag-content | --session\n".utf8))
     exit(64)
 }

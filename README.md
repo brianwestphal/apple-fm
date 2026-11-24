@@ -49,6 +49,9 @@ On macOS 26.4 and later, `apple-fm tokens 'text'` prints the native prompt token
 count. It also reads text from stdin. `probe` reports the model's `contextSize`
 where available.
 
+On macOS 27 and later, `apple-fm generate --image photo.png "Describe this image"`
+analyzes a local image. It also supports guided JSON output with `--schema`.
+
 Use `apple-fm generate --use-case content-tagging "A picnic at the beach"` to
 extract tags as a JSON array.
 See [model discovery and selection](docs/12-models.md) for the full contract.

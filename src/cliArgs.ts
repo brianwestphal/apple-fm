@@ -14,6 +14,7 @@ export type ParsedArgs =
   | {
       command: 'generate';
       useCase?: GenerateUseCase;
+      imagePath?: string;
       prompt?: string;
       model?: ModelId;
       system?: string;
@@ -43,6 +44,7 @@ Usage:
   apple-fm chat [flags]                Interactive chat (streaming, auto-compaction)
 
 Generate flags:
+      --image <file>     Include a local image in the prompt (macOS 27+)
       --use-case <name>  general (default) or content-tagging (JSON array)
                          Content tagging cannot use --stream or --schema
       --model <id>       Model ID from probe (default: on-device)
@@ -133,6 +135,12 @@ function parseGenerate(argv: string[]): ParsedArgs {
     const arg = argv[i];
     if (arg === undefined) continue;
     switch (arg) {
+      case '--image':
+        result.imagePath = takeValue(argv, i++, arg);
+        if (result.imagePath.length === 0 || result.imagePath.startsWith('--')) {
+          throw new Error('--image requires a file path');
+        }
+        break;
       case '--use-case':
         result.useCase = parseUseCase(argv[++i]);
         break;
@@ -163,6 +171,9 @@ function parseGenerate(argv: string[]): ParsedArgs {
   }
   if (result.useCase === 'content-tagging' && (result.stream || result.schemaFile !== undefined)) {
     throw new Error('content-tagging cannot be combined with --stream or --schema');
+  }
+  if (result.useCase === 'content-tagging' && result.imagePath !== undefined) {
+    throw new Error('--image requires the general use case');
   }
   return result;
 }

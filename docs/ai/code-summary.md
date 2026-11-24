@@ -54,6 +54,7 @@ tests/            # protocol, cliArgs, session, helper, liveSession, docs, demo 
 | add/change a CLI flag | `cliArgs.ts` (+ wire in `cli.ts`) |
 | change interactive REPL commands | `repl.ts` |
 | change Esc/interrupt of an in-flight reply (FR-15) | `repl.ts` (keypress → `AbortController`) + `session.ts`/`liveSession.ts` (`send(…, signal)` → `cancel` command) + `apple-fm-helper/main.swift` (`cancel` case + `sessionTurn` cancellation) + `docs/4-protocol.md` (`cancel`) + stub `cancel`/`STREAM_FOREVER`. |
+| change image inputs | `src/cliArgs.ts`, `src/helper.ts`, `apple-fm-helper/main.swift`, and `scripts/build-apple-fm-helper.sh` |
 | change model discovery or routing (probe/respond/stream) | `apple-fm-helper/main.swift`, `scripts/build-apple-fm-helper.sh`, [model requirements](../12-models.md) |
 | add or change a tool / the tool round-trip (FR-14) | `src/tools/` (registry + built-ins `read`/`bash`) + `liveSession.ts` (dispatcher) + `apple-fm-helper/Tools.swift` (`DynamicTool`) + `docs/4-protocol.md` + `docs/9-tool-calling.md` + `docs/11-builtin-tools.md`. (A `web` tool shipped under AFM-34 then was removed in AFM-43 — apple-fm makes no network calls.) |
 | change tool permissions / the prompt | `src/tools/permissions.ts` (`PermissionPolicy`) + `liveSession.ts` (gate in `handleToolCall`) + `repl.ts` (`readlineAsker`, `/tools`) + `cliArgs.ts` (`--allow-tool`/`--deny-tool`/`--yes`) + `docs/10-permissions.md`. |

@@ -203,7 +203,8 @@ export async function generate(
   if (tagging && (request.stream === true || request.schema !== undefined)) {
     throw new Error('content-tagging cannot be combined with streaming or a custom schema');
   }
-  const mode = tagging ? '--tag-content' : '--generate';
+  if (tagging && request.imagePath !== undefined) throw new Error('image input requires the general use case');
+  const mode = tagging ? '--tag-content' : request.imagePath !== undefined ? '--generate-image' : '--generate';
   await runHelper([mode], options, encodeRequest(wireRequest), (line) => {
     const event = parseEvent(line);
     switch (event.type) {

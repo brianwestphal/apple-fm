@@ -134,6 +134,19 @@ describe('apple-fm CLI (e2e)', () => {
   });
 
   describe('generate', () => {
+    it('passes a local image path to the image helper', async () => {
+      const { stdout, stderr, code } = await runCli(['generate', '--image', 'photo.png', 'Describe it']);
+      expect(code).toBe(0);
+      expect(stderr).toBe('');
+      expect(JSON.parse(stdout)).toMatchObject({ imagePath: 'photo.png', prompt: 'Describe it' });
+    }, T);
+
+    it('supports guided output with an image', async () => {
+      const { stdout, code } = await runCli(['generate', '--image', 'photo.png', '--schema', SCHEMA, 'Describe it']);
+      expect(code).toBe(0);
+      expect(JSON.parse(stdout)).toEqual(expect.any(Object));
+    }, T);
+
     it.each([
       { args: ['Beach Picnic'], input: undefined },
       { args: [], input: 'Beach Picnic\n' },

@@ -108,7 +108,7 @@ if (process.env.STUB_HANG === '1') {
     write(process.env.STUB_LIST_MODELS === '1' ? { ...local, models } : local);
   }
   process.exit(0);
-} else if (args.includes('--tokens') || args.includes('--generate') || args.includes('--tag-content')) {
+} else if (args.includes('--tokens') || args.includes('--generate') || args.includes('--generate-image') || args.includes('--tag-content')) {
   let input = '';
   process.stdin.setEncoding('utf8');
   process.stdin.on('data', (d) => (input += d));
@@ -137,6 +137,10 @@ if (process.env.STUB_HANG === '1') {
       const text = req.prompt ?? req.messages?.map((message) => message.content).join(' ') ?? '';
       write({ type: 'result', content: JSON.stringify([text.toLowerCase()]) });
       process.exit(0);
+    }
+    if (args.includes('--generate-image') && !req.imagePath) {
+      write({ type: 'error', code: 'invalidImage', message: 'expected a local image path' });
+      process.exit(1);
     }
     if (req.schema !== undefined) {
       const err = schemaError(req.schema);

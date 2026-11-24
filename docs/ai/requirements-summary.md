@@ -31,6 +31,8 @@ Keep status markers in sync with the implementation.
 
 - **FR-17 Native token counting** — Shipped on macOS 26.4+. Chat uses native accounting when available and retains its estimate fallback.
 
+- **FR-18 On-device image input** — Shipped on macOS 27+ with the SDK 27 helper. Supports text prompts, streaming, and guided output.
+
 ## Non-functional
 
 - **NFR-1 Offline and on-device** — Shipped. Inference and built-in tools run locally without an API key.

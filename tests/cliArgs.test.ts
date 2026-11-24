@@ -68,6 +68,16 @@ describe('parseArgs', () => {
     },
   );
 
+  it('parses image input and rejects it in other use cases', () => {
+    expect(parseArgs(['generate', '--image', 'photo.png', 'Describe it'])).toMatchObject({
+      imagePath: 'photo.png', prompt: 'Describe it',
+    });
+    expect(() => parseArgs(['generate', '--image'])).toThrow(/requires a value/);
+    expect(() => parseArgs(['generate', '--image', '--stream'])).toThrow(/requires a file path/);
+    expect(() => parseArgs(['generate', '--image', 'photo.png', '--use-case', 'content-tagging']))
+      .toThrow(/general use case/);
+  });
+
   it('parses generate --schema', () => {
     const parsed = parseArgs(['generate', 'x', '--schema', 'shape.json']);
     expect(parsed).toMatchObject({ command: 'generate', prompt: 'x', schemaFile: 'shape.json', stream: false });

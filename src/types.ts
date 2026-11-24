@@ -34,6 +34,8 @@ export type GenerateUseCase = 'general' | 'content-tagging';
  * requests guided generation that conforms to the given JSON Schema.
  */
 export interface GenerateRequest {
+  /** Local image file for general generation on macOS 27 and later. */
+  imagePath?: string;
   /** Specialization for one-shot generation. Content tagging returns a JSON array of strings. */
   useCase?: GenerateUseCase;
   /** Model to use. Defaults to on-device. */
