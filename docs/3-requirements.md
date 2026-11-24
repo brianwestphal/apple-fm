@@ -7,9 +7,8 @@ gaps noted — including code that needs on-device verification), **Deferred**
 > **On-device verification.** CI compiles the Swift helper with the macOS 26 and
 > 27 SDKs. The model has been **smoke-verified on an Apple Intelligence Mac**:
 > `probe`, `generate`, `--stream`, `--schema`, and the `chat` REPL all produce
-> correct output (e.g. the guided path returned schema-valid JSON). What remains
-> is an **automated** on-device test in CI (AF-2); the unit suite still runs
-> device-free against the stub helper.
+> correct output. `npm run test:device` automates native smoke checks on an
+> eligible Mac. The unit suite runs device-free against the stub helper.
 
 ## Functional requirements
 
@@ -50,10 +49,10 @@ gaps noted — including code that needs on-device verification), **Deferred**
 
 ## Open items / tracked follow-ups
 
-- **AF-2** *automated* on-device smoke test in CI (manual smoke test done). CI
-  compiles and probes the helper on macOS 26 and 27 (`ci.yml` `helper-build` job),
-  catching Swift/API regressions; running the model on-device is still pending
-  (hosted runners lack Apple Intelligence — needs a self-hosted macOS 26 runner).
+- **AF-2** automated on-device smoke coverage is available locally and through
+  the manual `device-smoke.yml` workflow (AFM-T8C35G). The GitHub run needs a
+  dedicated Apple Intelligence runner (AFM-T4E8PE). Hosted CI continues to build
+  and probe with both SDKs. See the [device smoke instructions](manual-test-plan.md).
 - **AF-5** tool calling (FR-14). Designed under AFM-30
   ([8-tool-support.md](8-tool-support.md)); requirements in
   [9-tool-calling.md](9-tool-calling.md) + [10-permissions.md](10-permissions.md).

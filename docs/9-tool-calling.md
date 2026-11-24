@@ -91,8 +91,8 @@ TypeScript.
   stub's `TOOL <name> <jsonArgs>` sentinel mirrors the Swift suspend/resume.
 - **E2E, device-free** (`tests/e2e/cli.e2e.test.ts`): `apple-fm chat --tools read`
   reads a fixture through the assembled CLI; an unknown `--tools` name exits 1.
-- **On-device** (AF-2): manually smoke-verified in phase 1 (the model called `read`
-  and used the result). An automated on-device test remains AF-2.
+- **On-device** (AF-2): `npm run test:device` checks a permission-gated `read` round-trip
+  during streaming. See the [device smoke instructions](manual-test-plan.md).
 
 ## Open items
 

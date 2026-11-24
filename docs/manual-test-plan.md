@@ -1,8 +1,28 @@
 # Manual Test Plan
 
-Cases that can't be reliably automated yet (a real on-device model, or a real TTY)
-live here. Everything device-free is covered by the unit + e2e suites (`npm test`);
-the standing automated on-device gap is **AF-2** in [3-requirements.md](3-requirements.md).
+The device-free suite is available with `npm test`. A separate smoke suite runs
+the real helper and model. The manual cases below cover behavior such as physical
+terminal input and image failures.
+
+## Automated device smoke (AF-2)
+
+On an Apple Silicon Mac with Apple Intelligence enabled and its model available,
+run these commands from the checkout. Use Xcode 27 and macOS 27 to exercise the
+image check.
+
+```sh
+npm ci
+npm run build
+npm run build:helper
+npm run test:device
+```
+
+The smoke checks probe, streamed generation, guided generation, a permission-gated
+read during streaming, native transcript restore, and ordered multi-image input
+on macOS 27. It uses temporary synthetic files and images. The GitHub Actions
+**Apple Intelligence smoke** workflow runs the same command on `main` when a
+dedicated self-hosted Apple Silicon runner has the `apple-intelligence` label
+(AFM-T4E8PE).
 
 When a case here gains automated coverage, remove it and note it under
 **Automated Coverage Summary** below.

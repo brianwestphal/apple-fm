@@ -48,6 +48,7 @@
     "dev": "tsup --watch",
     "test": "vitest run --coverage",
     "test:watch": "vitest",
+    "test:device": "node scripts/device-smoke.mjs",
     "lint": "eslint src/ tests/",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist coverage node_modules/.cache",
