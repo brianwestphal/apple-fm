@@ -31,6 +31,8 @@ export interface GenerateOptions {
  * requests guided generation that conforms to the given JSON Schema.
  */
 export interface GenerateRequest {
+  /** Model to use. Defaults to on-device. */
+  model?: ModelId;
   /** Instructions for the session (the system prompt). */
   system?: string;
   /** A single user turn. Mutually exclusive with `messages`. */
@@ -58,9 +60,20 @@ export type UnavailableReason =
   | 'unsupportedPlatform'
   | 'unknown';
 
-/** Result of `apple-fm-helper --probe`. */
+/** Stable IDs accepted by the CLI and library. */
+export type ModelId = 'on-device' | 'private-cloud-compute';
+
+/** Availability of a model exposed by the current helper and OS. */
+export type ModelAvailability = { id: string } & (
+  | { available: true }
+  | { available: false; reason: string }
+);
+
+/** Result of `apple-fm-helper --probe`. Legacy fields describe the on-device model. */
 export interface ProbeResult {
   available: boolean;
+  /** Omitted by older helpers. */
+  models?: ModelAvailability[];
   /** Present only when `available` is false. */
   reason?: UnavailableReason;
 }

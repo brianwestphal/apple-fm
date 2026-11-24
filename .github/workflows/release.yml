@@ -110,11 +110,11 @@ jobs:
   #
   # Produces a Developer-ID-signed + notarized arm64 binary so users on macOS 26+
   # Apple Silicon get a ready-to-run helper with no Swift toolchain. Requires a
-  # macOS 26 runner (Xcode 26 / FoundationModels SDK). If the secrets are unset
+  # macOS 27 SDK to include model discovery for PCC. If the secrets are unset
   # or notarization fails, this job fails — but the publish job still ships the
   # package (helper as source + build script), so a release is never blocked.
   apple-fm:
-    runs-on: macos-26
+    runs-on: xcode-27
     permissions:
       contents: read
     steps:
@@ -140,7 +140,7 @@ jobs:
           CODESIGN_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
         run: |
           npm run build:helper
-          test -x bin/apple-fm-helper || { echo "helper did not build — runner needs the macOS 26 SDK / Xcode 26"; exit 1; }
+          test -x bin/apple-fm-helper || { echo "helper did not build — runner needs the macOS 27 SDK / Xcode 27"; exit 1; }
           codesign --verify --strict --verbose=2 bin/apple-fm-helper
       - name: Notarize (app-specific password)
         env:

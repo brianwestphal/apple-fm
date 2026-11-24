@@ -31,6 +31,14 @@ describe('parseArgs', () => {
     });
   });
 
+  it.each(['generate', 'chat'])('parses and validates --model for %s', (command) => {
+    expect(parseArgs([command, '--model', 'on-device'])).toMatchObject({ model: 'on-device' });
+    expect(parseArgs([command, '--model', 'private-cloud-compute'])).toMatchObject({ model: 'private-cloud-compute' });
+    expect(() => parseArgs([command, '--model', 'other'])).toThrow(/unknown model.*probe/);
+    expect(() => parseArgs([command, '--model'])).toThrow(/requires a value/);
+    expect(() => parseArgs([command, '--model', '--system'])).toThrow(/requires a value/);
+  });
+
   it('parses generate --schema', () => {
     const parsed = parseArgs(['generate', 'x', '--schema', 'shape.json']);
     expect(parsed).toMatchObject({ command: 'generate', prompt: 'x', schemaFile: 'shape.json', stream: false });

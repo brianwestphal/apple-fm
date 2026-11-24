@@ -9,7 +9,7 @@ in [`.github/workflows/release.yml`](../.github/workflows/release.yml).
 ```
 npm run release            scripts/release.sh                GitHub Actions (release.yml)
   (or release:beta)   →    bump · changelog · commit    →    test/lint/typecheck/build
-                           push tag  v1.2.3                   sign + notarize helper (macOS 26)
+                           push tag  v1.2.3                   sign + notarize helper (Xcode 27)
                                                               GitHub Release + npm publish
 ```
 
@@ -23,7 +23,7 @@ a GitHub Release, and publishes to npm.
 
 CI on every push/PR is separate: [`.github/workflows/ci.yml`](../.github/workflows/ci.yml)
 runs the device-free unit suite on macOS runners (Node 20 + 22) and compiles the
-Swift helper on a macOS 26 runner.
+Swift helper on macOS 26 and Xcode 27 runners.
 
 ---
 
@@ -166,7 +166,7 @@ Then watch <https://github.com/brianwestphal/apple-fm/actions>.
 ## What CI does on the tag
 
 1. **Validate** — `test` / `lint` / `typecheck` / `npm pack --dry-run` (macOS).
-2. **`apple-fm` job (macOS 26)** — imports the Developer ID cert into a temporary
+2. **`apple-fm` job (Xcode 27)** — imports the Developer ID cert into a temporary
    keychain, `npm run build:helper` with `CODESIGN_IDENTITY` set (so the helper
    is signed), verifies the signature, notarizes via `notarytool --wait`, and
    uploads the binary as an artifact.
@@ -191,5 +191,5 @@ locally. Notarization is an enhancement, never a release blocker.
 - **`codesign` "no identity found"** — `APPLE_SIGNING_IDENTITY` doesn't match the
   cert in the `.p12`, or the `.p12` lacks the private key (re-export from
   Keychain Access **My Certificates**, not the cert alone).
-- **Helper "did not build"** on the macOS 26 job — the runner image lacks the
-  macOS 26 SDK / Xcode 26 (see [3-requirements.md](3-requirements.md) AF-12).
+- **Helper "did not build"** on the Xcode 27 job — the runner image lacks the
+  macOS 27 SDK / Xcode 27 (see [3-requirements.md](3-requirements.md) AF-12).

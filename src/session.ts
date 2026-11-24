@@ -1,11 +1,11 @@
 /**
- * A multi-turn chat session over the on-device model, with automatic context
+ * A multi-turn chat session over the selected model, with automatic context
  * compaction.
  *
  * The on-device model has a small context window, so a long conversation will
  * eventually overflow it. {@link ChatSession} holds the transcript on the Node
  * side and, when the estimated size crosses a threshold, summarizes the older
- * turns into a compact recap (using the same on-device model) and continues with
+ * turns into a compact recap (using the same model) and continues with
  * that recap plus the most recent turns kept verbatim. The conversation stays
  * coherent without the caller managing any of it.
  */
@@ -13,7 +13,7 @@ import { generate as helperGenerate } from './helper.js';
 import { type ChatBackend,LiveSession } from './liveSession.js';
 import { estimateConversationTokens, flattenMessages } from './protocol.js';
 import type { PermissionPolicy, ToolRegistry } from './tools/index.js';
-import type { DeltaHandler, GenerateOptions, HelperOptions, Message } from './types.js';
+import type { DeltaHandler, GenerateOptions, HelperOptions, Message, ModelId } from './types.js';
 
 /** Pluggable one-shot generation, used for summarization (a stub in tests). */
 export type GenerateFn = (
@@ -24,6 +24,8 @@ export type GenerateFn = (
 
 /** Configuration for a {@link ChatSession}. */
 export interface ChatSessionConfig {
+  /** Model used for chat and compaction. Defaults to on-device. */
+  model?: ModelId;
   /** Instructions for the model (system prompt). */
   system?: string;
   /** Generation knobs forwarded to every turn. */
@@ -63,13 +65,17 @@ const SUMMARIZE_SYSTEM =
   'continue the conversation. Output only the summary prose.';
 
 /** Default one-shot backend (summarization): spawn the real Swift helper. */
-function defaultGenerateFn(helper: HelperOptions | undefined, options: GenerateOptions | undefined): GenerateFn {
+function defaultGenerateFn({ model, helper, options }: ChatSessionConfig): GenerateFn {
   return (system, messages, onDelta) =>
-    helperGenerate({ system, messages, options, stream: onDelta !== undefined }, helper, onDelta);
+    helperGenerate(
+      { model, system, messages, options, stream: onDelta !== undefined },
+      helper,
+      onDelta,
+    );
 }
 
 /**
- * A stateful, auto-compacting conversation with the on-device model. Turns run
+ * A stateful, auto-compacting conversation with the selected model. Turns run
  * against a persistent {@link LiveSession} (one `LanguageModelSession` reused
  * across turns, FR-12) rather than replaying the transcript each turn; the
  * transcript is still held here to drive compaction, history, and reseed.
@@ -94,11 +100,12 @@ export class ChatSession {
       config.backend ??
       new LiveSession({
         ...config.helper,
+        model: config.model,
         options: config.options,
         tools: config.tools,
         permission: config.permission,
       });
-    this.generateFn = config.generateFn ?? defaultGenerateFn(config.helper, config.options);
+    this.generateFn = config.generateFn ?? defaultGenerateFn(config);
   }
 
   /** The system prompt actually sent to the model (instructions + any recap). */

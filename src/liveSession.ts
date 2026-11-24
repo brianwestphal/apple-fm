@@ -13,12 +13,14 @@ import { isPlatformSupported, resolveHelperPath, unsupportedPlatformError, using
 import { splitLines } from './protocol.js';
 import { dispatchToolCall } from './tools/dispatch.js';
 import { PermissionPolicy, type ToolRegistry } from './tools/index.js';
-import type { DeltaHandler, GenerateOptions, HelperOptions, Message } from './types.js';
+import type { DeltaHandler, GenerateOptions, HelperOptions, Message, ModelId } from './types.js';
 
 const DEFAULT_TURN_TIMEOUT_MS = 120_000;
 
 /** Construction options for a {@link LiveSession}. */
 export interface LiveSessionConfig extends HelperOptions {
+  /** Model to use for the lifetime of the session. Defaults to on-device. */
+  model?: ModelId;
   /** Generation knobs forwarded with every turn. */
   options?: GenerateOptions;
   /**
@@ -65,6 +67,7 @@ export interface ChatBackend {
 
 export class LiveSession implements ChatBackend {
   private readonly command: string;
+  private readonly mode: string;
   private readonly timeoutMs: number;
   private readonly options: GenerateOptions | undefined;
   private readonly tools: ToolRegistry | undefined;
@@ -78,6 +81,7 @@ export class LiveSession implements ChatBackend {
 
   constructor(config: LiveSessionConfig = {}) {
     this.command = resolveHelperPath(config);
+    this.mode = config.model === 'private-cloud-compute' ? '--session-pcc' : '--session';
     this.timeoutMs = config.timeoutMs ?? DEFAULT_TURN_TIMEOUT_MS;
     this.options = config.options;
     this.tools = config.tools !== undefined && config.tools.size > 0 ? config.tools : undefined;
@@ -136,7 +140,7 @@ export class LiveSession implements ChatBackend {
   private ensureChild(): ChildProcessWithoutNullStreams {
     const existing = this.child;
     if (existing !== undefined && existing.exitCode === null && !existing.killed) return existing;
-    const child = spawn(this.command, ['--session'], { stdio: ['pipe', 'pipe', 'pipe'] });
+    const child = spawn(this.command, [this.mode], { stdio: ['pipe', 'pipe', 'pipe'] });
     this.buffer = '';
     child.stdout.setEncoding('utf8');
     child.stdout.on('data', (chunk: string) => {
@@ -169,7 +173,13 @@ export class LiveSession implements ChatBackend {
     }
     if (typeof value !== 'object' || value === null) return;
     const event = value as Record<string, unknown>;
-    if (typeof event.id !== 'string') return; // session events always carry an id
+    if (typeof event.id !== 'string') {
+      // Startup can fail before the helper reads a command ID.
+      if (event.type === 'error' && typeof event.code === 'string' && typeof event.message === 'string') {
+        this.rejectAll(new Error(`[${event.code}] ${event.message}`));
+      }
+      return;
+    }
     const id = event.id;
     const pending = this.pending.get(id);
     if (pending === undefined) return;

@@ -7,10 +7,11 @@ import { createInterface, emitKeypressEvents, type Interface as ReadlineInterfac
 
 import { ChatSession } from './session.js';
 import { type PermissionAsker, PermissionPolicy, sanitizeForPrompt, toolGuidancePrompt,type ToolRegistry } from './tools/index.js';
-import type { GenerateOptions } from './types.js';
+import type { GenerateOptions, ModelId } from './types.js';
 
 /** Options for {@link runRepl}. */
 export interface ReplOptions {
+  model?: ModelId;
   system?: string;
   stream: boolean;
   compactAtTokens?: number;
@@ -78,6 +79,7 @@ export async function runRepl(opts: ReplOptions): Promise<void> {
     return userSystem !== undefined && userSystem.length > 0 ? `${userSystem}\n\n${guidance}` : guidance;
   };
   const session = new ChatSession({
+    model: opts.model,
     system: withGuidance(opts.system),
     options: opts.options,
     compactAtTokens: opts.compactAtTokens,

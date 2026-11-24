@@ -20,6 +20,15 @@ function parseResult(content: string): { instructions: string; turns: number; pr
 }
 
 describe('LiveSession', () => {
+  it('reports an unavailable model before a command ID is available', async () => {
+    const session = new LiveSession({ binPath: STUB, model: 'private-cloud-compute' });
+    try {
+      await expect(session.reset('')).rejects.toThrow(/\[unavailable\].*private-cloud-compute/);
+    } finally {
+      session.close();
+    }
+  });
+
   it('keeps context across turns in one session (KV-cache reuse)', async () => {
     const session = new LiveSession({ binPath: STUB });
     try {

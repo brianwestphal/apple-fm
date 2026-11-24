@@ -67,6 +67,24 @@ beforeAll(() => {
 
 describe('apple-fm CLI (e2e)', () => {
   describe('probe', () => {
+    it.each([
+      { pcc: {}, expected: [] },
+      { pcc: { STUB_PCC: 'unavailable' }, expected: [
+        { id: 'private-cloud-compute', available: false, reason: 'missingEntitlement' },
+      ] },
+      { pcc: { STUB_PCC: 'available' }, expected: [
+        { id: 'private-cloud-compute', available: true },
+      ] },
+    ])('lists the exposed models with settings $pcc', async ({ pcc, expected }) => {
+      const env: Record<string, string> = { STUB_LIST_MODELS: '1' };
+      if (pcc.STUB_PCC !== undefined) env.STUB_PCC = pcc.STUB_PCC;
+      const { stdout, code } = await runCli(['probe'], { env });
+      expect(JSON.parse(stdout)).toEqual({ available: true, models: [
+        { id: 'on-device', available: true }, ...expected,
+      ] });
+      expect(code).toBe(0);
+    }, T);
+
     it(
       'prints availability and exits 0 when the model is ready',
       async () => {
@@ -86,6 +104,49 @@ describe('apple-fm CLI (e2e)', () => {
       },
       T,
     );
+  });
+
+  describe('model selection', () => {
+    const model = 'private-cloud-compute';
+
+    it('routes generation to the chosen helper mode', async () => {
+      const { stdout, code } = await runCli(['generate', 'hello', '--model', model], {
+        env: { STUB_PCC: 'available', STUB_UNAVAILABLE: '1' },
+      });
+      expect(JSON.parse(stdout)).toEqual({ prompt: 'hello', options: {}, stream: false, model });
+      expect(code).toBe(0);
+    }, T);
+
+    it('keeps the selected chat model after clearing the conversation', async () => {
+      const { stdout, code } = await runCli(['chat', '--model', model, '--no-stream'], {
+        env: { STUB_PCC: 'available' },
+        input: 'before\n/clear\nafter\n/quit\n',
+      });
+      expect(stdout.match(/"model":"private-cloud-compute"/g)).toHaveLength(2);
+      expect(stdout).toContain('"prompt":"before"');
+      expect(stdout).toContain('"prompt":"after"');
+      expect(code).toBe(0);
+    }, T);
+
+    it('uses the selected model to compact the chat transcript', async () => {
+      const { stdout, code } = await runCli(['chat', '--model', model, '--no-stream'], {
+        env: { STUB_PCC: 'available' },
+        input: 'first\nsecond\nthird\n/compact\nfourth\n/quit\n',
+      });
+      expect(stdout).toContain('\\"model\\":\\"private-cloud-compute\\"');
+      expect(stdout).toContain('"prompt":"fourth"');
+      expect(code).toBe(0);
+    }, T);
+
+    it.each(['generate', 'chat'])('rejects unavailable Private Cloud Compute for %s', async (command) => {
+      const args = command === 'generate' ? [command, 'hello'] : [command];
+      const { stdout, stderr, code } = await runCli([...args, '--model', model], {
+        env: { STUB_PCC: 'unavailable' },
+      });
+      expect(stdout).toBe('');
+      expect(stderr).toMatch(/private-cloud-compute.*unavailable/);
+      expect(code).toBe(1);
+    }, T);
   });
 
   describe('generate', () => {

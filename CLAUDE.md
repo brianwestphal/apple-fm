@@ -158,6 +158,7 @@ release flow and its one-time CI signing setup are documented in
 - [docs/9-tool-calling.md](docs/9-tool-calling.md) — tool-calling requirements (FR-14 / AF-5); `read`/`bash` + generic plumbing + permission gate shipped (a `web` tool shipped under AFM-34 then was removed in AFM-43 — no network).
 - [docs/10-permissions.md](docs/10-permissions.md) — tool permission policy requirements (FR-14 / AF-5 phase 2 / AFM-32).
 - [docs/11-builtin-tools.md](docs/11-builtin-tools.md) — per-tool requirements for the built-in tools (`read`, `bash`) (FR-14 / AF-5).
+- [docs/12-models.md](docs/12-models.md) — model discovery, selection, and Private Cloud Compute availability.
 - [docs/ai/code-summary.md](docs/ai/code-summary.md) — AI-oriented code map.
 
 > **Standing re-eval:** apple-fm's tool-support case partly rests on Apple's official

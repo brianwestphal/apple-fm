@@ -3,6 +3,9 @@
 The Node layer and the Swift helper communicate over **line-delimited JSON
 (NDJSON)** on stdin/stdout. The helper has three modes, selected by a flag:
 `--probe`, the one-shot `--generate`, and the long-lived `--session`.
+`--generate-pcc` and `--session-pcc` use the same framing with Private Cloud Compute.
+Older helpers reject those flags. The selected mode stays fixed across session resets.
+See [model discovery and selection](12-models.md).
 
 ## `--probe`
 
@@ -10,11 +13,15 @@ No stdin. Emits exactly one JSON line that **is** the availability result (not a
 event), then exits 0:
 
 ```json
-{"available":true}
-{"available":false,"reason":"appleIntelligenceNotEnabled"}
+{"available":true,"models":[{"id":"on-device","available":true}]}
+{"available":true,"models":[{"id":"on-device","available":true},{"id":"private-cloud-compute","available":false,"reason":"missingEntitlement"}]}
 ```
 
-`reason` (present only when unavailable) is one of `deviceNotEligible`,
+Top-level availability describes the on-device model. Older helpers can omit
+`models`. Each model has a string `id`, boolean `available`, and a string
+`reason` if unavailable.
+
+The top-level `reason` (present only when unavailable) is one of `deviceNotEligible`,
 `appleIntelligenceNotEnabled`, `modelNotReady`, `unknown`. The Node layer adds one
 more reason it synthesizes **without running the helper** — `unsupportedPlatform`,
 when the OS/CPU can't run the macOS helper at all (not macOS on Apple Silicon) —

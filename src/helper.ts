@@ -140,7 +140,7 @@ function runHelper(
   });
 }
 
-/** Ask the helper whether the on-device model is available right now. */
+/** Ask the helper which models it exposes and whether each is available. */
 export async function probe(options: HelperOptions = {}): Promise<ProbeResult> {
   // Off-platform (e.g. Linux/Windows, or an Intel Mac) the bundled macOS helper
   // can't run — report unavailable instead of failing to spawn it.
@@ -173,7 +173,9 @@ export async function generate(
 ): Promise<string> {
   if (usingBundledHelper(options) && !isPlatformSupported()) throw unsupportedPlatformError();
   let content: string | undefined;
-  await runHelper(['--generate'], options, encodeRequest(request), (line) => {
+  const { model, ...wireRequest } = request;
+  const mode = model === 'private-cloud-compute' ? '--generate-pcc' : '--generate';
+  await runHelper([mode], options, encodeRequest(wireRequest), (line) => {
     const event = parseEvent(line);
     switch (event.type) {
       case 'delta':

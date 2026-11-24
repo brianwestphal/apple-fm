@@ -52,7 +52,7 @@ async function main(): Promise<void> {
       const options: GenerateOptions = {};
       if (args.temperature !== undefined) options.temperature = args.temperature;
       if (args.maxTokens !== undefined) options.maxTokens = args.maxTokens;
-      const request: GenerateRequest = { prompt, system: args.system, options, stream: args.stream };
+      const request: GenerateRequest = { model: args.model, prompt, system: args.system, options, stream: args.stream };
       if (args.schemaFile !== undefined) request.schema = JSON.parse(await readFile(args.schemaFile, 'utf8'));
       const structured = args.schemaFile !== undefined;
       // Freeform streaming appends text deltas; structured streaming gets full
@@ -70,8 +70,15 @@ async function main(): Promise<void> {
       return;
     }
     case 'chat': {
+      if (args.model === 'private-cloud-compute') {
+        const model = (await probe()).models?.find((entry) => entry.id === args.model);
+        if (model?.available !== true) {
+          throw new Error(`private-cloud-compute unavailable (${model?.reason ?? 'unsupported by this helper or OS'})`);
+        }
+      }
       const tools = args.tools !== undefined ? registryFromNames(args.tools) : undefined;
       await runRepl({
+        model: args.model,
         system: args.system,
         stream: args.stream,
         compactAtTokens: args.compactAtTokens,

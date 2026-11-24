@@ -3,6 +3,8 @@
  * turns `argv` into a discriminated {@link ParsedArgs}; `cli.ts` does the I/O.
  */
 
+import type { ModelId } from './types.js';
+
 /** The fully-parsed command line. */
 export type ParsedArgs =
   | { command: 'help' }
@@ -11,6 +13,7 @@ export type ParsedArgs =
   | {
       command: 'generate';
       prompt?: string;
+      model?: ModelId;
       system?: string;
       schemaFile?: string;
       stream: boolean;
@@ -19,6 +22,7 @@ export type ParsedArgs =
     }
   | {
       command: 'chat';
+      model?: ModelId;
       system?: string;
       stream: boolean;
       compactAtTokens?: number;
@@ -28,14 +32,15 @@ export type ParsedArgs =
       yes?: boolean;
     };
 
-export const USAGE = `apple-fm — command-line access to Apple's on-device Foundation Models
+export const USAGE = `apple-fm — command-line access to Apple Foundation Models
 
 Usage:
-  apple-fm probe                       Check on-device model availability
+  apple-fm probe                       List models and their availability
   apple-fm generate [prompt] [flags]   One-shot generation (reads stdin if no prompt)
   apple-fm chat [flags]                Interactive chat (streaming, auto-compaction)
 
 Generate flags:
+      --model <id>       Model ID from probe (default: on-device)
   -s, --system <text>     System instructions
       --schema <file>     JSON Schema file for guided/structured output
       --stream            Stream output as it is produced
@@ -43,6 +48,7 @@ Generate flags:
       --max-tokens <n>    Maximum response tokens
 
 Chat flags:
+      --model <id>       Model ID from probe (default: on-device)
   -s, --system <text>     System instructions
       --no-stream         Disable token streaming
       --compact-at <n>    Compact the transcript past <n> estimated tokens
@@ -99,12 +105,21 @@ export function parseArgs(argv: string[]): ParsedArgs {
   }
 }
 
+function parseModel(value: string | undefined): ModelId {
+  if (value === undefined || value.startsWith('-')) throw new Error('--model requires a value');
+  if (value === 'on-device' || value === 'private-cloud-compute') return value;
+  throw new Error(`unknown model "${value}" (run apple-fm probe)`);
+}
+
 function parseGenerate(argv: string[]): ParsedArgs {
   const result: Extract<ParsedArgs, { command: 'generate' }> = { command: 'generate', stream: false };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (arg === undefined) continue;
     switch (arg) {
+      case '--model':
+        result.model = parseModel(argv[++i]);
+        break;
       case '-s':
       case '--system':
         result.system = takeValue(argv, i++, arg);
@@ -136,6 +151,9 @@ function parseChat(argv: string[]): ParsedArgs {
     const arg = argv[i];
     if (arg === undefined) continue;
     switch (arg) {
+      case '--model':
+        result.model = parseModel(argv[++i]);
+        break;
       case '-s':
       case '--system':
         result.system = takeValue(argv, i++, arg);

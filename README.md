@@ -1,9 +1,8 @@
 # apple-fm
 
 **Apple Intelligence from your command line and your code.** apple-fm gives you
-the on-device **Foundation Models** on **macOS 26+ / Apple Silicon** — free,
-private, and fully offline. No API key, no cloud, no network — your prompts never
-leave your Mac.
+Apple's **Foundation Models** on **macOS 26+ / Apple Silicon**. By default,
+inference runs on-device and works offline without an API key.
 
 Apple ships these models as a Swift-only framework with no command-line
 front-end. apple-fm provides one — a fast, lightweight CLI and a TypeScript
@@ -15,27 +14,43 @@ library, so you can use the on-device model from your terminal or your code.
 
 ## Why apple-fm
 
-- **On-device & private.** Runs on the model Apple Intelligence already
-  installed. No key, no cloud, no telemetry — your prompts never leave the
-  machine.
+- **On-device by default.** Uses the model installed by Apple Intelligence and
+  keeps prompts on your Mac.
 - **One binary, three shapes.** `probe`, one-shot `generate` (freeform, guided,
   or streamed), and an interactive `chat` — all over a single
   [NDJSON protocol](docs/4-protocol.md).
 - **Guaranteed structured output.** Hand it a JSON Schema and the output is
   *guaranteed* to conform — native guided generation built on Apple's
   `DynamicGenerationSchema`, not best-effort prompting. Stream it, too.
-- **Long conversations stay coherent — and cheap.** `chat` holds one on-device
+- **Long conversations stay coherent — and cheap.** `chat` holds one model
   session across turns, reusing the model's cache instead of replaying the
   transcript, and automatically summarizes older turns as the small context
   window fills. Press **Esc** to interrupt a reply mid-stream — the partial is kept.
 - **The model can use tools — locally.** Opt `chat` into permission-gated `read`
   and `bash` tools (`--tools read,bash`) so the model can read a file or run a
   command to answer you. Every call is approved per-use, and it's all on your
-  machine — still no network. Register your own `Tool` from the library, too.
+  machine. Register your own `Tool` from the library, too.
 - **Lightweight, nothing to audit.** Zero runtime dependencies — apple-fm just
-  talks to the on-device model and gets out of your way.
+  talks to the native Foundation Models helper.
 - **Future-proof.** The helper resolves the current on-device model at runtime,
   so OS and model updates are picked up without a rebuild.
+
+## Model selection
+
+```sh
+apple-fm probe
+apple-fm generate --model on-device "Explain Swift actors in one sentence"
+apple-fm chat --model on-device
+```
+
+`probe` reports model IDs and per-model availability in `models`. macOS 26
+lists `on-device`. On macOS 27+, helpers built with the macOS 27 SDK also list
+`private-cloud-compute`. The npm helper reports `missingEntitlement` for
+Private Cloud Compute. Apple restricts access to [approved distribution channels](https://developer.apple.com/private-cloud-compute/).
+Cloud inference sends prompts to Apple Private Cloud Compute.
+
+The default is `on-device`. Chat keeps its selected model until you exit.
+See [model discovery and selection](docs/12-models.md) for the full contract.
 
 ## Install
 
@@ -70,7 +85,7 @@ if ((await probe()).available) {
 ## CLI
 
 ```bash
-apple-fm probe                       # is the on-device model available?
+apple-fm probe                       # list models and availability
 apple-fm generate "Summarize: …"     # one-shot text
 cat notes.md | apple-fm generate     # read the prompt from stdin
 apple-fm generate "…" --stream       # stream tokens as they arrive

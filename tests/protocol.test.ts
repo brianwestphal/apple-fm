@@ -64,6 +64,22 @@ describe('parseProbeResult', () => {
     });
   });
 
+  it('preserves each model’s status and reason', () => {
+    const result = {
+      available: true,
+      models: [
+        { id: 'on-device', available: true },
+        { id: 'private-cloud-compute', available: false, reason: 'missingEntitlement' },
+      ],
+    };
+    expect(parseProbeResult(JSON.stringify(result))).toEqual(result);
+  });
+
+  it.each([{}, [null], [{ available: true }], [{ id: 'on-device', available: 1 }],
+    [{ id: 'on-device', available: false }]].map((models) => ({ models })))('rejects malformed models %j', ({ models }) => {
+    expect(() => parseProbeResult(JSON.stringify({ available: true, models }))).toThrow(/malformed probe result/);
+  });
+
   it('rejects a non-object / array line', () => {
     expect(() => parseProbeResult('42')).toThrow(/malformed probe result/);
     expect(() => parseProbeResult('null')).toThrow(/malformed probe result/);

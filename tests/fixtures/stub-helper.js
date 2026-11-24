@@ -19,6 +19,9 @@
  *   otherwise            result content is the request echoed back as JSON
  */
 const args = process.argv.slice(2);
+const pccMode = args.includes('--generate-pcc') || args.includes('--session-pcc');
+const pccStatus = process.env.STUB_PCC;
+const pccId = 'private-cloud-compute';
 const write = (obj) => process.stdout.write(JSON.stringify(obj) + '\n');
 
 // Mirror the Swift helper's strict JSON Schema → GenerationSchema translation:
@@ -99,13 +102,20 @@ if (process.env.STUB_HANG === '1') {
     // A malformed probe line: `available` is not a boolean. Exercises the Node-side
     // shape validation (AFM-79), which must reject rather than cast it blindly.
     process.stdout.write(JSON.stringify({ available: 'yes' }) + '\n');
-  } else if (process.env.STUB_UNAVAILABLE === '1') {
-    process.stdout.write(JSON.stringify({ available: false, reason: 'appleIntelligenceNotEnabled' }) + '\n');
   } else {
-    process.stdout.write(JSON.stringify({ available: true }) + '\n');
+    const local = process.env.STUB_UNAVAILABLE === '1'
+      ? { available: false, reason: 'appleIntelligenceNotEnabled' }
+      : { available: true };
+    const models = [{ id: 'on-device', ...local }];
+    if (pccStatus === 'available') models.push({ id: pccId, available: true });
+    if (pccStatus === 'unavailable') models.push({ id: pccId, available: false, reason: 'missingEntitlement' });
+    write(process.env.STUB_LIST_MODELS === '1' || pccStatus !== undefined ? { ...local, models } : local);
   }
   process.exit(0);
-} else if (args.includes('--generate')) {
+} else if (pccMode && pccStatus !== 'available') {
+  write({ type: 'error', code: 'unavailable', message: 'private-cloud-compute is unavailable' });
+  process.exit(1);
+} else if (args.includes('--generate') || args.includes('--generate-pcc')) {
   let input = '';
   process.stdin.setEncoding('utf8');
   process.stdin.on('data', (d) => (input += d));
@@ -148,11 +158,11 @@ if (process.env.STUB_HANG === '1') {
       write({ type: 'delta', text: 'world' });
       write({ type: 'result', content: 'Hello world' });
     } else {
-      write({ type: 'result', content: JSON.stringify(req) });
+      write({ type: 'result', content: JSON.stringify(pccMode ? { ...req, model: pccId } : req) });
     }
     process.exit(0);
   });
-} else if (args.includes('--session')) {
+} else if (args.includes('--session') || args.includes('--session-pcc')) {
   // Persistent live session: one command per stdin line, processed serially.
   // Holds in-memory "context" (instructions from the last reset + a turn count)
   // so tests can assert KV-cache continuity and that reset clears it. Special turn
@@ -277,7 +287,7 @@ if (process.env.STUB_HANG === '1') {
       write({ type: 'result', id: cmd.id, content: 'Hello world' });
       return;
     }
-    write({ type: 'result', id: cmd.id, content: JSON.stringify({ instructions, turns, prompt }) });
+    write({ type: 'result', id: cmd.id, content: JSON.stringify({ instructions, turns, prompt, ...(pccMode ? { model: pccId } : {}) }) });
   };
   process.stdin.setEncoding('utf8');
   process.stdin.on('data', (d) => {

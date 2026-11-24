@@ -40,3 +40,13 @@ usable). This case now only covers the **live TTY keypress** (readline `keypress
 
 - *(none yet — the device-free protocol/round-trip part of MT-1 is covered by the unit
   + e2e suites; the on-device + TTY part above remains manual under AF-2.)*
+
+## MT-2 Model discovery and selection
+
+Build the helper with SDK 27 and run it through the rebuilt CLI on macOS 26 and
+27. On 26, probe lists only `on-device`. On 27, probe also lists
+`private-cloud-compute`. For an npm build, confirm it reports
+`missingEntitlement` and that explicitly selecting it fails in both `generate`
+and `chat`. On both OS versions, select `on-device` and verify a one-shot reply
+and a chat reply after `/clear`. With an Apple-approved build and the entitlement,
+repeat generation, chat, and `/compact` using `private-cloud-compute`.

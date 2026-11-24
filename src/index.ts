@@ -59,6 +59,8 @@ export type {
   HelperEvent,
   HelperOptions,
   Message,
+  ModelAvailability,
+  ModelId,
   ProbeResult,
   Role,
   SnapshotHandler,

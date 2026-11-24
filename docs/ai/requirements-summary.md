@@ -10,7 +10,7 @@ Keep status markers in sync with the implementation.
 
 ## Functional
 
-- **FR-1 Probe availability** — Shipped. `helper.ts:probe` + Swift `--probe`; reasons mapped. Stub-tested + smoke-verified on-device.
+- **FR-1 Probe availability** — Shipped. `probe` lists supported models and their status. See [model requirements](../12-models.md).
 - **FR-2 One-shot generate** — Shipped. `helper.ts:generate` + Swift `--generate`. Stub-tested + smoke-verified on-device.
 - **FR-3 Streaming (`--stream`)** — Shipped. NDJSON `delta` events; helper diffs cumulative partials. Smoke-verified on-device.
 - **FR-4 Conversation input** — Shipped. `protocol.ts:flattenMessages`.
@@ -18,7 +18,7 @@ Keep status markers in sync with the implementation.
 - **FR-6 Auto-compaction** — Shipped. `session.ts:ChatSession` (`compactAtTokens`, `keepRecentTurns`). Unit-tested.
 - **FR-7 Guided output (`--schema`)** — Shipped. Native guided generation (schema compiled to a `GenerationSchema`); output guaranteed to conform. See FR-8.
 - **FR-8 Native `DynamicGenerationSchema`** — Shipped. Helper compiles the JSON Schema → `GenerationSchema`, `respond(to:schema:)`; strict (`unsupportedSchema` on an unsupported construct). Numeric min/max enforced; `schema`+`stream` emits full-JSON `snapshot` events. See `docs/6-guided-generation.md`.
-- **FR-9 CLI surface** — Shipped. `cliArgs.ts`.
+- **FR-9 CLI surface** — Shipped. `generate` and `chat` accept `--model`. Private Cloud Compute inference requires Apple-approved signing and distribution.
 - **FR-10 Programmatic API** — Shipped. `index.ts`.
 - **FR-11 Helper discovery** — Shipped. `APPLE_FM_BIN` → bundled binary → PATH.
 - **FR-12 Persistent live session** — Shipped. `--session` helper mode (`runSession`) + Node `LiveSession`; `ChatSession` uses it as its backend, replacing transcript-replay. See `docs/7-live-session.md`.
@@ -29,7 +29,7 @@ Keep status markers in sync with the implementation.
 
 ## Non-functional
 
-- **NFR-1 On-device model; no API key; no network** — Shipped. Model runs fully on-device (no cloud SDK, no key, prompts never leave the machine); **no network at all** — every built-in tool (`read`, `bash`) is local. (Briefly allowed an opt-in `web` tool under AFM-34; restored when `web` was removed in AFM-43.)
+- **NFR-1 Offline by default** — Shipped. On-device mode works offline. Explicit Private Cloud Compute selection uses Apple’s cloud service. Built-in tools run locally.
 - **NFR-2 Bounded/diagnosable subprocess** — Shipped (timeout + stderr + error codes).
 - **NFR-3 Pure unit-tested, native stub-tested** — Shipped (`tests/fixtures/stub-helper.js`).
 - **NFR-4 Strict TS / ESM / lint-clean / zero deps** — Shipped.

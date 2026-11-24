@@ -5,9 +5,8 @@
 //
 // Protocol:
 //   apple-fm-helper --probe
-//       → one JSON line: {"available":true}
-//                     or {"available":false,"reason":"appleIntelligenceNotEnabled"}
-//   apple-fm-helper --generate
+//       → one JSON line with on-device status and a list of model statuses.
+//   apple-fm-helper --generate (or --generate-pcc for Private Cloud Compute)
 //       reads one request object on stdin:
 //         {"system"?,"prompt"?,"messages"?:[{"role","content"}],
 //          "schema"?,"options"?:{"temperature"?,"maxTokens"?},"stream"?}
@@ -21,6 +20,9 @@
 // APPLE_FM_BIN (or build it to ./bin/apple-fm-helper).
 import Foundation
 import FoundationModels
+#if APPLE_FM_PCC
+import Security
+#endif
 
 // MARK: - Wire types
 
@@ -148,14 +150,58 @@ private func encodeString(_ value: String) -> String {
 
 // MARK: - Probe
 
-private func probe() -> Never {
+private enum ModelID: String {
+    case onDevice = "on-device"
+    case privateCloudCompute = "private-cloud-compute"
+}
+
+private func modelStatus(_ model: ModelID, reason: String?) -> [String: Any] {
+    var status: [String: Any] = ["id": model.rawValue, "available": reason == nil]
+    status["reason"] = reason
+    return status
+}
+
+private func onDeviceUnavailableReason() -> String? {
     switch SystemLanguageModel.default.availability {
-    case .available:
-        emit("{\"available\":true}")
-    case .unavailable(let reason):
-        emit("{\"available\":false,\"reason\":\(encodeString(reasonString(reason)))}")
-    @unknown default:
-        emit("{\"available\":false,\"reason\":\"unknown\"}")
+    case .available: return nil
+    case .unavailable(let reason): return reasonString(reason)
+    @unknown default: return "unknown"
+    }
+}
+
+#if APPLE_FM_PCC
+@available(macOS 27.0, *)
+private func cloudUnavailableReason() -> String? {
+    guard let task = SecTaskCreateFromSelf(nil),
+          SecTaskCopyValueForEntitlement(
+            task, "com.apple.developer.private-cloud-compute" as CFString, nil
+          ) as? Bool == true else {
+        return "missingEntitlement"
+    }
+    switch PrivateCloudComputeLanguageModel().availability {
+    case .available: return nil
+    case .unavailable(.deviceNotEligible): return "deviceNotEligible"
+    case .unavailable(.systemNotReady): return "systemNotReady"
+    @unknown default: return "unknown"
+    }
+}
+#endif
+
+private func probe() -> Never {
+    let reason = onDeviceUnavailableReason()
+    var models = [modelStatus(.onDevice, reason: reason)]
+    #if APPLE_FM_PCC
+    if #available(macOS 27.0, *) {
+        models.append(modelStatus(.privateCloudCompute, reason: cloudUnavailableReason()))
+    }
+    #endif
+    var result: [String: Any] = ["available": reason == nil, "models": models]
+    result["reason"] = reason
+    do {
+        let data = try JSONSerialization.data(withJSONObject: result, options: .sortedKeys)
+        emit(String(decoding: data, as: UTF8.self))
+    } catch {
+        failEvent("probeFailed", "could not encode model availability")
     }
     exit(0)
 }
@@ -202,11 +248,32 @@ private func generationOptions(_ options: WireOptions?) -> GenerationOptions {
         maximumResponseTokens: options.maxTokens)
 }
 
-private func generate(_ request: GenerateRequest) async -> Never {
-    guard case .available = SystemLanguageModel.default.availability else {
-        failEvent("unavailable", "Apple Foundation Models unavailable")
+private func createSession(
+    model: ModelID, tools: [any Tool] = [], instructions: String? = nil
+) -> LanguageModelSession {
+    switch model {
+    case .onDevice:
+        guard onDeviceUnavailableReason() == nil else {
+            failEvent("unavailable", "Apple Foundation Models unavailable")
+        }
+        return LanguageModelSession(model: SystemLanguageModel.default, tools: tools, instructions: instructions)
+    case .privateCloudCompute:
+        #if APPLE_FM_PCC
+        if #available(macOS 27.0, *) {
+            if let reason = cloudUnavailableReason() {
+                failEvent("unavailable", "private-cloud-compute is unavailable (\(reason))")
+            }
+            return LanguageModelSession(
+                model: PrivateCloudComputeLanguageModel(), tools: tools, instructions: instructions
+            )
+        }
+        #endif
+        failEvent("unavailable", "private-cloud-compute requires macOS 27 and a helper built with the macOS 27 SDK")
     }
-    let session = LanguageModelSession(instructions: instructions(for: request))
+}
+
+private func generate(_ request: GenerateRequest, model: ModelID) async -> Never {
+    let session = createSession(model: model, instructions: instructions(for: request))
     let prompt = userPrompt(for: request)
     let options = generationOptions(request.options)
 
@@ -394,13 +461,12 @@ private func sessionTurn(_ session: LanguageModelSession, _ command: SessionComm
 /// Build the session for a `reset`: with the command's tools when any are offered,
 /// otherwise the plain session. Tools are bound at construction (the framework's
 /// model), so they ride on `reset`, not each turn.
-private func makeSession(_ command: SessionCommand, bridge: ToolBridge) -> LanguageModelSession {
+private func makeSession(
+    _ command: SessionCommand, model: ModelID, bridge: ToolBridge
+) -> LanguageModelSession {
     let instructions = sessionInstructions(system: command.system, seed: command.seed)
     let tools = buildTools(command.tools ?? [], bridge: bridge)
-    if tools.isEmpty {
-        return LanguageModelSession(instructions: instructions)
-    }
-    return LanguageModelSession(tools: tools, instructions: instructions)
+    return createSession(model: model, tools: tools, instructions: instructions)
 }
 
 /// Hold one `LanguageModelSession` across many turns (KV-cache reuse). Reads one
@@ -413,12 +479,9 @@ private func makeSession(_ command: SessionCommand, bridge: ToolBridge) -> Langu
 /// `tool_error` lines into the suspended `tool_call` via the `ToolBridge`. The next
 /// turn waits on the previous task, so only one turn is ever live. See
 /// docs/9-tool-calling.md.
-private func runSession() async -> Never {
-    guard case .available = SystemLanguageModel.default.availability else {
-        failEvent("unavailable", "Apple Foundation Models unavailable")
-    }
+private func runSession(model: ModelID) async -> Never {
     let bridge = ToolBridge()
-    var session = LanguageModelSession()
+    var session = createSession(model: model)
     var currentTurn: Task<Void, Never>?
     do {
         for try await line in FileHandle.standardInput.bytes.lines {
@@ -438,7 +501,7 @@ private func runSession() async -> Never {
                 currentTurn?.cancel()
             case "reset":
                 await currentTurn?.value // no turn should be in flight, but be safe
-                session = makeSession(command, bridge: bridge)
+                session = makeSession(command, model: model, bridge: bridge)
                 emitReady(command.id)
             default:
                 await currentTurn?.value // serialize: one turn at a time
@@ -464,17 +527,19 @@ private func readRequest() -> GenerateRequest {
     return request
 }
 
-let args = CommandLine.arguments
-if args.contains("--probe") {
+switch CommandLine.arguments.dropFirst().first {
+case "--probe":
     probe()
-} else if args.contains("--generate") {
+case "--generate", "--generate-pcc":
+    let model: ModelID = CommandLine.arguments[1] == "--generate-pcc" ? .privateCloudCompute : .onDevice
     let request = readRequest()
-    Task { await generate(request) }
+    Task { await generate(request, model: model) }
     dispatchMain()
-} else if args.contains("--session") {
-    Task { await runSession() }
+case "--session", "--session-pcc":
+    let model: ModelID = CommandLine.arguments[1] == "--session-pcc" ? .privateCloudCompute : .onDevice
+    Task { await runSession(model: model) }
     dispatchMain()
-} else {
-    FileHandle.standardError.write(Data("usage: apple-fm-helper --probe | --generate | --session\n".utf8))
+default:
+    FileHandle.standardError.write(Data("usage: apple-fm-helper --probe | --generate[-pcc] | --session[-pcc]\n".utf8))
     exit(64)
 }

@@ -39,9 +39,11 @@ redundant with it.
 > should be revisited. Re-evaluate when this timestamp is over a month old, then
 > bump it (see the re-eval note in [CLAUDE.md](../CLAUDE.md)).
 >
-> **Last checked: 2026-06-23 (WWDC26)** — `fm` CLI exposes **no tools**; surface is
-> `respond` / `chat` / `schema` only. Tool calling is Swift-framework- and
-> Python-SDK-only.
+> **Last checked: 2026-11-24** — Apple’s [fm CLI and Python SDK walkthrough](https://developer.apple.com/videos/play/wwdc2026/334/)
+> documents on-device and Private Cloud Compute in the CLI and demonstrates
+> custom tool calling in the Python SDK. The CLI documentation reviewed did
+> not describe custom tool registration. Local `fm --help` requires privileged
+> acceptance of Apple's CLI terms, so the installed help remains unverified.
 
 ## Does FoundationModels support tools natively? Yes.
 

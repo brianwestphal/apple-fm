@@ -12,7 +12,7 @@ Make the on-device model usable the way other model CLIs are — free, private, 
 offline by default — for three shapes of use:
 
 ```bash
-apple-fm probe                       # is the on-device model available?
+apple-fm probe                       # list models and availability
 apple-fm generate "Summarize: …"     # one-shot text (pipe stdin too)
 echo "…" | apple-fm generate --schema shape.json   # structured/guided output
 apple-fm chat                        # interactive chat, streamed, auto-compacted
@@ -31,10 +31,9 @@ if ((await probe()).available) {
 
 ## Principles
 
-- **On-device and private.** The model runs entirely on-device — no API key, no
-  cloud — and your prompts never leave the machine. apple-fm makes **no network
-  connection at all**; every built-in tool (`read`, `bash`) is local (see
-  [3-requirements.md](3-requirements.md) NFR-1).
+- **On-device by default.** Prompts stay local and inference works offline
+  without an API key. Explicitly selecting Private Cloud Compute uses
+  Apple’s cloud service. See [model discovery and selection](12-models.md).
 - **Thin native surface, tested logic.** Only the Swift helper
   (`apple-fm-helper/*.swift`) touches `FoundationModels`. All policy — argument
   parsing, the wire protocol, chat history, auto-compaction — lives in strict

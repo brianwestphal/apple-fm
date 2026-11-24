@@ -3,7 +3,7 @@
  * Swift helper, plus small pure helpers used by both the one-shot and chat
  * paths. Everything here is pure and unit-tested directly — no I/O.
  */
-import type { GenerateRequest, HelperEvent, Message, ProbeResult, UnavailableReason } from './types.js';
+import type { GenerateRequest, HelperEvent, Message, ModelAvailability, ProbeResult, UnavailableReason } from './types.js';
 
 /** Encode a generation request as the single JSON line the helper reads. */
 export function encodeRequest(request: GenerateRequest): string {
@@ -79,11 +79,26 @@ export function parseProbeResult(line: string): ProbeResult {
   if (typeof record.available !== 'boolean') {
     throw new Error(`malformed probe result (available must be a boolean): ${line}`);
   }
-  if (record.available) return { available: true };
+  const models = record.models === undefined ? {} : { models: parseModels(record.models) };
+  if (record.available) return { available: true, ...models };
   if (typeof record.reason !== 'string' || !UNAVAILABLE_REASONS.includes(record.reason)) {
     throw new Error(`malformed probe result (missing/unknown reason): ${line}`);
   }
-  return { available: false, reason: record.reason as UnavailableReason };
+  return { available: false, reason: record.reason as UnavailableReason, ...models };
+}
+
+function parseModels(value: unknown): ModelAvailability[] {
+  if (!Array.isArray(value)) throw new Error('malformed probe result (models must be an array)');
+  return value.map((entry: unknown) => {
+    if (typeof entry === 'object' && entry !== null && 'id' in entry && typeof entry.id === 'string' &&
+        'available' in entry) {
+      if (entry.available === true) return { id: entry.id, available: true };
+      if (entry.available === false && 'reason' in entry && typeof entry.reason === 'string') {
+        return { id: entry.id, available: false, reason: entry.reason };
+      }
+    }
+    throw new Error('malformed probe result (invalid model availability)');
+  });
 }
 
 /**

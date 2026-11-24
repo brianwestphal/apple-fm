@@ -15,7 +15,7 @@ gaps noted — including code that needs on-device verification), **Deferred**
 
 | ID | Requirement | Status | Notes |
 | --- | --- | --- | --- |
-| FR-1 | Probe on-device model availability | **Shipped** | `helper.ts:probe` + Swift `--probe`; reasons mapped (`deviceNotEligible`/`appleIntelligenceNotEnabled`/`modelNotReady`). Unit-tested via stub; smoke-verified on-device. |
+| FR-1 | Probe model availability | **Shipped** | Lists [models and their availability](12-models.md). The legacy status describes the on-device model. |
 | FR-2 | One-shot text generation (`generate`) | **Shipped** | `helper.ts:generate` + Swift `--generate`; `prompt` or `messages`, `system`, `temperature`/`maxTokens`. Unit-tested; smoke-verified on-device. |
 | FR-3 | Streaming output (`--stream`) | **Shipped** | Deltas over NDJSON; helper diffs cumulative partials from `streamResponse`. Unit-tested; smoke-verified on-device. |
 | FR-4 | Conversation input (`messages[]`) | **Shipped** | Flattened to labeled turns (`protocol.ts:flattenMessages`; Swift `userPrompt`). |
@@ -23,7 +23,7 @@ gaps noted — including code that needs on-device verification), **Deferred**
 | FR-6 | Automatic context compaction | **Shipped** | `session.ts:ChatSession` summarizes older turns past `compactAtTokens`, keeps `keepRecentTurns` verbatim; recap folded into the system prompt. Unit-tested. |
 | FR-7 | Guided / structured output (`--schema`) | **Shipped** | Native guided generation (no longer prompt-guided): the JSON Schema is compiled to a `GenerationSchema` and the output is guaranteed to conform. Smoke-verified on-device. See FR-8 / [6-guided-generation.md](6-guided-generation.md). |
 | FR-8 | Native guided generation via `DynamicGenerationSchema` | **Shipped** | `apple-fm-helper` compiles the request JSON Schema to a `DynamicGenerationSchema`/`GenerationSchema` and uses `respond(to:schema:)` for guaranteed structure; **strict** — an unsupported construct fails with `unsupportedSchema`, no prompt-guided fallback. Numeric `minimum`/`maximum` are enforced; `schema`+`stream` streams full-JSON `snapshot` events. Smoke-verified on-device. See [6-guided-generation.md](6-guided-generation.md). |
-| FR-9 | CLI surface: `probe` / `generate` / `chat`, `--help`, `--version` | **Shipped** | `cliArgs.ts` (+ `cli.ts`). |
+| FR-9 | CLI surface: `probe` / `generate` / `chat`, `--help`, `--version` | **Shipped** | `generate` and `chat` accept [`--model`](12-models.md). |
 | FR-10 | Programmatic API | **Shipped** | `index.ts`: `probe`, `generate`, `ChatSession`, protocol helpers, types. |
 | FR-11 | Helper discovery | **Shipped** | `resolveHelperPath`: `APPLE_FM_BIN` → bundled `bin/apple-fm-helper` → `PATH`. |
 | FR-12 | Persistent live session (KV-cache reuse) | **Shipped** | The `--session` helper mode holds one `LanguageModelSession` across turns (`runSession`); the Node `LiveSession` (`liveSession.ts`) drives it and `ChatSession` uses it as its backend, **replacing** transcript-replay for `chat`. Compaction stays in Node (summarize → reset + reseed); crash → respawn + reseed. Smoke-verified on-device. See [7-live-session.md](7-live-session.md). |
@@ -35,7 +35,7 @@ gaps noted — including code that needs on-device verification), **Deferred**
 
 | ID | Requirement | Status | Notes |
 | --- | --- | --- | --- |
-| NFR-1 | On-device model; no API key; no network | **Shipped** | The **model runs fully on-device** — Node never imports a cloud SDK, the helper only calls `FoundationModels`, and prompts never leave the machine. apple-fm makes **no network connection at all**: every built-in tool (`read`, `bash`) is local. (Briefly reworded to allow an opt-in `web` tool under AFM-34; **restored when `web` was removed in AFM-43.**) |
+| NFR-1 | Offline by default | **Shipped** | On-device mode keeps prompts local and works offline without an API key. Explicitly selecting Private Cloud Compute uses Apple’s cloud service. Built-in tools are local. |
 | NFR-2 | Helper subprocess bounded + diagnosable | **Shipped** | Timeout + stderr capture in `helper.ts:runHelper`; structured error events. |
 | NFR-3 | Pure logic unit-tested; native/process layer stub-tested | **Shipped** | Vitest; `tests/fixtures/stub-helper.js` emulates the protocol — no device needed. |
 | NFR-4 | Strict TypeScript, ESM, lint-clean | **Shipped** | `strictTypeChecked`; `.js` import extensions; zero runtime deps. |
