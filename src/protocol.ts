@@ -5,6 +5,38 @@
  */
 import type { GenerateRequest, HelperEvent, Message, ModelAvailability, ProbeResult, UnavailableReason } from './types.js';
 
+export const MAX_HELPER_FRAME_BYTES = 4 * 1024 * 1024;
+export const MAX_HELPER_STDERR_CHARS = 4096;
+
+/** Bound a wire frame before retaining or parsing it. */
+export function assertHelperFrameSize(frame: string): void {
+  if (Buffer.byteLength(frame) > MAX_HELPER_FRAME_BYTES) {
+    throw new Error('[protocolError] helper frame exceeds 4 MiB');
+  }
+}
+
+/** One-line, bounded diagnostics from subprocess output. */
+export function helperDiagnostic(value: string): string {
+  return value.slice(0, MAX_HELPER_STDERR_CHARS)
+    // eslint-disable-next-line no-control-regex
+    .replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, '')
+    .replace(/[\p{Cc}\p{Cf}]+/gu, ' ').trim();
+}
+
+/** Format a structured error from a helper without replaying a raw wire line. */
+export function helperError(code: string, message: string): Error {
+  const label = /^[A-Za-z][A-Za-z0-9]{0,63}$/.test(code) ? code : 'protocolError';
+  return new Error(`[${label}] ${helperDiagnostic(message)}`);
+}
+
+function parseWireJson(line: string, label: string): unknown {
+  try {
+    return JSON.parse(line) as unknown;
+  } catch {
+    throw new Error(`malformed ${label} JSON`);
+  }
+}
+
 /** Encode a generation request as the single JSON line the helper reads. */
 export function encodeRequest(request: GenerateRequest): string {
   return JSON.stringify(request) + '\n';
@@ -15,8 +47,9 @@ export function encodeRequest(request: GenerateRequest): string {
  * remainder that has not yet been terminated by a newline. Carry `rest` into the
  * next chunk.
  */
-export function splitLines(buffer: string): { lines: string[]; rest: string } {
+export function splitLines(buffer: string, bounded = false): { lines: string[]; rest: string } {
   const parts = buffer.split('\n');
+  if (bounded) for (const part of parts) assertHelperFrameSize(part);
   // The last element is whatever followed the final newline (often '').
   const rest = parts.pop() ?? '';
   const lines = parts.filter((line) => line.trim().length > 0);
@@ -29,9 +62,9 @@ export function splitLines(buffer: string): { lines: string[]; rest: string } {
  * than silently dropping output.
  */
 export function parseEvent(line: string): HelperEvent {
-  const value: unknown = JSON.parse(line);
+  const value = parseWireJson(line, 'helper event');
   if (typeof value !== 'object' || value === null || !('type' in value)) {
-    throw new Error(`malformed helper event: ${line}`);
+    throw new Error('malformed helper event');
   }
   const event = value as Record<string, unknown>;
   switch (event.type) {
@@ -50,7 +83,7 @@ export function parseEvent(line: string): HelperEvent {
     default:
       break;
   }
-  throw new Error(`malformed helper event: ${line}`);
+  throw new Error('malformed helper event');
 }
 
 /** The known reasons the model can be unavailable (see {@link UnavailableReason}). */
@@ -71,21 +104,27 @@ const UNAVAILABLE_REASONS: readonly string[] = [
  * turned into a clean rejection by `helper.ts`'s `runHelper` delivery path.
  */
 export function parseProbeResult(line: string): ProbeResult {
-  const value: unknown = JSON.parse(line);
+  const value = parseWireJson(line, 'probe result');
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
-    throw new Error(`malformed probe result: ${line}`);
+    throw new Error('malformed probe result');
   }
   const record = value as Record<string, unknown>;
   if (typeof record.available !== 'boolean') {
-    throw new Error(`malformed probe result (available must be a boolean): ${line}`);
+    throw new Error('malformed probe result (available must be a boolean)');
   }
   const models = record.models === undefined ? {} : { models: parseModels(record.models) };
-  const context = record.contextSize === undefined ? {} : { contextSize: parseTokenCount(record.contextSize) };
+  const contextSize = parseContextSize(record.contextSize);
+  const context = contextSize === undefined ? {} : { contextSize };
   if (record.available) return { available: true, ...models, ...context };
   if (typeof record.reason !== 'string' || !UNAVAILABLE_REASONS.includes(record.reason)) {
-    throw new Error(`malformed probe result (missing/unknown reason): ${line}`);
+    throw new Error('malformed probe result (missing/unknown reason)');
   }
   return { available: false, reason: record.reason as UnavailableReason, ...models, ...context };
+}
+
+/** A zero capacity is a legacy marker for unavailable native accounting. */
+export function parseContextSize(value: unknown): number | undefined {
+  return value === undefined || value === 0 ? undefined : parseTokenCount(value);
 }
 
 /** Validate a numeric token count from the wire. */
@@ -94,6 +133,11 @@ export function parseTokenCount(value: unknown): number {
     throw new Error('malformed helper token count');
   }
   return value;
+}
+
+/** Decode the numeric content returned by a token-count command. */
+export function parseTokenCountResult(content: string): number {
+  return parseTokenCount(parseWireJson(content, 'helper token count'));
 }
 
 function parseModels(value: unknown): ModelAvailability[] {

@@ -87,7 +87,12 @@ indirect enum JSONValue: Decodable {
 
 // MARK: - Output
 
+private let outputLock = NSLock()
+private let maxInputFrameBytes = 4 * 1024 * 1024
+
 private func emit(_ json: String) {
+    outputLock.lock()
+    defer { outputLock.unlock() }
     FileHandle.standardOutput.write(Data((json + "\n").utf8))
 }
 
@@ -145,7 +150,10 @@ private func encodeString(_ value: String) -> String {
 // MARK: - Probe
 
 private func modelContextSize() -> Int? {
-    if #available(macOS 26.4, *) { return SystemLanguageModel.default.contextSize }
+    if #available(macOS 26.4, *) {
+        let capacity = SystemLanguageModel.default.contextSize
+        return capacity > 0 ? capacity : nil
+    }
     return nil
 }
 
@@ -580,32 +588,53 @@ private func runSession() async -> Never {
         emitToolCall(name: name, callId: callId, argumentsJSON: argumentsJSON, id: id)
     }
     let turns = SessionTurns()
-    let (commands, input) = AsyncStream<SessionCommand>.makeStream()
+    let (commands, input) = AsyncStream<SessionCommand>.makeStream(bufferingPolicy: .bufferingOldest(16))
     let worker = Task { await runSessionCommands(commands, bridge: bridge, turns: turns) }
-    do {
-        for try await line in FileHandle.standardInput.bytes.lines {
-            if line.trimmingCharacters(in: .whitespaces).isEmpty { continue }
-            guard let command = try? JSONDecoder().decode(SessionCommand.self, from: Data(line.utf8)) else {
-                emitError("badRequest", "malformed session command", id: nil)
-                continue
-            }
-            switch command.type {
-            case "tool_result":
-                await bridge.resolve(callId: command.callId ?? "", reply: .result(command.content ?? ""))
-            case "tool_error":
-                await bridge.resolve(callId: command.callId ?? "", reply: .error(command.message ?? "tool failed"))
-            case "cancel":
-                if await turns.cancel(command.id) { await bridge.cancelTurn(command.id) }
-            case "export_transcript", "import_transcript", "count_tokens", "reset":
-                input.yield(command)
-            default:
-                if await turns.enqueue(command.id) {
-                    input.yield(command)
-                } else {
-                    emitError("badRequest", "duplicate pending turn id", id: nil)
-                }
+
+    func queue(_ command: SessionCommand, turn: Bool = false) async {
+        if case .dropped = input.yield(command) {
+            if turn { await turns.discardQueued(command.id) }
+            emitError("badRequest", "session command queue is full", id: command.id)
+        }
+    }
+
+    func consume(_ line: Data) async {
+        if line.allSatisfy({ $0 == 32 || $0 == 9 || $0 == 13 }) { return }
+        guard let command = try? JSONDecoder().decode(SessionCommand.self, from: line) else {
+            emitError("badRequest", "malformed session command", id: nil)
+            return
+        }
+        switch command.type {
+        case "tool_result":
+            await bridge.resolve(callId: command.callId ?? "", reply: .result(command.content ?? ""))
+        case "tool_error":
+            await bridge.resolve(callId: command.callId ?? "", reply: .error(command.message ?? "tool failed"))
+        case "cancel":
+            if await turns.cancel(command.id) { await bridge.cancelTurn(command.id) }
+        case "export_transcript", "import_transcript", "count_tokens", "reset":
+            await queue(command)
+        default:
+            if await turns.enqueue(command.id) {
+                await queue(command, turn: true)
+            } else {
+                emitError("badRequest", "duplicate pending turn id", id: nil)
             }
         }
+    }
+    do {
+        var line = Data()
+        for try await byte in FileHandle.standardInput.bytes {
+            if byte == 10 {
+                await consume(line)
+                line.removeAll(keepingCapacity: true)
+            } else {
+                guard line.count < maxInputFrameBytes else {
+                    failEvent("badRequest", "session command exceeds 4 MiB")
+                }
+                line.append(byte)
+            }
+        }
+        if !line.isEmpty { await consume(line) }
         input.finish()
         await worker.value
     } catch {
@@ -617,7 +646,21 @@ private func runSession() async -> Never {
 // MARK: - Entry
 
 private func readRequest() -> GenerateRequest {
-    let data = FileHandle.standardInput.readDataToEndOfFile()
+    var data = Data()
+    do {
+        while let chunk = try FileHandle.standardInput.read(upToCount: 64 * 1024), !chunk.isEmpty {
+            guard data.count + chunk.count <= maxInputFrameBytes + 1 else {
+                failEvent("badRequest", "generation request exceeds 4 MiB")
+            }
+            data.append(chunk)
+        }
+    } catch {
+        failEvent("badRequest", "could not read the generation request")
+    }
+    if data.last == 10 { data.removeLast() }
+    guard data.count <= maxInputFrameBytes else {
+        failEvent("badRequest", "generation request exceeds 4 MiB")
+    }
     guard let request = try? JSONDecoder().decode(GenerateRequest.self, from: data) else {
         failEvent("badRequest", "expected a JSON generation request on stdin")
     }

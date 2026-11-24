@@ -10,7 +10,7 @@
 import { type ChildProcessWithoutNullStreams,spawn } from 'node:child_process';
 
 import { assertSupportedModel, isPlatformSupported, resolveHelperPath, unsupportedPlatformError, usingBundledHelper } from './helper.js';
-import { parseTokenCount, splitLines } from './protocol.js';
+import { assertHelperFrameSize, helperDiagnostic, helperError, MAX_HELPER_STDERR_CHARS, parseContextSize, parseTokenCountResult, splitLines } from './protocol.js';
 import { dispatchToolCall } from './tools/dispatch.js';
 import { PermissionPolicy, type ToolRegistry } from './tools/index.js';
 import type { DeltaHandler, GenerateOptions, HelperOptions, Message, ModelId } from './types.js';
@@ -48,7 +48,7 @@ interface Pending {
   resolve: (content: string) => void;
   reject: (error: Error) => void;
   onDelta: DeltaHandler | undefined;
-  acc: string;
+  replyType: 'ready' | 'result';
   timer: ReturnType<typeof setTimeout>;
   removeAbortListener?: () => void;
   toolLifetime?: AbortController;
@@ -139,7 +139,7 @@ export class LiveSession implements ChatBackend {
     if (contextSize === undefined || !this.isActive()) return undefined;
     try {
       const content = await this.dispatch({ type: 'count_tokens', prompt }, undefined);
-      return { tokens: parseTokenCount(JSON.parse(content)), contextSize };
+      return { tokens: parseTokenCountResult(content), contextSize };
     } catch {
       return undefined;
     }
@@ -193,24 +193,36 @@ export class LiveSession implements ChatBackend {
     if (existing !== undefined && this.isActive()) return existing;
     if (existing !== undefined) this.retireChild(existing, new Error('[sessionClosed] live session helper exited'));
     const child = spawn(this.command, ['--session'], { stdio: ['pipe', 'pipe', 'pipe'] });
+    let stderr = '';
     this.buffer = '';
     child.stdout.setEncoding('utf8');
     child.stdout.on('data', (chunk: string) => {
-      if (this.child === child) this.onStdout(child, chunk);
+      if (this.child !== child) return;
+      try {
+        this.onStdout(child, chunk);
+      } catch (error) {
+        this.retireChild(child, error instanceof Error ? error : new Error(String(error)));
+      }
+    });
+    child.stderr.setEncoding('utf8');
+    child.stderr.on('data', (chunk: string) => {
+      stderr += chunk.slice(0, MAX_HELPER_STDERR_CHARS - stderr.length);
     });
     child.stdin.on('error', () => undefined); // swallow EPIPE if the helper exits early
-    const onGone = (): void => {
-      this.retireChild(child, new Error('[sessionClosed] live session helper exited'));
+    const onGone = (detail: string): void => {
+      const diagnostic = helperDiagnostic(detail);
+      const message = diagnostic.length > 0 ? `live session helper exited: ${diagnostic}` : 'live session helper exited';
+      this.retireChild(child, new Error(`[sessionClosed] ${message}`));
     };
-    child.on('close', onGone);
-    child.on('error', onGone);
+    child.on('close', () => { onGone(stderr); });
+    child.on('error', (error) => { onGone(error.message); });
     this.child = child;
     return child;
   }
 
   private onStdout(child: ChildProcessWithoutNullStreams, chunk: string): void {
     this.buffer += chunk;
-    const { lines, rest } = splitLines(this.buffer);
+    const { lines, rest } = splitLines(this.buffer, true);
     this.buffer = rest;
     for (const line of lines) {
       if (this.child !== child) return;
@@ -230,7 +242,7 @@ export class LiveSession implements ChatBackend {
     if (typeof event.id !== 'string') {
       // Startup can fail before the helper reads a command ID.
       if (event.type === 'error' && typeof event.code === 'string' && typeof event.message === 'string') {
-        this.retireChild(child, new Error(`[${event.code}] ${event.message}`));
+        this.retireChild(child, helperError(event.code, event.message));
       }
       return;
     }
@@ -239,10 +251,8 @@ export class LiveSession implements ChatBackend {
     if (pending === undefined) return;
     switch (event.type) {
       case 'delta':
-        if (typeof event.text === 'string') {
-          pending.acc += event.text;
-          pending.onDelta?.(event.text);
-        }
+        if (typeof event.text !== 'string') throw new Error('[protocolError] malformed live delta');
+        pending.onDelta?.(event.text);
         break;
       case 'tool_call':
         // A tool the model invoked mid-turn. Run it (in Node) and write the result
@@ -251,18 +261,22 @@ export class LiveSession implements ChatBackend {
         void this.handleToolCall(id, pending, event);
         break;
       case 'ready':
+        if (pending.replyType !== 'ready') throw new Error('[protocolError] unexpected live ready event');
         this.transcriptPersistence = event.transcriptPersistence === true;
-        this.contextSize =
-          typeof event.contextSize === 'number' && Number.isSafeInteger(event.contextSize) && event.contextSize > 0
-            ? event.contextSize
-            : undefined;
+        this.contextSize = parseContextSize(event.contextSize);
         this.settle(id, '');
         break;
       case 'result':
-        this.settle(id, typeof event.content === 'string' ? event.content : pending.acc);
+        if (pending.replyType !== 'result' || typeof event.content !== 'string') {
+          throw new Error('[protocolError] malformed or unexpected live result');
+        }
+        this.settle(id, event.content);
         break;
       case 'error':
-        this.fail(id, `[${String(event.code)}] ${String(event.message)}`);
+        if (typeof event.code !== 'string' || typeof event.message !== 'string') {
+          throw new Error('[protocolError] malformed live error');
+        }
+        this.takePending(id)?.reject(helperError(event.code, event.message));
         break;
       default:
         break;
@@ -284,7 +298,10 @@ export class LiveSession implements ChatBackend {
       isCurrent,
       signal: pending.toolLifetime?.signal,
       send: (command) => {
-        if (isCurrent()) pending.child.stdin.write(JSON.stringify(command) + '\n');
+        if (!isCurrent()) return;
+        const line = JSON.stringify(command);
+        assertHelperFrameSize(line);
+        pending.child.stdin.write(line + '\n');
       },
     });
   }
@@ -303,30 +320,29 @@ export class LiveSession implements ChatBackend {
     this.takePending(id)?.resolve(content);
   }
 
-  private fail(id: string, message: string): void {
-    this.takePending(id)?.reject(new Error(message));
-  }
-
-  private dispatch(
+  private async dispatch(
     command: Record<string, unknown>,
     onDelta: DeltaHandler | undefined,
     signal?: AbortSignal,
   ): Promise<string> {
-    if (signal?.aborted === true) return Promise.resolve('');
+    if (signal?.aborted === true) return '';
     // Off-platform the bundled macOS helper can't run — fail with a clear error
     // rather than spawning it and surfacing a raw [sessionClosed].
-    if (this.bundled && !isPlatformSupported()) return Promise.reject(unsupportedPlatformError());
-    const child = this.ensureChild();
+    if (this.bundled && !isPlatformSupported()) throw unsupportedPlatformError();
     const id = String(this.nextId++);
+    const line = JSON.stringify({ ...command, id });
+    assertHelperFrameSize(line);
+    const child = this.ensureChild();
+    const replyType = command.type === 'reset' || command.type === 'import_transcript' ? 'ready' : 'result';
     return new Promise<string>((resolve, reject) => {
       const timer = setTimeout(() => {
         if (this.child !== child || !this.pending.has(id)) return;
         this.retireChild(child, new Error('[sessionClosed] live session helper terminated after a command timed out'), id);
       }, this.timeoutMs);
       const toolLifetime = this.tools !== undefined ? new AbortController() : undefined;
-      const pending: Pending = { child, resolve, reject, onDelta, acc: '', timer, toolLifetime };
+      const pending: Pending = { child, resolve, reject, onDelta, replyType, timer, toolLifetime };
       this.pending.set(id, pending);
-      child.stdin.write(JSON.stringify({ ...command, id }) + '\n');
+      child.stdin.write(line + '\n');
       // Interrupt (FR-15): tell the helper to cancel this turn; it ends by emitting a
       // `result` with the partial text, which settles the pending promise normally.
       if (signal !== undefined) {

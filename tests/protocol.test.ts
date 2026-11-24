@@ -56,6 +56,7 @@ describe('parseProbeResult', () => {
       available: true, contextSize: 4096,
     });
     expect(() => parseProbeResult('{"available":true,"contextSize":-1}')).toThrow(/malformed helper token count/);
+    expect(parseProbeResult('{"available":true,"contextSize":0}')).toEqual({ available: true });
   });
 
   it('accepts a well-formed available result (ignores any stray fields)', () => {

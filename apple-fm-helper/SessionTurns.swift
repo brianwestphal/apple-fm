@@ -10,6 +10,10 @@ actor SessionTurns {
         return true
     }
 
+    func discardQueued(_ id: String?) {
+        if let id { queued.removeValue(forKey: id) }
+    }
+
     /// Returns `false` for a turn cancelled before it started.
     func run(_ id: String?, operation: @escaping @Sendable () async -> Void) async -> Bool {
         if let id, queued.removeValue(forKey: id) == true { return false }

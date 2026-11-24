@@ -136,7 +136,8 @@ if (process.env.STUB_HANG === '1') {
       : { available: true };
     const models = [{ id: 'on-device', ...local }];
     if (process.env.STUB_EXTRA_MODEL === '1') models.push({ id: 'extra', available: true });
-    write(process.env.STUB_LIST_MODELS === '1' ? { ...local, models } : local);
+    const context = process.env.STUB_TOKEN_BUDGET === 'zero' ? { contextSize: 0 } : {};
+    write(process.env.STUB_LIST_MODELS === '1' ? { ...local, ...context, models } : { ...local, ...context });
   }
   process.exit(0);
 } else if (args.includes('--tokens') || args.includes('--generate') || args.includes('--generate-image') || args.includes('--generate-images') || args.includes('--tag-content')) {
@@ -145,6 +146,15 @@ if (process.env.STUB_HANG === '1') {
   process.stdin.on('data', (d) => (input += d));
   process.stdin.on('end', () => {
     const req = JSON.parse(input);
+    if (req.prompt === 'DOUBLE_RESULT') {
+      write({ type: 'result', content: 'first' });
+      write({ type: 'result', content: 'second' });
+      return;
+    }
+    if (req.prompt === 'OVERSIZED_FRAME') {
+      process.stdout.write(' '.repeat(4 * 1024 * 1024 + 1));
+      return;
+    }
     if (req.prompt === 'BOOM') {
       write({ type: 'error', code: 'inferenceFailed', message: 'boom' });
       process.exit(1);
@@ -201,6 +211,9 @@ if (process.env.STUB_HANG === '1') {
     process.exit(0);
   });
 } else if (args.includes('--session')) {
+  if (process.env.STUB_STARTUP_STDERR === '1') {
+    process.stderr.write('\x1b[31mstartup message\x1b[0m\n' + 'x'.repeat(10_000), () => process.exit(2));
+  }
   if (process.env.STUB_UNAVAILABLE === '1') {
     write({ type: 'error', code: 'unavailable', message: 'Apple Foundation Models unavailable' });
     process.exit(1);
@@ -237,6 +250,7 @@ if (process.env.STUB_HANG === '1') {
     id,
     transcriptPersistence: process.env.STUB_LEGACY_TRANSCRIPT !== '1',
     ...(process.env.STUB_TOKEN_BUDGET === '1' ? { contextSize: 4096 } : {}),
+    ...(process.env.STUB_TOKEN_BUDGET === 'zero' ? { contextSize: 0 } : {}),
   });
   const handleLine = (line) => {
     if (line.trim() === '') return;
@@ -322,6 +336,15 @@ if (process.env.STUB_HANG === '1') {
       return;
     }
     const prompt = cmd.prompt ?? '';
+    if (prompt === 'OVERSIZED_FRAME') {
+      process.stdout.write(' '.repeat(4 * 1024 * 1024 + 1));
+      return;
+    }
+    if (prompt === 'MISSING_RESULT_CONTENT') {
+      write({ type: 'delta', id: cmd.id, text: 'partial' });
+      write({ type: 'result', id: cmd.id });
+      return;
+    }
     if (prompt === 'BOOM') {
       write({ type: 'error', id: cmd.id, code: 'inferenceFailed', message: 'boom' });
       return;

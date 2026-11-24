@@ -91,6 +91,12 @@ place), so each snapshot **replaces** the last rather than appending.
 `result.content` is the full text — or, for guided output, the complete JSON
 string.
 
+The bridge limits each input and output frame to 4 MiB of UTF-8, excluding the
+newline. A one-shot response has one terminal result. Additional events after
+that result are a protocol error. Oversized frames and malformed matched terminal
+events fail without exposing the raw wire data. Captured stderr is bounded and
+normalized to one line before being shown to the caller.
+
 ### Error codes
 
 `badRequest`, `unsupportedSchema`, `unavailable`, `modelNotReady`,
@@ -112,6 +118,8 @@ A **long-lived** mode (FR-12; see [7-live-session.md](7-live-session.md)) that h
 one `LanguageModelSession` across many turns so its KV-cache is reused — instead of
 replaying the whole transcript each turn. It reads **one command per stdin line**,
 processes them serially, and exits 0 on EOF.
+The helper queues up to 16 pending session commands while a turn is running.
+Cancellation and tool replies are routed immediately, independently of the queue.
 
 Because many commands flow over one process, each command may carry an `id` that the
 helper echoes on every event it produces, so the Node side can correlate them.
@@ -140,6 +148,9 @@ Events are the same vocabulary as `--generate` (`delta` / `result` / `error`) pl
 A turn `error` is reported **per-turn** and does not end the session — the loop
 keeps running for the next command (`contextWindowExceeded` lets the Node side
 compact, `reset`, and retry). Only stdin EOF (or a fatal read error) stops it.
+Uncorrelated output noise is ignored. An error without an ID is a session-wide
+diagnostic and retires the helper. A matched `result` must carry text, including
+an explicit empty string for an empty reply.
 
 ### Transcript persistence and token accounting
 
@@ -154,7 +165,8 @@ A session helper that supports native accounting advertises `contextSize` in
 its `ready` reply. Clients can then send a correlated `count_tokens` command with
 the next `prompt`. Its `result.content` reports the transcript and prompt counts
 combined. An empty or omitted prompt counts the active transcript alone. Clients
-use the existing estimate when the advertisement is absent.
+use the existing estimate when the advertisement is absent. Zero capacity in a
+legacy probe or ready event is treated as absence.
 
 ### Tool calling (FR-14)
 

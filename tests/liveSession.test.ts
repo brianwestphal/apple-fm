@@ -48,6 +48,40 @@ describe('LiveSession', () => {
     }
   });
 
+  it('omits zero native capacity from live accounting (AFM-KFY32V)', async () => {
+    vi.stubEnv('STUB_TOKEN_BUDGET', 'zero');
+    const session = new LiveSession({ binPath: STUB });
+    try {
+      await session.reset('');
+      expect(await session.tokenBudget('abc')).toBeUndefined();
+    } finally {
+      session.close();
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it('surfaces bounded, sanitized startup stderr (AFM-KFY32V)', async () => {
+    vi.stubEnv('STUB_STARTUP_STDERR', '1');
+    const session = new LiveSession({ binPath: STUB });
+    try {
+      await expect(session.reset('')).rejects.toThrow(/^\[sessionClosed\] live session helper exited: startup message x{1,4096}$/);
+    } finally {
+      session.close();
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it.each(['OVERSIZED_FRAME', 'MISSING_RESULT_CONTENT'])('rejects invalid live terminal data %s (AFM-KFY32V)', async (prompt) => {
+    const session = new LiveSession({ binPath: STUB });
+    try {
+      await session.reset('');
+      await expect(session.send(prompt)).rejects.toThrow(/\[protocolError\]/);
+      expect(session.isActive()).toBe(false);
+    } finally {
+      session.close();
+    }
+  });
+
   it('keeps context across turns in one session (KV-cache reuse)', async () => {
     const session = new LiveSession({ binPath: STUB });
     try {

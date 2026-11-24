@@ -97,6 +97,14 @@ describe('probe', () => {
 });
 
 describe('generate', () => {
+  it.each([
+    { prompt: 'DOUBLE_RESULT', error: /event after the generation result/ },
+    { prompt: 'OVERSIZED_FRAME', error: /frame exceeds 4 MiB/ },
+    { prompt: '用'.repeat(1_400_000), error: /frame exceeds 4 MiB/ },
+  ])('rejects a generation protocol violation (AFM-KFY32V)', async ({ prompt, error }) => {
+    await expect(generate({ prompt }, { binPath: STUB })).rejects.toThrow(error);
+  });
+
   it('passes the request through and returns the result content', async () => {
     const content = await generate(
       { prompt: 'hi', system: 'be terse', options: { temperature: 0.3, maxTokens: 64 } },

@@ -26,3 +26,10 @@ reject_schema '{"type":"object","properties":{},"required":["missing"]}' 'declar
 reject_schema '{"type":"string","enum":[]}' 'non-empty'
 reject_schema '{"type":"string","oneOf":[{"type":"string"}]}' 'oneOf'
 reject_schema '{"type":"object","properties":{},"additionalProperties":{"type":"string"}}' 'additionalProperties'
+
+# AFM-KFY32V: reject oversized input before decoding or loading the model.
+if output=$(head -c 4194305 /dev/zero | "$helper" --generate); then
+  echo 'Expected oversized native request to fail' >&2
+  exit 1
+fi
+jq -e '.type == "error" and .code == "badRequest" and (.message | contains("4 MiB"))' <<< "$output" >/dev/null

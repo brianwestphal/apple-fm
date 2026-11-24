@@ -7,7 +7,7 @@
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-import { encodeRequest, parseEvent, parseProbeResult, parseTokenCount, splitLines } from './protocol.js';
+import { assertHelperFrameSize, encodeRequest, helperDiagnostic, helperError, MAX_HELPER_STDERR_CHARS, parseEvent, parseProbeResult, parseTokenCountResult, splitLines } from './protocol.js';
 import type { DeltaHandler, GenerateRequest, HelperOptions, ProbeResult, SnapshotHandler } from './types.js';
 
 /** Environment variable that pins the helper binary path. */
@@ -72,6 +72,7 @@ function runHelper(
   input: string | undefined,
   onLine: (line: string) => void,
 ): Promise<void> {
+  if (input !== undefined) assertHelperFrameSize(input.slice(0, -1));
   const command = resolveHelperPath(options);
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   return new Promise((resolve, reject) => {
@@ -114,13 +115,20 @@ function runHelper(
 
     child.stdout.setEncoding('utf8');
     child.stdout.on('data', (chunk: string) => {
-      stdout += chunk;
-      const { lines, rest } = splitLines(stdout);
-      stdout = rest;
-      for (const line of lines) if (!deliver(line)) return;
+      if (settled) return;
+      try {
+        const { lines, rest } = splitLines(stdout + chunk, true);
+        stdout = rest;
+        for (const line of lines) if (!deliver(line)) return;
+      } catch (error) {
+        child.kill('SIGKILL');
+        finish(error instanceof Error ? error : new Error(String(error)));
+      }
     });
     child.stderr.setEncoding('utf8');
-    child.stderr.on('data', (chunk: string) => (stderr += chunk));
+    child.stderr.on('data', (chunk: string) => {
+      stderr += chunk.slice(0, MAX_HELPER_STDERR_CHARS - stderr.length);
+    });
 
     child.on('close', (code) => {
       if (settled) return;
@@ -128,7 +136,7 @@ function runHelper(
       const trailing = stdout.trim();
       if (trailing.length > 0 && !deliver(trailing)) return;
       if (code === 0) finish();
-      else finish(new Error(`apple-fm helper exited with code ${String(code)}: ${stderr.trim()}`));
+      else finish(new Error(`apple-fm helper exited with code ${String(code)}: ${helperDiagnostic(stderr)}`));
     });
 
     if (input !== undefined) {
@@ -149,9 +157,10 @@ export async function probe(options: HelperOptions = {}): Promise<ProbeResult> {
   }
   let result: ProbeResult | undefined;
   // `--probe` emits a single bare JSON line that *is* the ProbeResult (not an
-  // NDJSON event); the last such line wins. Validate its shape (AFM-79) rather than
+  // NDJSON event). Validate its shape (AFM-79) rather than
   // casting a possibly-malformed line straight to ProbeResult.
   await runHelper(['--probe'], options, undefined, (line) => {
+    if (result !== undefined) throw new Error('[protocolError] helper produced duplicate probe results');
     result = parseProbeResult(line);
   });
   if (result === undefined) throw new Error('apple-fm helper --probe produced no result');
@@ -172,8 +181,9 @@ export async function countTokens(prompt: string, options: HelperOptions = {}): 
   let count: number | undefined;
   await runHelper(['--tokens'], options, encodeRequest({ prompt }), (line) => {
     const event = parseEvent(line);
-    if (event.type === 'error') throw new Error(`[${event.code}] ${event.message}`);
-    if (event.type === 'result') count = parseTokenCount(JSON.parse(event.content));
+    if (count !== undefined) throw new Error('[protocolError] helper sent an event after the token count result');
+    if (event.type === 'error') throw helperError(event.code, event.message);
+    if (event.type === 'result') count = parseTokenCountResult(event.content);
   });
   if (count === undefined) throw new Error('apple-fm helper --tokens produced no result');
   return count;
@@ -219,6 +229,7 @@ export async function generate(
     wireRequest.imagePath = first;
   }
   await runHelper([mode], options, encodeRequest(wireRequest), (line) => {
+    if (content !== undefined) throw new Error('[protocolError] helper sent an event after the generation result');
     const event = parseEvent(line);
     switch (event.type) {
       case 'delta':
@@ -231,7 +242,7 @@ export async function generate(
         content = event.content;
         break;
       case 'error':
-        throw new Error(`[${event.code}] ${event.message}`);
+        throw helperError(event.code, event.message);
     }
   });
   if (content === undefined) throw new Error(`apple-fm helper ${mode} produced no result`);
