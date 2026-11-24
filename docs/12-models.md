@@ -14,4 +14,23 @@ The library accepts the same ID through `GenerateRequest.model`,
 `ChatSessionConfig.model`, and `LiveSessionConfig.model`. It is also the default
 for generation, chat, and compaction.
 
+## Content tagging
+
+With `generate --use-case content-tagging`, apple-fm uses the on-device
+`SystemLanguageModel(useCase: .contentTagging)` specialization on macOS 26 and
+later (AFM-AADSBY). Pass standalone text as the prompt argument or via stdin.
+The command writes a JSON array of short strings. It extracts topic tags by
+default. Use `--system` to ask for actions, objects, or emotions. Tag wording
+and language may vary.
+
+```sh
+printf '%s\n' "We had a picnic at the beach." | apple-fm generate --use-case content-tagging
+```
+
+The tagging use case has a fixed array output and cannot be combined with
+`--stream` or `--schema`. `generate --use-case general` uses regular generation,
+which is the default. Chat uses the general use case. In the library, set
+`GenerateRequest.useCase` to `content-tagging` and parse the returned JSON string
+to read the tags.
+
 See the [wire protocol](4-protocol.md) and [manual test plan](manual-test-plan.md).

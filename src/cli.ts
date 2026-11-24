@@ -52,7 +52,9 @@ async function main(): Promise<void> {
       const options: GenerateOptions = {};
       if (args.temperature !== undefined) options.temperature = args.temperature;
       if (args.maxTokens !== undefined) options.maxTokens = args.maxTokens;
-      const request: GenerateRequest = { model: args.model, prompt, system: args.system, options, stream: args.stream };
+      const request: GenerateRequest = {
+        model: args.model, useCase: args.useCase, prompt, system: args.system, options, stream: args.stream,
+      };
       if (args.schemaFile !== undefined) request.schema = JSON.parse(await readFile(args.schemaFile, 'utf8'));
       const structured = args.schemaFile !== undefined;
       // Freeform streaming appends text deltas; structured streaming gets full

@@ -27,6 +27,8 @@ Keep status markers in sync with the implementation.
 
 - **FR-15 Interrupt the in-flight reply (Esc)** — Shipped. REPL aborts the current turn on **Esc** (AFM-37): a `cancel` session command cancels the helper turn, which ends with its **partial** `result` (not an error), threaded `LiveSession.send(…, signal)` → `ChatSession.send(…, signal)` → `repl.ts` keypress. User prompt + partial reply kept in history; prints `(interrupted)`; TTY-only. Node path unit-tested device-free; the **Swift cancel path is on-device verified** (AFM-45 — `streamResponse` stops, clean partial `result`, session survives). Literal TTY keypress is a quick manual smoke (MT-1).
 
+- **FR-16 On-device content tagging** — Shipped. `generate --use-case content-tagging` reads argument or stdin text and emits a JSON array of tags. See [model use cases](../12-models.md).
+
 ## Non-functional
 
 - **NFR-1 Offline and on-device** — Shipped. Inference and built-in tools run locally without an API key.

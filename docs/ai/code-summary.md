@@ -39,7 +39,7 @@ tests/            # protocol, cliArgs, session, helper, liveSession, docs, demo 
 - Protocol: `encodeRequest`, `splitLines`, `parseEvent`, `flattenMessages`,
   `estimateTokens`, `estimateConversationTokens`.
 - Types: `Message`, `Role`, `GenerateRequest`, `GenerateOptions`, `ProbeResult`,
-  `ModelId`, `ModelAvailability`, `UnavailableReason`, `HelperEvent`, `HelperOptions`, `DeltaHandler`,
+  `GenerateUseCase`, `ModelId`, `ModelAvailability`, `UnavailableReason`, `HelperEvent`, `HelperOptions`, `DeltaHandler`,
   `SnapshotHandler`.
 
 ## Where do I look to…

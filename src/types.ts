@@ -23,6 +23,9 @@ export interface GenerateOptions {
   maxTokens?: number;
 }
 
+/** On-device model specializations supported by one-shot generation. */
+export type GenerateUseCase = 'general' | 'content-tagging';
+
 /**
  * A single generation request sent to the helper's `--generate` mode.
  *
@@ -31,6 +34,8 @@ export interface GenerateOptions {
  * requests guided generation that conforms to the given JSON Schema.
  */
 export interface GenerateRequest {
+  /** Specialization for one-shot generation. Content tagging returns a JSON array of strings. */
+  useCase?: GenerateUseCase;
   /** Model to use. Defaults to on-device. */
   model?: ModelId;
   /** Instructions for the session (the system prompt). */

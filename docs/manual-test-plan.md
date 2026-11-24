@@ -45,4 +45,6 @@ usable). This case now only covers the **live TTY keypress** (readline `keypress
 
 Build the helper and run it through the rebuilt CLI on macOS 26 and later.
 Verify that probe lists only `on-device`. Select `--model on-device` and verify a
-one-shot reply and a chat reply after `/clear`.
+one-shot reply and a chat reply after `/clear`. Run `generate --use-case
+content-tagging "We had a picnic at the beach"` and verify stdout parses as a
+JSON array of relevant tags.

@@ -181,9 +181,17 @@ export async function generate(
 ): Promise<string> {
   if (usingBundledHelper(options) && !isPlatformSupported()) throw unsupportedPlatformError();
   let content: string | undefined;
-  const { model, ...wireRequest } = request;
+  const { model, useCase, ...wireRequest } = request;
   assertSupportedModel(model);
-  await runHelper(['--generate'], options, encodeRequest(wireRequest), (line) => {
+  const tagging = useCase === 'content-tagging';
+  if (useCase !== undefined && useCase !== 'general' && !tagging) {
+    throw new Error('unknown use case (choose general or content-tagging)');
+  }
+  if (tagging && (request.stream === true || request.schema !== undefined)) {
+    throw new Error('content-tagging cannot be combined with streaming or a custom schema');
+  }
+  const mode = tagging ? '--tag-content' : '--generate';
+  await runHelper([mode], options, encodeRequest(wireRequest), (line) => {
     const event = parseEvent(line);
     switch (event.type) {
       case 'delta':
@@ -199,6 +207,6 @@ export async function generate(
         throw new Error(`[${event.code}] ${event.message}`);
     }
   });
-  if (content === undefined) throw new Error('apple-fm helper --generate produced no result');
+  if (content === undefined) throw new Error(`apple-fm helper ${mode} produced no result`);
   return content;
 }

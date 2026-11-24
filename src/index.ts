@@ -56,6 +56,7 @@ export type {
   DeltaHandler,
   GenerateOptions,
   GenerateRequest,
+  GenerateUseCase,
   HelperEvent,
   HelperOptions,
   Message,

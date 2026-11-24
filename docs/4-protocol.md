@@ -1,8 +1,8 @@
 # 4. Wire Protocol
 
 The Node layer and the Swift helper communicate over **line-delimited JSON
-(NDJSON)** on stdin/stdout. The helper has three modes, selected by a flag:
-`--probe`, the one-shot `--generate`, and the long-lived `--session`.
+(NDJSON)** on stdin/stdout. Select a helper mode with a flag:
+`--probe`, one-shot `--generate` and `--tag-content`, and the long-lived `--session`.
 See [model discovery and selection](12-models.md).
 
 ## `--probe`
@@ -24,6 +24,14 @@ The top-level `reason` (present only when unavailable) is one of `deviceNotEligi
 more reason it synthesizes **without running the helper** — `unsupportedPlatform`,
 when the OS/CPU can't run the macOS helper at all (not macOS on Apple Silicon) —
 so apple-fm can be a dependency of a cross-platform project and degrade gracefully.
+
+## `--tag-content`
+
+Takes the same request JSON as `--generate` and runs the content-tagging
+specialization. A successful `result.content` is a JSON-encoded array of strings.
+`stream: true` and `schema` produce a `badRequest` error. The Node layer selects
+this mode for `GenerateRequest.useCase: "content-tagging"`. An older helper
+rejects the mode as an unknown flag.
 
 ## `--generate`
 

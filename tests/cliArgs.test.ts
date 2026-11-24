@@ -39,6 +39,29 @@ describe('parseArgs', () => {
     expect(() => parseArgs([command, '--model', '--system'])).toThrow(/requires a value/);
   });
 
+  it('parses general and content tagging for generate', () => {
+    expect(parseArgs(['generate', '--use-case', 'content-tagging', 'Hello'])).toMatchObject({
+      command: 'generate', prompt: 'Hello', useCase: 'content-tagging',
+    });
+    expect(parseArgs(['generate', '--use-case', 'general', '--stream'])).toMatchObject({
+      useCase: 'general', stream: true,
+    });
+  });
+
+  it('rejects missing or unknown use cases and tagging in chat', () => {
+    expect(() => parseArgs(['generate', '--use-case'])).toThrow(/requires a value/);
+    expect(() => parseArgs(['generate', '--use-case', '--stream'])).toThrow(/requires a value/);
+    expect(() => parseArgs(['generate', '--use-case', 'other'])).toThrow(/unknown use case/);
+    expect(() => parseArgs(['chat', '--use-case', 'content-tagging'])).toThrow(/unknown flag/);
+  });
+
+  it.each([{ flags: ['--stream'] }, { flags: ['--schema', 'shape.json'] }])(
+    'rejects $flags with the content tagging use case',
+    ({ flags }) => {
+      expect(() => parseArgs(['generate', '--use-case', 'content-tagging', ...flags])).toThrow(/cannot be combined/);
+    },
+  );
+
   it('parses generate --schema', () => {
     const parsed = parseArgs(['generate', 'x', '--schema', 'shape.json']);
     expect(parsed).toMatchObject({ command: 'generate', prompt: 'x', schemaFile: 'shape.json', stream: false });

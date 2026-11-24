@@ -6,7 +6,7 @@
 // Protocol:
 //   apple-fm-helper --probe
 //       → one JSON line with on-device status and its model entry.
-//   apple-fm-helper --generate
+//   apple-fm-helper --generate (or --tag-content for JSON topic tags)
 //       reads one request object on stdin:
 //         {"system"?,"prompt"?,"messages"?:[{"role","content"}],
 //          "schema"?,"options"?:{"temperature"?,"maxTokens"?},"stream"?}
@@ -210,6 +210,39 @@ private func generationOptions(_ options: WireOptions?) -> GenerationOptions {
     return GenerationOptions(
         temperature: options.temperature,
         maximumResponseTokens: options.maxTokens)
+}
+
+@Generable
+private struct ContentTags {
+    @Guide(description: "Short tags that categorize the input text.")
+    let tags: [String]
+}
+
+private func tagContent(_ request: GenerateRequest) async -> Never {
+    guard request.schema == nil, request.stream != true else {
+        failEvent("badRequest", "content-tagging cannot be combined with streaming or a custom schema")
+    }
+    let model = SystemLanguageModel(useCase: .contentTagging)
+    guard case .available = model.availability else {
+        failEvent("unavailable", "Apple Foundation Models content tagging unavailable")
+    }
+    let session = LanguageModelSession(
+        model: model,
+        instructions: instructions(for: request) ?? "Return the most significant topic tags in the input."
+    )
+    do {
+        let response = try await session.respond(
+            to: userPrompt(for: request),
+            generating: ContentTags.self,
+            options: generationOptions(request.options)
+        )
+        let data = try JSONEncoder().encode(response.content.tags)
+        emitResult(String(decoding: data, as: UTF8.self))
+    } catch {
+        let f = failure(for: error)
+        failEvent(f.code, f.message)
+    }
+    exit(0)
 }
 
 private func generate(_ request: GenerateRequest) async -> Never {
@@ -481,10 +514,14 @@ if args.contains("--probe") {
     let request = readRequest()
     Task { await generate(request) }
     dispatchMain()
+} else if args.contains("--tag-content") {
+    let request = readRequest()
+    Task { await tagContent(request) }
+    dispatchMain()
 } else if args.contains("--session") {
     Task { await runSession() }
     dispatchMain()
 } else {
-    FileHandle.standardError.write(Data("usage: apple-fm-helper --probe | --generate | --session\n".utf8))
+    FileHandle.standardError.write(Data("usage: apple-fm-helper --probe | --generate | --tag-content | --session\n".utf8))
     exit(64)
 }

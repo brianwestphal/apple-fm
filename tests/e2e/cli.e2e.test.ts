@@ -123,6 +123,25 @@ describe('apple-fm CLI (e2e)', () => {
   });
 
   describe('generate', () => {
+    it.each([
+      { args: ['Beach Picnic'], input: undefined },
+      { args: [], input: 'Beach Picnic\n' },
+    ])('returns a JSON tag array from input $input', async ({ args, input }) => {
+      const { code, stdout, stderr } = await runCli(['generate', '--use-case', 'content-tagging', ...args], { input });
+      expect(code).toBe(0);
+      expect(stderr).toBe('');
+      expect(JSON.parse(stdout)).toEqual(['beach picnic']);
+    }, T);
+
+    it('rejects tagging with a custom schema before opening the schema file', async () => {
+      const { code, stdout, stderr } = await runCli([
+        'generate', '--use-case', 'content-tagging', '--schema', 'absent.json',
+      ]);
+      expect(code).toBe(1);
+      expect(stdout).toBe('');
+      expect(stderr).toContain('content-tagging cannot be combined with --stream or --schema');
+    }, T);
+
     it(
       'prints the result for a prompt argument',
       async () => {

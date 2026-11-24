@@ -3,7 +3,7 @@
  * turns `argv` into a discriminated {@link ParsedArgs}; `cli.ts` does the I/O.
  */
 
-import type { ModelId } from './types.js';
+import type { GenerateUseCase, ModelId } from './types.js';
 
 /** The fully-parsed command line. */
 export type ParsedArgs =
@@ -12,6 +12,7 @@ export type ParsedArgs =
   | { command: 'probe' }
   | {
       command: 'generate';
+      useCase?: GenerateUseCase;
       prompt?: string;
       model?: ModelId;
       system?: string;
@@ -40,6 +41,8 @@ Usage:
   apple-fm chat [flags]                Interactive chat (streaming, auto-compaction)
 
 Generate flags:
+      --use-case <name>  general (default) or content-tagging (JSON array)
+                         Content tagging cannot use --stream or --schema
       --model <id>       Model ID from probe (default: on-device)
   -s, --system <text>     System instructions
       --schema <file>     JSON Schema file for guided/structured output
@@ -111,12 +114,21 @@ function parseModel(value: string | undefined): ModelId {
   throw new Error(`unknown model "${value}" (run apple-fm probe)`);
 }
 
+function parseUseCase(value: string | undefined): GenerateUseCase {
+  if (value === undefined || value.startsWith('-')) throw new Error('--use-case requires a value');
+  if (value === 'general' || value === 'content-tagging') return value;
+  throw new Error(`unknown use case "${value}" (choose general or content-tagging)`);
+}
+
 function parseGenerate(argv: string[]): ParsedArgs {
   const result: Extract<ParsedArgs, { command: 'generate' }> = { command: 'generate', stream: false };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (arg === undefined) continue;
     switch (arg) {
+      case '--use-case':
+        result.useCase = parseUseCase(argv[++i]);
+        break;
       case '--model':
         result.model = parseModel(argv[++i]);
         break;
@@ -141,6 +153,9 @@ function parseGenerate(argv: string[]): ParsedArgs {
         if (result.prompt !== undefined) throw new Error('generate accepts a single prompt argument');
         result.prompt = arg;
     }
+  }
+  if (result.useCase === 'content-tagging' && (result.stream || result.schemaFile !== undefined)) {
+    throw new Error('content-tagging cannot be combined with --stream or --schema');
   }
   return result;
 }

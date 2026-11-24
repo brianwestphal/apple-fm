@@ -108,7 +108,7 @@ if (process.env.STUB_HANG === '1') {
     write(process.env.STUB_LIST_MODELS === '1' ? { ...local, models } : local);
   }
   process.exit(0);
-} else if (args.includes('--generate')) {
+} else if (args.includes('--generate') || args.includes('--tag-content')) {
   let input = '';
   process.stdin.setEncoding('utf8');
   process.stdin.on('data', (d) => (input += d));
@@ -128,6 +128,11 @@ if (process.env.STUB_HANG === '1') {
       // stderr-surfacing branch (the helper crashed before emitting a wire error).
       process.stderr.write('helper diagnostic: model subsystem offline');
       process.exit(2);
+    }
+    if (args.includes('--tag-content')) {
+      const text = req.prompt ?? req.messages?.map((message) => message.content).join(' ') ?? '';
+      write({ type: 'result', content: JSON.stringify([text.toLowerCase()]) });
+      process.exit(0);
     }
     if (req.schema !== undefined) {
       const err = schemaError(req.schema);

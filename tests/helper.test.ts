@@ -142,6 +142,18 @@ describe('generate', () => {
   });
 });
 
+describe('generate with content tagging', () => {
+  it('routes to the tagging helper mode and returns its array', async () => {
+    const result = await generate({ prompt: 'Travel', useCase: 'content-tagging' }, { binPath: STUB });
+    expect(JSON.parse(result)).toEqual(['travel']);
+  });
+
+  it.each([{ stream: true }, { schema: { type: 'string' } }])('rejects incompatible options %j', async (options) => {
+    await expect(generate({ prompt: 'Travel', useCase: 'content-tagging', ...options }, { binPath: STUB }))
+      .rejects.toThrow(/cannot be combined/);
+  });
+});
+
 describe('generate with a schema (native guided generation)', () => {
   const schema = {
     type: 'object',
