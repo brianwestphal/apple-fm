@@ -7,7 +7,7 @@
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-import { encodeRequest, parseEvent, parseProbeResult, splitLines } from './protocol.js';
+import { encodeRequest, parseEvent, parseProbeResult, parseTokenCount, splitLines } from './protocol.js';
 import type { DeltaHandler, GenerateRequest, HelperOptions, ProbeResult, SnapshotHandler } from './types.js';
 
 /** Environment variable that pins the helper binary path. */
@@ -164,6 +164,19 @@ export function assertSupportedModel(model: string | undefined): void {
   if (model !== undefined && model !== 'on-device') {
     throw new Error(`unknown model "${model}" (run apple-fm probe)`);
   }
+}
+
+/** Count the native prompt tokens for this text. Requires macOS 26.4 or later. */
+export async function countTokens(prompt: string, options: HelperOptions = {}): Promise<number> {
+  if (usingBundledHelper(options) && !isPlatformSupported()) throw unsupportedPlatformError();
+  let count: number | undefined;
+  await runHelper(['--tokens'], options, encodeRequest({ prompt }), (line) => {
+    const event = parseEvent(line);
+    if (event.type === 'error') throw new Error(`[${event.code}] ${event.message}`);
+    if (event.type === 'result') count = parseTokenCount(JSON.parse(event.content));
+  });
+  if (count === undefined) throw new Error('apple-fm helper --tokens produced no result');
+  return count;
 }
 
 /**

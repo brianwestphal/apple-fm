@@ -51,6 +51,13 @@ describe('parseEvent', () => {
 });
 
 describe('parseProbeResult', () => {
+  it('preserves a valid native context size and rejects malformed values', () => {
+    expect(parseProbeResult('{"available":true,"contextSize":4096}')).toEqual({
+      available: true, contextSize: 4096,
+    });
+    expect(() => parseProbeResult('{"available":true,"contextSize":-1}')).toThrow(/malformed helper token count/);
+  });
+
   it('accepts a well-formed available result (ignores any stray fields)', () => {
     expect(parseProbeResult('{"available":true}')).toEqual({ available: true });
     // available:true short-circuits — a spurious reason is dropped, not surfaced.

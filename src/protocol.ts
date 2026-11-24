@@ -80,11 +80,20 @@ export function parseProbeResult(line: string): ProbeResult {
     throw new Error(`malformed probe result (available must be a boolean): ${line}`);
   }
   const models = record.models === undefined ? {} : { models: parseModels(record.models) };
-  if (record.available) return { available: true, ...models };
+  const context = record.contextSize === undefined ? {} : { contextSize: parseTokenCount(record.contextSize) };
+  if (record.available) return { available: true, ...models, ...context };
   if (typeof record.reason !== 'string' || !UNAVAILABLE_REASONS.includes(record.reason)) {
     throw new Error(`malformed probe result (missing/unknown reason): ${line}`);
   }
-  return { available: false, reason: record.reason as UnavailableReason, ...models };
+  return { available: false, reason: record.reason as UnavailableReason, ...models, ...context };
+}
+
+/** Validate a numeric token count from the wire. */
+export function parseTokenCount(value: unknown): number {
+  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0) {
+    throw new Error('malformed helper token count');
+  }
+  return value;
 }
 
 function parseModels(value: unknown): ModelAvailability[] {

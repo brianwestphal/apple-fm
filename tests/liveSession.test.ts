@@ -20,6 +20,23 @@ function parseResult(content: string): { instructions: string; turns: number; pr
 }
 
 describe('LiveSession', () => {
+  it('counts with the active helper only when reset advertises a native token budget', async () => {
+    const session = new LiveSession({ binPath: STUB });
+    try {
+      expect(await session.tokenBudget('abc')).toBeUndefined();
+      await session.reset('');
+      expect(await session.tokenBudget('abc')).toBeUndefined();
+      session.close();
+      vi.stubEnv('STUB_TOKEN_BUDGET', '1');
+      await session.reset('');
+      expect(await session.tokenBudget('abc')).toEqual({ tokens: 103, contextSize: 4096 });
+    } finally {
+      session.close();
+      vi.unstubAllEnvs();
+    }
+  });
+
+
   it('reports an unavailable model before a command ID is available', async () => {
     vi.stubEnv('STUB_UNAVAILABLE', '1');
     const session = new LiveSession({ binPath: STUB, model: 'on-device' });

@@ -29,6 +29,8 @@ Keep status markers in sync with the implementation.
 
 - **FR-16 On-device content tagging** — Shipped. `generate --use-case content-tagging` reads argument or stdin text and emits a JSON array of tags. See [model use cases](../12-models.md).
 
+- **FR-17 Native token counting** — Shipped on macOS 26.4+. Chat uses native accounting when available and retains its estimate fallback.
+
 ## Non-functional
 
 - **NFR-1 Offline and on-device** — Shipped. Inference and built-in tools run locally without an API key.

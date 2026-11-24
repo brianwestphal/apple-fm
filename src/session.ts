@@ -132,7 +132,15 @@ export class ChatSession {
    * and that partial reply are kept in history (so a follow-up turn stays coherent).
    */
   async send(text: string, onDelta?: DeltaHandler, signal?: AbortSignal): Promise<string> {
-    if (this.shouldCompact()) await this.compact();
+    if (this.messages.length > this.keepRecentTurns) {
+      const budget = this.backendInstructions === this.effectiveSystem()
+        ? await this.backend.tokenBudget?.(text)
+        : undefined;
+      const shouldCompact = budget === undefined
+        ? this.shouldCompact()
+        : budget.tokens > Math.min(this.compactAtTokens, Math.floor(budget.contextSize * 0.75));
+      if (shouldCompact) await this.compact();
+    }
     // Re-establish the backend's context (first turn, or after a compaction
     // changed the effective system prompt) *before* recording the new turn, so the
     // reseed carries only prior turns.
@@ -193,6 +201,7 @@ export class ChatSession {
       .join('\n\n');
     this.summary = (await this.generateFn(SUMMARIZE_SYSTEM, [{ role: 'user', content: transcript }])).trim();
     this.messages = recent;
+    this.backendInstructions = undefined;
   }
 
   /** Clear the transcript and summary; optionally replace the system prompt. */

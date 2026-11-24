@@ -45,6 +45,10 @@ apple-fm chat --model on-device
 
 `probe` reports the current on-device model and its availability on macOS 26 and
 later. The model ID is `on-device`, which is also the default for generation and chat.
+On macOS 26.4 and later, `apple-fm tokens 'text'` prints the native prompt token
+count. It also reads text from stdin. `probe` reports the model's `contextSize`
+where available.
+
 Use `apple-fm generate --use-case content-tagging "A picnic at the beach"` to
 extract tags as a JSON array.
 See [model discovery and selection](docs/12-models.md) for the full contract.

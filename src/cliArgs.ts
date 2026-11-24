@@ -10,6 +10,7 @@ export type ParsedArgs =
   | { command: 'help' }
   | { command: 'version' }
   | { command: 'probe' }
+  | { command: 'tokens'; prompt?: string }
   | {
       command: 'generate';
       useCase?: GenerateUseCase;
@@ -37,6 +38,7 @@ export const USAGE = `apple-fm — command-line access to Apple Foundation Model
 
 Usage:
   apple-fm probe                       List models and their availability
+  apple-fm tokens [text]               Count prompt tokens (macOS 26.4+, reads stdin if omitted)
   apple-fm generate [prompt] [flags]   One-shot generation (reads stdin if no prompt)
   apple-fm chat [flags]                Interactive chat (streaming, auto-compaction)
 
@@ -99,12 +101,17 @@ export function parseArgs(argv: string[]): ParsedArgs {
   switch (first) {
     case 'probe':
       return { command: 'probe' };
+    case 'tokens': {
+      const [, prompt, extra] = argv;
+      if (extra !== undefined) throw new Error('tokens accepts a single text argument');
+      return { command: 'tokens', prompt };
+    }
     case 'generate':
       return parseGenerate(argv.slice(1));
     case 'chat':
       return parseChat(argv.slice(1));
     default:
-      throw new Error(`unknown command "${first}" (try: probe, generate, chat, --help)`);
+      throw new Error(`unknown command "${first}" (try: probe, tokens, generate, chat, --help)`);
   }
 }
 

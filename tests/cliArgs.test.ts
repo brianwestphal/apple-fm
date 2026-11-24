@@ -14,6 +14,12 @@ describe('parseArgs', () => {
     expect(parseArgs(['--version'])).toEqual({ command: 'version' });
   });
 
+  it('parses a text argument or stdin for tokens', () => {
+    expect(parseArgs(['tokens', 'text'])).toEqual({ command: 'tokens', prompt: 'text' });
+    expect(parseArgs(['tokens'])).toMatchObject({ command: 'tokens' });
+    expect(() => parseArgs(['tokens', 'a', 'b'])).toThrow(/single text argument/);
+  });
+
   it('parses probe', () => {
     expect(parseArgs(['probe'])).toEqual({ command: 'probe' });
   });

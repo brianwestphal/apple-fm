@@ -172,6 +172,23 @@ describe('ChatSession.send', () => {
 });
 
 describe('ChatSession compaction', () => {
+  it('uses native history and next-prompt counts before the estimate reaches the threshold', async () => {
+    const { backend } = recordingBackend();
+    const prompts: string[] = [];
+    backend.tokenBudget = (prompt) => {
+      prompts.push(prompt);
+      return Promise.resolve({ tokens: 3100, contextSize: 4096 });
+    };
+    const summarizer = recordingSummarizer();
+    const session = new ChatSession({ backend, generateFn: summarizer.gen, keepRecentTurns: 1 });
+    await session.send('a');
+    expect(session.shouldCompact()).toBe(false);
+    await session.send('b');
+    expect(prompts).toEqual(['b']);
+    expect(summarizer.calls).toHaveLength(1);
+  });
+
+
   it('summarizes older turns and reseeds the backend with the recap + recent turns', async () => {
     const { backend, calls } = recordingBackend();
     const summarizer = recordingSummarizer();

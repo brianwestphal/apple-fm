@@ -14,6 +14,16 @@ The library accepts the same ID through `GenerateRequest.model`,
 `ChatSessionConfig.model`, and `LiveSessionConfig.model`. It is also the default
 for generation, chat, and compaction.
 
+## Token counting
+
+On macOS 26.4 and later, `apple-fm tokens [text]` prints one integer and reads
+stdin when the argument is omitted. The library exposes `countTokens(text)`.
+`probe` includes the optional native `contextSize` in tokens. Chat measures the
+active native transcript plus the pending user message when the helper supports
+it. It compacts at the configured threshold or 75% of native capacity, whichever
+is lower. Older helpers, older releases, and failed counts use the existing
+length-based estimate (AFM-RT2FK2).
+
 ## Content tagging
 
 With `generate --use-case content-tagging`, apple-fm uses the on-device

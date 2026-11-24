@@ -50,6 +50,7 @@ describe('project conventions', () => {
       'PermissionPolicy',
       'ToolRegistry',
       'bashTool',
+      'countTokens',
       'encodeRequest',
       'estimateConversationTokens',
       'estimateTokens',

@@ -108,7 +108,7 @@ if (process.env.STUB_HANG === '1') {
     write(process.env.STUB_LIST_MODELS === '1' ? { ...local, models } : local);
   }
   process.exit(0);
-} else if (args.includes('--generate') || args.includes('--tag-content')) {
+} else if (args.includes('--tokens') || args.includes('--generate') || args.includes('--tag-content')) {
   let input = '';
   process.stdin.setEncoding('utf8');
   process.stdin.on('data', (d) => (input += d));
@@ -128,6 +128,10 @@ if (process.env.STUB_HANG === '1') {
       // stderr-surfacing branch (the helper crashed before emitting a wire error).
       process.stderr.write('helper diagnostic: model subsystem offline');
       process.exit(2);
+    }
+    if (args.includes('--tokens')) {
+      write({ type: 'result', content: String(req.prompt.length) });
+      process.exit(0);
     }
     if (args.includes('--tag-content')) {
       const text = req.prompt ?? req.messages?.map((message) => message.content).join(' ') ?? '';
@@ -219,12 +223,16 @@ if (process.env.STUB_HANG === '1') {
       }
       return;
     }
+    if (cmd.type === 'count_tokens') {
+      write({ type: 'result', id: cmd.id, content: String(100 + cmd.prompt.length) });
+      return;
+    }
     if (cmd.type === 'reset') {
       const seed = Array.isArray(cmd.seed) ? cmd.seed : [];
       instructions = (cmd.system ?? '') + (seed.length > 0 ? ` [seed:${seed.length}]` : '');
       offeredTools = Array.isArray(cmd.tools) ? cmd.tools.map((t) => t && t.name).filter(Boolean) : [];
       turns = 0;
-      write({ type: 'ready', id: cmd.id });
+      write({ type: 'ready', id: cmd.id, ...(process.env.STUB_TOKEN_BUDGET === '1' ? { contextSize: 4096 } : {}) });
       return;
     }
     const prompt = cmd.prompt ?? '';

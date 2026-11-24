@@ -10,7 +10,7 @@
 import { type ChildProcessWithoutNullStreams,spawn } from 'node:child_process';
 
 import { assertSupportedModel, isPlatformSupported, resolveHelperPath, unsupportedPlatformError, usingBundledHelper } from './helper.js';
-import { splitLines } from './protocol.js';
+import { parseTokenCount, splitLines } from './protocol.js';
 import { dispatchToolCall } from './tools/dispatch.js';
 import { PermissionPolicy, type ToolRegistry } from './tools/index.js';
 import type { DeltaHandler, GenerateOptions, HelperOptions, Message, ModelId } from './types.js';
@@ -61,6 +61,8 @@ export interface ChatBackend {
   send(text: string, onDelta?: DeltaHandler, signal?: AbortSignal): Promise<string>;
   /** Recreate the underlying session with new instructions + seed turns. */
   reset(system: string, seed: Message[]): Promise<void>;
+  /** Native token budget for the active transcript plus the next prompt, if supported. */
+  tokenBudget?(prompt: string): Promise<{ tokens: number; contextSize: number } | undefined>;
   /** Tear down the backend. */
   close(): void;
 }
@@ -75,6 +77,7 @@ export class LiveSession implements ChatBackend {
   private readonly bundled: boolean;
   private child: ChildProcessWithoutNullStreams | undefined;
   private buffer = '';
+  private contextSize?: number;
   private nextId = 0;
   private readonly pending = new Map<string, Pending>();
 
@@ -120,6 +123,19 @@ export class LiveSession implements ChatBackend {
     return this.dispatch({ prompt: text, options: this.options, stream: onDelta !== undefined }, onDelta, signal);
   }
 
+  /** Count native tokens for the active session without starting another helper. */
+  async tokenBudget(prompt: string): Promise<{ tokens: number; contextSize: number } | undefined> {
+    const contextSize = this.contextSize;
+    const child = this.child;
+    if (contextSize === undefined || child === undefined || child.exitCode !== null || child.killed) return undefined;
+    try {
+      const content = await this.dispatch({ type: 'count_tokens', prompt }, undefined);
+      return { tokens: parseTokenCount(JSON.parse(content)), contextSize };
+    } catch {
+      return undefined;
+    }
+  }
+
   /** Tear down the helper process and reject any in-flight commands. */
   close(): void {
     const child = this.child;
@@ -139,15 +155,18 @@ export class LiveSession implements ChatBackend {
   private ensureChild(): ChildProcessWithoutNullStreams {
     const existing = this.child;
     if (existing !== undefined && existing.exitCode === null && !existing.killed) return existing;
+    if (existing !== undefined) this.rejectAll(new Error('[sessionClosed] live session helper exited'));
+    this.contextSize = undefined;
     const child = spawn(this.command, ['--session'], { stdio: ['pipe', 'pipe', 'pipe'] });
     this.buffer = '';
     child.stdout.setEncoding('utf8');
     child.stdout.on('data', (chunk: string) => {
-      this.onStdout(chunk);
+      if (this.child === child) this.onStdout(chunk);
     });
     child.stdin.on('error', () => undefined); // swallow EPIPE if the helper exits early
     const onGone = (): void => {
-      if (this.child === child) this.child = undefined;
+      if (this.child !== child) return;
+      this.child = undefined;
       this.rejectAll(new Error('[sessionClosed] live session helper exited'));
     };
     child.on('close', onGone);
@@ -196,6 +215,10 @@ export class LiveSession implements ChatBackend {
         void this.handleToolCall(id, pending, event);
         break;
       case 'ready':
+        this.contextSize =
+          typeof event.contextSize === 'number' && Number.isSafeInteger(event.contextSize) && event.contextSize > 0
+            ? event.contextSize
+            : undefined;
         this.settle(id, '');
         break;
       case 'result':

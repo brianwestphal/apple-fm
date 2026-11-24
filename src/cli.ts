@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 
 import { parseArgs, USAGE } from './cliArgs.js';
-import { generate, probe } from './helper.js';
+import { countTokens, generate, probe } from './helper.js';
 import { runRepl } from './repl.js';
 import { registryFromNames } from './tools/index.js';
 import type { GenerateOptions, GenerateRequest } from './types.js';
@@ -44,6 +44,12 @@ async function main(): Promise<void> {
       const result = await probe();
       process.stdout.write(`${JSON.stringify(result)}\n`);
       if (!result.available) process.exitCode = 1;
+      return;
+    }
+    case 'tokens': {
+      const prompt = args.prompt ?? (await readStdin());
+      if (prompt.length === 0) throw new Error('tokens: no text given (pass an argument or pipe stdin)');
+      process.stdout.write(`${String(await countTokens(prompt))}\n`);
       return;
     }
     case 'generate': {

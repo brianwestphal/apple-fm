@@ -2,7 +2,7 @@
 
 The Node layer and the Swift helper communicate over **line-delimited JSON
 (NDJSON)** on stdin/stdout. Select a helper mode with a flag:
-`--probe`, one-shot `--generate` and `--tag-content`, and the long-lived `--session`.
+`--probe`, one-shot `--tokens`, `--generate`, and `--tag-content`, and the long-lived `--session`.
 See [model discovery and selection](12-models.md).
 
 ## `--probe`
@@ -24,6 +24,18 @@ The top-level `reason` (present only when unavailable) is one of `deviceNotEligi
 more reason it synthesizes **without running the helper** — `unsupportedPlatform`,
 when the OS/CPU can't run the macOS helper at all (not macOS on Apple Silicon) —
 so apple-fm can be a dependency of a cross-platform project and degrade gracefully.
+
+On macOS 26.4 and later, probe can include a top-level `contextSize` in tokens.
+
+## `--tokens`
+
+Read a generation request with a `prompt` and emit the decimal native token
+count in `result.content`. Older macOS releases report an `unsupported` error.
+
+A session helper that supports native accounting advertises `contextSize` in
+its `ready` reply. Clients can then send a correlated `count_tokens` command with
+the next `prompt`. Its `result.content` reports the transcript and prompt counts
+combined. Clients use the existing estimate when the advertisement is absent.
 
 ## `--tag-content`
 

@@ -111,7 +111,8 @@ private func emitDelta(_ text: String, id: String? = nil) {
 }
 
 private func emitReady(_ id: String?) {
-    emit("{\"type\":\"ready\"\(idField(id))}")
+    let capability = modelContextSize().map { ",\"contextSize\":\($0)" } ?? ""
+    emit("{\"type\":\"ready\"\(idField(id))\(capability)}")
 }
 
 /// A full partial value for guided streaming (replace semantics, not a suffix).
@@ -147,6 +148,11 @@ private func encodeString(_ value: String) -> String {
 
 // MARK: - Probe
 
+private func modelContextSize() -> Int? {
+    if #available(macOS 26.4, *) { return SystemLanguageModel.default.contextSize }
+    return nil
+}
+
 private func probe() -> Never {
     let reason: String?
     switch SystemLanguageModel.default.availability {
@@ -161,6 +167,7 @@ private func probe() -> Never {
     var model = status
     model["id"] = "on-device"
     result["models"] = [model]
+    result["contextSize"] = modelContextSize()
     do {
         let data = try JSONSerialization.data(withJSONObject: result, options: .sortedKeys)
         emit(String(decoding: data, as: UTF8.self))
@@ -203,6 +210,24 @@ private func userPrompt(for request: GenerateRequest) -> String {
             .joined(separator: "\n\n")
     }
     return ""
+}
+
+private func countPromptTokens(_ request: GenerateRequest) async -> Never {
+    guard #available(macOS 26.4, *) else {
+        failEvent("unsupported", "native token counting requires macOS 26.4 or later")
+    }
+    let model = SystemLanguageModel.default
+    guard case .available = model.availability else {
+        failEvent("unavailable", "Apple Foundation Models unavailable")
+    }
+    do {
+        let count = try await model.tokenCount(for: userPrompt(for: request))
+        emitResult(String(count))
+    } catch {
+        let f = failure(for: error)
+        failEvent(f.code, f.message)
+    }
+    exit(0)
 }
 
 private func generationOptions(_ options: WireOptions?) -> GenerationOptions {
@@ -479,6 +504,21 @@ private func runSession() async -> Never {
                 // Interrupt the in-flight turn (FR-15). Turns are serial, so the one
                 // live task is the target; it ends by emitting its partial `result`.
                 currentTurn?.cancel()
+            case "count_tokens":
+                await currentTurn?.value
+                if #available(macOS 26.4, *) {
+                    do {
+                        let model = SystemLanguageModel.default
+                        let history = try await model.tokenCount(for: session.transcript)
+                        let prompt = try await model.tokenCount(for: command.prompt ?? "")
+                        emitResult(String(history + prompt), id: command.id)
+                    } catch {
+                        let f = failure(for: error)
+                        emitError(f.code, f.message, id: command.id)
+                    }
+                } else {
+                    emitError("unsupported", "native token counting requires macOS 26.4 or later", id: command.id)
+                }
             case "reset":
                 await currentTurn?.value // no turn should be in flight, but be safe
                 session = makeSession(command, bridge: bridge)
@@ -510,6 +550,10 @@ private func readRequest() -> GenerateRequest {
 let args = CommandLine.arguments
 if args.contains("--probe") {
     probe()
+} else if args.contains("--tokens") {
+    let request = readRequest()
+    Task { await countPromptTokens(request) }
+    dispatchMain()
 } else if args.contains("--generate") {
     let request = readRequest()
     Task { await generate(request) }
@@ -522,6 +566,6 @@ if args.contains("--probe") {
     Task { await runSession() }
     dispatchMain()
 } else {
-    FileHandle.standardError.write(Data("usage: apple-fm-helper --probe | --generate | --tag-content | --session\n".utf8))
+    FileHandle.standardError.write(Data("usage: apple-fm-helper --probe | --tokens | --generate | --tag-content | --session\n".utf8))
     exit(64)
 }

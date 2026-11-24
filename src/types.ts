@@ -76,6 +76,8 @@ export type ModelAvailability = { id: string } & (
 
 /** Result of `apple-fm-helper --probe`. Legacy fields describe the on-device model. */
 export interface ProbeResult {
+  /** Native context capacity in tokens, when reported by the helper. */
+  contextSize?: number;
   available: boolean;
   /** Omitted by older helpers. */
   models?: ModelAvailability[];

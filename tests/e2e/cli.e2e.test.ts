@@ -98,6 +98,17 @@ describe('apple-fm CLI (e2e)', () => {
     );
   });
 
+  describe('tokens', () => {
+    it.each([
+      { args: ['token text'], input: undefined },
+      { args: [], input: 'token text\n' },
+    ])('prints a token count for $args or stdin', async ({ args, input }) => {
+      const { stdout, code } = await runCli(['tokens', ...args], { input });
+      expect(stdout).toBe('10\n');
+      expect(code).toBe(0);
+    }, T);
+  });
+
   describe('model selection', () => {
     it('accepts explicit on-device generation', async () => {
       const { stdout, code } = await runCli(['generate', 'hello', '--model', 'on-device']);
