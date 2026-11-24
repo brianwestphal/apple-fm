@@ -112,6 +112,13 @@ describe('apple-fm CLI (e2e)', () => {
     }, T);
   });
 
+  it('rejects invalid CLI numbers before invoking the helper', async () => {
+    const { stdout, stderr, code } = await runCli(['generate', '--max-tokens', 'Infinity', 'hello']);
+    expect(code).toBe(1);
+    expect(stdout).toBe('');
+    expect(stderr).toContain('--max-tokens expects a number that is finite');
+  }, T);
+
   describe('chat context usage', () => {
     it('reports native usage before and after a turn and clear', async () => {
       const { stdout, code } = await runCli(['chat', '--no-stream'], {

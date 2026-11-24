@@ -24,6 +24,33 @@ describe('parseArgs', () => {
     expect(parseArgs(['probe'])).toEqual({ command: 'probe' });
   });
 
+  it.each([
+    ['generate', '--temp', 'Infinity'],
+    ['generate', '--temp', '  '],
+    ['generate', '--temp', '-0.01'],
+    ['generate', '--temp', '2.01'],
+    ['generate', '--max-tokens', '0'],
+    ['generate', '--max-tokens', '1.5'],
+    ['generate', '--max-tokens', '9007199254740992'],
+    ['chat', '--compact-at', '-1'],
+    ['chat', '--compact-at', '1.5'],
+  ].map((args) => ({ args })))('rejects invalid numeric arguments $args', ({ args }) => {
+    expect(() => parseArgs(args)).toThrow(/expects a/);
+  });
+
+  it('accepts the numeric boundaries', () => {
+    expect(parseArgs(['generate', '--temp', '0', '--max-tokens', '1'])).toMatchObject({
+      temperature: 0, maxTokens: 1,
+    });
+    expect(parseArgs(['generate', '--temp', '2'])).toMatchObject({ temperature: 2 });
+    expect(parseArgs(['chat', '--compact-at', '0'])).toMatchObject({ compactAtTokens: 0 });
+  });
+
+  it('rejects probe arguments and a flag as the sampling value', () => {
+    expect(() => parseArgs(['probe', '--unknown'])).toThrow(/accepts no arguments/);
+    expect(() => parseArgs(['generate', '--sampling', '--max-tokens', '5'])).toThrow(/sampling requires a value/);
+  });
+
   it('parses generate with a prompt and flags', () => {
     expect(
       parseArgs(['generate', 'hello', '-s', 'be terse', '--stream', '--temp', '0.5', '--max-tokens', '128']),

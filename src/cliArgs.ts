@@ -54,15 +54,15 @@ Generate flags:
       --schema <file>     JSON Schema file for guided/structured output
       --stream            Stream output as it is produced
       --sampling greedy  Choose the highest-probability token at each step
-      --temp <n>          Sampling temperature
-      --max-tokens <n>    Maximum response tokens
+      --temp <n>          Sampling temperature from 0 to 2
+      --max-tokens <n>    Maximum response tokens (positive integer)
 
 Chat flags:
       --resume <file>    Resume a saved chat transcript
       --model <id>       Model ID from probe (default: on-device)
   -s, --system <text>     System instructions
       --no-stream         Disable token streaming
-      --compact-at <n>    Compact the transcript past <n> estimated tokens
+      --compact-at <n>    Compact after <n> tokens (non-negative integer)
       --tools <a,b>       Enable built-in tools the model may call (read, bash)
       --allow-tool <rule> Pre-approve a tool (read, read:/path, or bash:<exact cmd>).
                           A read path grant covers that dir; a bash grant is the
@@ -84,8 +84,19 @@ otherwise the bundled bin/apple-fm-helper shipped with the package. Requires mac
 function parseNumber(flag: string, value: string | undefined): number {
   if (value === undefined) throw new Error(`${flag} requires a value`);
   const n = Number(value);
-  if (Number.isNaN(n)) throw new Error(`${flag} expects a number, got "${value}"`);
+  if (value.trim().length === 0 || !Number.isFinite(n)) {
+    throw new Error(`${flag} expects a number that is finite, got "${value}"`);
+  }
   return n;
+}
+
+/** Parse an integer token threshold that can be represented exactly in JavaScript. */
+function parseTokenLimit(flag: string, value: string | undefined, minimum: number): number {
+  const count = parseNumber(flag, value);
+  if (!Number.isSafeInteger(count) || count < minimum) {
+    throw new Error(`${flag} expects a whole number at least ${String(minimum)}`);
+  }
+  return count;
 }
 
 /** Read the value that follows a flag at `argv[i]`, advancing past it. */
@@ -106,6 +117,7 @@ export function parseArgs(argv: string[]): ParsedArgs {
 
   switch (first) {
     case 'probe':
+      if (argv.length > 1) throw new Error('probe accepts no arguments');
       return { command: 'probe' };
     case 'tokens': {
       const [, prompt, extra] = argv;
@@ -163,15 +175,19 @@ function parseGenerate(argv: string[]): ParsedArgs {
         break;
       case '--sampling': {
         const sampling = takeValue(argv, i++, arg);
+        if (sampling.startsWith('-')) throw new Error('--sampling requires a value');
         if (sampling !== 'greedy') throw new Error(`unknown sampling mode "${sampling}" (choose greedy)`);
         result.sampling = sampling;
         break;
       }
-      case '--temp':
-        result.temperature = parseNumber(arg, takeValue(argv, i++, arg));
+      case '--temp': {
+        const temperature = parseNumber(arg, takeValue(argv, i++, arg));
+        if (temperature < 0 || temperature > 2) throw new Error('--temp expects a number from 0 to 2');
+        result.temperature = temperature;
         break;
+      }
       case '--max-tokens':
-        result.maxTokens = parseNumber(arg, takeValue(argv, i++, arg));
+        result.maxTokens = parseTokenLimit(arg, takeValue(argv, i++, arg), 1);
         break;
       default:
         if (arg.startsWith('-')) throw new Error(`unknown flag "${arg}"`);
@@ -211,7 +227,7 @@ function parseChat(argv: string[]): ParsedArgs {
         result.stream = false;
         break;
       case '--compact-at':
-        result.compactAtTokens = parseNumber(arg, takeValue(argv, i++, arg));
+        result.compactAtTokens = parseTokenLimit(arg, takeValue(argv, i++, arg), 0);
         break;
       case '--tools':
         result.tools = parseList(takeValue(argv, i++, arg));

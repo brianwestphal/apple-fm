@@ -45,7 +45,9 @@ macOS 27 SDK. Its deployment target remains macOS 26.
 
 Pass `generate --sampling greedy` to choose the most likely token at each
 step (AFM-C7EA41). The library accepts `GenerateOptions.sampling: 'greedy'`.
-Omit the option to use the system default. Greedy sampling also works with
+Omit the option to use the system default. `--temp` accepts finite numbers from
+0 to 2, and `--max-tokens` accepts positive whole numbers (AFM-RJKVMH).
+Greedy sampling also works with
 guided generation. A manually overridden helper should be rebuilt to pick up
 the new option.
 
