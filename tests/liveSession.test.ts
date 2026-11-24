@@ -1,7 +1,7 @@
 import { chmodSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-import { beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { LiveSession } from '../src/liveSession.js';
 import type { AskOutcome, Tool } from '../src/tools/index.js';
@@ -21,11 +21,13 @@ function parseResult(content: string): { instructions: string; turns: number; pr
 
 describe('LiveSession', () => {
   it('reports an unavailable model before a command ID is available', async () => {
-    const session = new LiveSession({ binPath: STUB, model: 'private-cloud-compute' });
+    vi.stubEnv('STUB_UNAVAILABLE', '1');
+    const session = new LiveSession({ binPath: STUB, model: 'on-device' });
     try {
-      await expect(session.reset('')).rejects.toThrow(/\[unavailable\].*private-cloud-compute/);
+      await expect(session.reset('')).rejects.toThrow(/\[unavailable\].*Apple Foundation Models/);
     } finally {
       session.close();
+      vi.unstubAllEnvs();
     }
   });
 

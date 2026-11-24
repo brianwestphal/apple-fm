@@ -35,7 +35,7 @@ gaps noted — including code that needs on-device verification), **Deferred**
 
 | ID | Requirement | Status | Notes |
 | --- | --- | --- | --- |
-| NFR-1 | Offline by default | **Shipped** | On-device mode keeps prompts local and works offline without an API key. Explicitly selecting Private Cloud Compute uses Apple’s cloud service. Built-in tools are local. |
+| NFR-1 | Offline and on-device | **Shipped** | Inference and built-in tools run locally. Prompts stay on-device and inference works offline without an API key. |
 | NFR-2 | Helper subprocess bounded + diagnosable | **Shipped** | Timeout + stderr capture in `helper.ts:runHelper`; structured error events. |
 | NFR-3 | Pure logic unit-tested; native/process layer stub-tested | **Shipped** | Vitest; `tests/fixtures/stub-helper.js` emulates the protocol — no device needed. |
 | NFR-4 | Strict TypeScript, ESM, lint-clean | **Shipped** | `strictTypeChecked`; `.js` import extensions; zero runtime deps. |

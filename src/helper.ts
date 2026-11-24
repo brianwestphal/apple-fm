@@ -155,7 +155,15 @@ export async function probe(options: HelperOptions = {}): Promise<ProbeResult> {
     result = parseProbeResult(line);
   });
   if (result === undefined) throw new Error('apple-fm helper --probe produced no result');
+  if (result.models !== undefined) result.models = result.models.filter((entry) => entry.id === 'on-device');
   return result;
+}
+
+/** Validate a model supplied by a caller, including untyped JavaScript callers. */
+export function assertSupportedModel(model: string | undefined): void {
+  if (model !== undefined && model !== 'on-device') {
+    throw new Error(`unknown model "${model}" (run apple-fm probe)`);
+  }
 }
 
 /**
@@ -174,8 +182,8 @@ export async function generate(
   if (usingBundledHelper(options) && !isPlatformSupported()) throw unsupportedPlatformError();
   let content: string | undefined;
   const { model, ...wireRequest } = request;
-  const mode = model === 'private-cloud-compute' ? '--generate-pcc' : '--generate';
-  await runHelper([mode], options, encodeRequest(wireRequest), (line) => {
+  assertSupportedModel(model);
+  await runHelper(['--generate'], options, encodeRequest(wireRequest), (line) => {
     const event = parseEvent(line);
     switch (event.type) {
       case 'delta':

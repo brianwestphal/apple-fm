@@ -9,7 +9,7 @@
  */
 import { type ChildProcessWithoutNullStreams,spawn } from 'node:child_process';
 
-import { isPlatformSupported, resolveHelperPath, unsupportedPlatformError, usingBundledHelper } from './helper.js';
+import { assertSupportedModel, isPlatformSupported, resolveHelperPath, unsupportedPlatformError, usingBundledHelper } from './helper.js';
 import { splitLines } from './protocol.js';
 import { dispatchToolCall } from './tools/dispatch.js';
 import { PermissionPolicy, type ToolRegistry } from './tools/index.js';
@@ -67,7 +67,6 @@ export interface ChatBackend {
 
 export class LiveSession implements ChatBackend {
   private readonly command: string;
-  private readonly mode: string;
   private readonly timeoutMs: number;
   private readonly options: GenerateOptions | undefined;
   private readonly tools: ToolRegistry | undefined;
@@ -81,7 +80,7 @@ export class LiveSession implements ChatBackend {
 
   constructor(config: LiveSessionConfig = {}) {
     this.command = resolveHelperPath(config);
-    this.mode = config.model === 'private-cloud-compute' ? '--session-pcc' : '--session';
+    assertSupportedModel(config.model);
     this.timeoutMs = config.timeoutMs ?? DEFAULT_TURN_TIMEOUT_MS;
     this.options = config.options;
     this.tools = config.tools !== undefined && config.tools.size > 0 ? config.tools : undefined;
@@ -140,7 +139,7 @@ export class LiveSession implements ChatBackend {
   private ensureChild(): ChildProcessWithoutNullStreams {
     const existing = this.child;
     if (existing !== undefined && existing.exitCode === null && !existing.killed) return existing;
-    const child = spawn(this.command, [this.mode], { stdio: ['pipe', 'pipe', 'pipe'] });
+    const child = spawn(this.command, ['--session'], { stdio: ['pipe', 'pipe', 'pipe'] });
     this.buffer = '';
     child.stdout.setEncoding('utf8');
     child.stdout.on('data', (chunk: string) => {

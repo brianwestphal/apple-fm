@@ -69,7 +69,7 @@ describe('parseProbeResult', () => {
       available: true,
       models: [
         { id: 'on-device', available: true },
-        { id: 'private-cloud-compute', available: false, reason: 'missingEntitlement' },
+        { id: 'other-model', available: false, reason: 'systemNotReady' },
       ],
     };
     expect(parseProbeResult(JSON.stringify(result))).toEqual(result);

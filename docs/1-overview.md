@@ -32,8 +32,7 @@ if ((await probe()).available) {
 ## Principles
 
 - **On-device by default.** Prompts stay local and inference works offline
-  without an API key. Explicitly selecting Private Cloud Compute uses
-  Apple’s cloud service. See [model discovery and selection](12-models.md).
+  without an API key. See [model discovery and selection](12-models.md).
 - **Thin native surface, tested logic.** Only the Swift helper
   (`apple-fm-helper/*.swift`) touches `FoundationModels`. All policy — argument
   parsing, the wire protocol, chat history, auto-compaction — lives in strict

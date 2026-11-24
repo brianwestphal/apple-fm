@@ -43,13 +43,8 @@ apple-fm generate --model on-device "Explain Swift actors in one sentence"
 apple-fm chat --model on-device
 ```
 
-`probe` reports model IDs and per-model availability in `models`. macOS 26
-lists `on-device`. On macOS 27+, helpers built with the macOS 27 SDK also list
-`private-cloud-compute`. The npm helper reports `missingEntitlement` for
-Private Cloud Compute. Apple restricts access to [approved distribution channels](https://developer.apple.com/private-cloud-compute/).
-Cloud inference sends prompts to Apple Private Cloud Compute.
-
-The default is `on-device`. Chat keeps its selected model until you exit.
+`probe` reports the current on-device model and its availability on macOS 26 and
+later. The model ID is `on-device`, which is also the default for generation and chat.
 See [model discovery and selection](docs/12-models.md) for the full contract.
 
 ## Install

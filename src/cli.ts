@@ -70,12 +70,6 @@ async function main(): Promise<void> {
       return;
     }
     case 'chat': {
-      if (args.model === 'private-cloud-compute') {
-        const model = (await probe()).models?.find((entry) => entry.id === args.model);
-        if (model?.available !== true) {
-          throw new Error(`private-cloud-compute unavailable (${model?.reason ?? 'unsupported by this helper or OS'})`);
-        }
-      }
       const tools = args.tools !== undefined ? registryFromNames(args.tools) : undefined;
       await runRepl({
         model: args.model,

@@ -61,7 +61,7 @@ export type UnavailableReason =
   | 'unknown';
 
 /** Stable IDs accepted by the CLI and library. */
-export type ModelId = 'on-device' | 'private-cloud-compute';
+export type ModelId = 'on-device';
 
 /** Availability of a model exposed by the current helper and OS. */
 export type ModelAvailability = { id: string } & (

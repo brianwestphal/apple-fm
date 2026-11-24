@@ -62,47 +62,19 @@ jobs:
       - run: npm run build
       - run: npm pack --dry-run
 
-  # Check both SDK paths. Probe reports availability even without Apple
-  # Intelligence enabled. Real on-device inference in CI is tracked as AF-2.
+  # Probe both OS versions without requiring Apple Intelligence to be enabled.
   helper-build:
     strategy:
       matrix:
         runner: [macos-26, xcode-27]
-        include:
-          - runner: macos-26
-            expected_models: on-device
-          - runner: xcode-27
-            expected_models: on-device,private-cloud-compute
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
       - run: npm run build:helper
-      - name: Verify the native helper lists the expected models
-        env:
-          EXPECTED_MODELS: ${{ matrix.expected_models }}
+      - name: Verify the native helper lists the on-device model
         run: |
           test -x bin/apple-fm-helper
-          bin/apple-fm-helper --probe | jq -e --arg expected "$EXPECTED_MODELS" '
-            (.models | map(.id) | join(",")) == $expected and
-            .available == .models[0].available
-          '
-      - uses: actions/upload-artifact@v4
-        if: matrix.runner == 'xcode-27'
-        with:
-          name: sdk-27-helper
-          path: bin/apple-fm-helper
-
-  helper-macos-26-compatibility:
-    needs: helper-build
-    runs-on: macos-26
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: sdk-27-helper
-      - name: Run the SDK 27 helper on macOS 26
-        run: |
-          chmod +x apple-fm-helper
-          ./apple-fm-helper --probe | jq -e '
+          bin/apple-fm-helper --probe | jq -e '
             (.models | map(.id)) == ["on-device"] and
             .available == .models[0].available
           '

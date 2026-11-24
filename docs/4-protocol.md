@@ -3,8 +3,6 @@
 The Node layer and the Swift helper communicate over **line-delimited JSON
 (NDJSON)** on stdin/stdout. The helper has three modes, selected by a flag:
 `--probe`, the one-shot `--generate`, and the long-lived `--session`.
-`--generate-pcc` and `--session-pcc` use the same framing with Private Cloud Compute.
-Older helpers reject those flags. The selected mode stays fixed across session resets.
 See [model discovery and selection](12-models.md).
 
 ## `--probe`
@@ -14,7 +12,7 @@ event), then exits 0:
 
 ```json
 {"available":true,"models":[{"id":"on-device","available":true}]}
-{"available":true,"models":[{"id":"on-device","available":true},{"id":"private-cloud-compute","available":false,"reason":"missingEntitlement"}]}
+{"available":false,"reason":"modelNotReady","models":[{"id":"on-device","available":false,"reason":"modelNotReady"}]}
 ```
 
 Top-level availability describes the on-device model. Older helpers can omit

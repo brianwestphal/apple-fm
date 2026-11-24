@@ -107,7 +107,7 @@ export function parseArgs(argv: string[]): ParsedArgs {
 
 function parseModel(value: string | undefined): ModelId {
   if (value === undefined || value.startsWith('-')) throw new Error('--model requires a value');
-  if (value === 'on-device' || value === 'private-cloud-compute') return value;
+  if (value === 'on-device') return value;
   throw new Error(`unknown model "${value}" (run apple-fm probe)`);
 }
 
