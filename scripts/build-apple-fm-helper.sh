@@ -40,11 +40,11 @@ trap 'rm -f "$LOG"' EXIT
 sources=("$SRCDIR"/*.swift)
 # Keep the deployment target at macOS 26 while compiling PCC on SDK 27+.
 sdk_version="$(xcrun --sdk macosx --show-sdk-version 2>/dev/null || true)"
-swift_flags=()
+swift_flags=(-O -target arm64-apple-macos26)
 if [[ "${sdk_version%%.*}" =~ ^[0-9]+$ ]] && [[ "${sdk_version%%.*}" -ge 27 ]]; then
   swift_flags+=(-D APPLE_FM_PCC)
 fi
-if ! swiftc -O -target arm64-apple-macos26 "${swift_flags[@]}" "${sources[@]}" -o "$OUT" 2>"$LOG"; then
+if ! swiftc "${swift_flags[@]}" "${sources[@]}" -o "$OUT" 2>"$LOG"; then
   echo "[apple-fm] build failed (needs the macOS 26 SDK / Xcode 26) — skipping:"
   sed 's/^/[apple-fm]   /' "$LOG" || true
   exit 0
