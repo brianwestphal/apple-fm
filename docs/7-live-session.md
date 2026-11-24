@@ -127,6 +127,13 @@ drop after `/clear` or `/compact` because it measures the active transcript.
 
 ## Save and resume
 
+`ChatSession` runs send, usage, compaction, save, and resume operations in the order
+the caller starts them. A successful send adds its prompt and reply together. A
+failed send leaves no unmatched prompt, even when recovery also fails. `reset()`
+clears history immediately. `close()` preserves committed history, which is reseeded
+if the caller reuses the session. Either call invalidates work already in flight or
+queued against the previous session state.
+
 In chat, `/save <file>` writes a new JSON snapshot containing the native
 Foundation Models transcript, the current instructions, recent turns, and the
 compaction summary (AFM-3YNEKV). The CLI creates the file with mode `0600` and

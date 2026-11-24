@@ -70,6 +70,8 @@ export interface ChatBackend {
   exportTranscript?(): Promise<string>;
   /** Replace the native transcript after validating it against the enabled tools. */
   importTranscript?(transcript: string): Promise<void>;
+  /** Whether the current backend process can still hold a previously reset session. */
+  isActive?(): boolean;
   /** Tear down the backend. */
   close(): void;
 }
@@ -134,8 +136,7 @@ export class LiveSession implements ChatBackend {
   /** Count native tokens for the active session without starting another helper. */
   async tokenBudget(prompt: string): Promise<{ tokens: number; contextSize: number } | undefined> {
     const contextSize = this.contextSize;
-    const child = this.child;
-    if (contextSize === undefined || child === undefined || child.exitCode !== null || child.killed) return undefined;
+    if (contextSize === undefined || !this.isActive()) return undefined;
     try {
       const content = await this.dispatch({ type: 'count_tokens', prompt }, undefined);
       return { tokens: parseTokenCount(JSON.parse(content)), contextSize };
@@ -150,6 +151,12 @@ export class LiveSession implements ChatBackend {
     return this.dispatch({ type: 'export_transcript' }, undefined);
   }
 
+  /** Whether the current helper can still hold the active session. */
+  isActive(): boolean {
+    const child = this.child;
+    return child !== undefined && child.exitCode === null && child.signalCode === null && !child.killed;
+  }
+
   /** Restore the transcript using the currently configured tools. */
   async importTranscript(transcript: string): Promise<void> {
     this.requireTranscriptPersistence();
@@ -157,8 +164,7 @@ export class LiveSession implements ChatBackend {
   }
 
   private requireTranscriptPersistence(): void {
-    const child = this.child;
-    if (!this.transcriptPersistence || child === undefined || child.exitCode !== null || child.killed) {
+    if (!this.transcriptPersistence || !this.isActive()) {
       throw new Error('native transcript persistence requires a current apple-fm helper');
     }
   }
@@ -184,7 +190,7 @@ export class LiveSession implements ChatBackend {
 
   private ensureChild(): ChildProcessWithoutNullStreams {
     const existing = this.child;
-    if (existing !== undefined && existing.exitCode === null && !existing.killed) return existing;
+    if (existing !== undefined && this.isActive()) return existing;
     if (existing !== undefined) this.retireChild(existing, new Error('[sessionClosed] live session helper exited'));
     const child = spawn(this.command, ['--session'], { stdio: ['pipe', 'pipe', 'pipe'] });
     this.buffer = '';

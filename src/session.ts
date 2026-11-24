@@ -122,16 +122,18 @@ export class ChatSession {
   private readonly keepRecentTurns: number;
   private readonly backend: ChatBackend;
   private readonly generateFn: GenerateFn;
-  private readonly tools?: ToolRegistry;
+  private readonly toolNames: string[];
   private messages: Message[] = [];
   /** Recap of turns dropped by compaction; folded into the system prompt. */
   private summary: string | undefined;
   /** Instructions the backend was last `reset` with (`undefined` ⇒ needs reset). */
   private backendInstructions: string | undefined;
+  private operations = Promise.resolve();
+  private revision = 0;
 
   constructor(config: ChatSessionConfig = {}) {
     this.system = config.system ?? '';
-    this.tools = config.tools;
+    this.toolNames = config.tools?.names().sort() ?? [];
     this.compactAtTokens = config.compactAtTokens ?? DEFAULT_COMPACT_AT;
     this.keepRecentTurns = config.keepRecentTurns ?? DEFAULT_KEEP_RECENT;
     this.backend =
@@ -159,10 +161,14 @@ export class ChatSession {
   }
 
   /** Report the active context in tokens. A missing capacity indicates an estimate. */
-  async usage(): Promise<{ tokens: number; contextSize?: number }> {
-    await this.ensureStarted();
-    const budget = await this.backend.tokenBudget?.('');
-    return budget ?? { tokens: estimateConversationTokens(this.effectiveSystem(), this.messages) };
+  usage(): Promise<{ tokens: number; contextSize?: number }> {
+    return this.schedule(async (revision) => {
+      await this.ensureStarted(revision);
+      this.assertCurrent(revision);
+      const budget = await this.backend.tokenBudget?.('');
+      this.assertCurrent(revision);
+      return budget ?? { tokens: estimateConversationTokens(this.effectiveSystem(), this.messages) };
+    });
   }
 
   /** Whether the next turn would push the transcript past the compaction bound. */
@@ -174,45 +180,53 @@ export class ChatSession {
    * Send a user turn and return the assistant's reply (streamed via `onDelta`). An
    * optional `signal` interrupts the turn (FR-15, esc-to-interrupt): on abort the
    * reply resolves with the partial text generated so far, and both the user prompt
-   * and that partial reply are kept in history (so a follow-up turn stays coherent).
+   * and that partial reply are kept in history. Aborting before a turn starts
+   * returns empty text without adding a turn.
    */
-  async send(text: string, onDelta?: DeltaHandler, signal?: AbortSignal): Promise<string> {
+  send(text: string, onDelta?: DeltaHandler, signal?: AbortSignal): Promise<string> {
+    return this.schedule((revision) => this.sendTurn(revision, text, onDelta, signal));
+  }
+
+  private async sendTurn(revision: number, text: string, onDelta?: DeltaHandler, signal?: AbortSignal): Promise<string> {
+    const interrupted = (): boolean => signal?.aborted === true;
+    if (interrupted()) return '';
+    const stream = onDelta === undefined ? undefined : (chunk: string): void => {
+      if (revision === this.revision) onDelta(chunk);
+    };
     if (this.messages.length > this.keepRecentTurns) {
       const budget = this.backendInstructions === this.effectiveSystem()
         ? await this.backend.tokenBudget?.(text)
         : undefined;
+      this.assertCurrent(revision);
       const shouldCompact = budget === undefined
         ? this.shouldCompact()
         : budget.tokens > Math.min(this.compactAtTokens, Math.floor(budget.contextSize * 0.75));
-      if (shouldCompact) await this.compact();
+      if (shouldCompact) await this.compactHistory(revision);
     }
     // Re-establish the backend's context (first turn, or after a compaction
     // changed the effective system prompt) *before* recording the new turn, so the
     // reseed carries only prior turns.
-    await this.ensureStarted();
-    this.messages.push({ role: 'user', content: text });
+    await this.ensureStarted(revision);
+    if (interrupted()) return '';
     let reply: string;
     try {
-      reply = await this.backend.send(text, onDelta, signal);
+      reply = await this.runBackend(revision, () => this.backend.send(text, stream, signal));
     } catch (error) {
+      this.assertCurrent(revision);
       const overflow = isContextOverflow(error);
-      if (!recoverable(error) && !overflow) {
-        this.messages.pop();
-        throw error;
-      }
+      if (!recoverable(error) && !overflow) throw error;
       // The in-flight turn failed recoverably; reseed a fresh session from the
       // transcript so far (excluding the in-flight turn) and try once more.
       // `[contextWindowExceeded]`: the model overflowed despite our pre-send token
       // estimate — compact first so the retry actually fits. `[sessionClosed]`: the
       // helper merely died, so reseeding as-is is enough.
-      this.messages.pop();
-      if (overflow) await this.compact();
-      this.backendInstructions = undefined;
-      await this.ensureStarted();
-      this.messages.push({ role: 'user', content: text });
-      reply = await this.backend.send(text, onDelta, signal);
+      if (overflow) await this.compactHistory(revision);
+      await this.ensureStarted(revision);
+      if (interrupted()) return '';
+      reply = await this.runBackend(revision, () => this.backend.send(text, stream, signal));
     }
-    this.messages.push({ role: 'assistant', content: reply });
+    this.assertCurrent(revision);
+    this.messages.push({ role: 'user', content: text }, { role: 'assistant', content: reply });
     return reply;
   }
 
@@ -220,18 +234,49 @@ export class ChatSession {
    * Reset the backend's session whenever the effective system prompt changes (the
    * first turn, or after a compaction), seeding it with the transcript so far.
    */
-  private async ensureStarted(): Promise<void> {
+  private async ensureStarted(revision: number): Promise<void> {
+    this.assertCurrent(revision);
     const system = this.effectiveSystem();
-    if (this.backendInstructions === system) return;
-    await this.backend.reset(system, this.messages);
+    if (this.backendInstructions === system && this.backend.isActive?.() !== false) return;
+    await this.runBackend(revision, () => this.backend.reset(system, this.history()));
+    this.assertCurrent(revision);
     this.backendInstructions = system;
+  }
+
+  private async runBackend<T>(revision: number, operation: () => Promise<T>): Promise<T> {
+    this.assertCurrent(revision);
+    try {
+      return await operation();
+    } catch (error) {
+      this.assertCurrent(revision);
+      this.backendInstructions = undefined;
+      throw error;
+    }
+  }
+
+  private schedule<T>(operation: (revision: number) => Promise<T>): Promise<T> {
+    const revision = this.revision;
+    const scheduled = this.operations.then(() => {
+      this.assertCurrent(revision);
+      return operation(revision);
+    });
+    this.operations = scheduled.then(() => undefined, () => undefined);
+    return scheduled;
+  }
+
+  private assertCurrent(revision: number): void {
+    if (this.revision !== revision) throw new Error('chat session changed during the operation');
   }
 
   /**
    * Fold all but the most recent turns into the rolling summary. Safe to call
    * directly; {@link send} calls it automatically when {@link shouldCompact}.
    */
-  async compact(): Promise<void> {
+  compact(): Promise<void> {
+    return this.schedule((revision) => this.compactHistory(revision));
+  }
+
+  private async compactHistory(revision: number): Promise<void> {
     if (this.messages.length <= this.keepRecentTurns) return;
     const cutoff = this.messages.length - this.keepRecentTurns;
     const older = this.messages.slice(0, cutoff);
@@ -244,42 +289,56 @@ export class ChatSession {
     ]
       .filter((part) => part.length > 0)
       .join('\n\n');
-    this.summary = (await this.generateFn(SUMMARIZE_SYSTEM, [{ role: 'user', content: transcript }])).trim();
+    const summary = await this.generateFn(SUMMARIZE_SYSTEM, [{ role: 'user', content: transcript }]);
+    this.assertCurrent(revision);
+    this.summary = summary.trim();
     this.messages = recent;
     this.backendInstructions = undefined;
   }
 
   /** Capture a versioned snapshot with the native session transcript. */
-  async saveTranscript(): Promise<SavedChat> {
-    if (this.backend.exportTranscript === undefined) throw new Error('backend cannot save a native transcript');
-    await this.ensureStarted();
-    return {
-      version: 1,
-      system: this.system,
-      summary: this.summary,
-      messages: this.history(),
-      tools: this.tools?.names().sort() ?? [],
-      transcript: await this.backend.exportTranscript(),
-    };
+  saveTranscript(): Promise<SavedChat> {
+    return this.schedule(async (revision) => {
+      const exportTranscript = this.backend.exportTranscript?.bind(this.backend);
+      if (exportTranscript === undefined) throw new Error('backend cannot save a native transcript');
+      await this.ensureStarted(revision);
+      const transcript = await this.runBackend(revision, exportTranscript);
+      this.assertCurrent(revision);
+      return {
+        version: 1,
+        system: this.system,
+        summary: this.summary,
+        messages: this.history(),
+        tools: [...this.toolNames],
+        transcript,
+      };
+    });
   }
 
   /** Resume a saved chat using this invocation's tool registry and permissions. */
-  async resumeTranscript(saved: SavedChat): Promise<void> {
-    if (this.backend.importTranscript === undefined) throw new Error('backend cannot resume a native transcript');
-    const tools = this.tools?.names().sort() ?? [];
-    if (JSON.stringify(tools) !== JSON.stringify([...saved.tools].sort())) {
-      throw new Error('enabled tools do not match the saved chat; use the same --tools list');
-    }
-    await this.ensureStarted();
-    await this.backend.importTranscript(saved.transcript);
-    this.system = saved.system;
-    this.summary = saved.summary;
-    this.messages = saved.messages.map((message) => ({ ...message }));
-    this.backendInstructions = this.effectiveSystem();
+  resumeTranscript(saved: SavedChat): Promise<void> {
+    const { system, summary, transcript } = saved;
+    const messages = saved.messages.map((message) => ({ ...message }));
+    const tools = [...saved.tools].sort();
+    return this.schedule(async (revision) => {
+      const importTranscript = this.backend.importTranscript?.bind(this.backend);
+      if (importTranscript === undefined) throw new Error('backend cannot resume a native transcript');
+      if (JSON.stringify(this.toolNames) !== JSON.stringify(tools)) {
+        throw new Error('enabled tools do not match the saved chat; use the same --tools list');
+      }
+      await this.ensureStarted(revision);
+      await this.runBackend(revision, () => importTranscript(transcript));
+      this.assertCurrent(revision);
+      this.system = system;
+      this.summary = summary;
+      this.messages = messages;
+      this.backendInstructions = this.effectiveSystem();
+    });
   }
 
   /** Clear the transcript and summary; optionally replace the system prompt. */
   reset(system?: string): void {
+    this.revision += 1;
     if (system !== undefined) this.system = system;
     this.messages = [];
     this.summary = undefined;
@@ -289,6 +348,8 @@ export class ChatSession {
 
   /** Tear down the underlying live session (kills the helper process). */
   close(): void {
+    this.revision += 1;
+    this.backendInstructions = undefined;
     this.backend.close();
   }
 }

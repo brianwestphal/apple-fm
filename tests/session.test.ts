@@ -1,4 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { fileURLToPath } from 'node:url';
+
+import { describe, expect, it, vi } from 'vitest';
 
 import type { ChatBackend } from '../src/liveSession.js';
 import { ChatSession, type GenerateFn, parseSavedChat } from '../src/session.js';
@@ -88,18 +90,18 @@ describe('ChatSession.send', () => {
 
   it('forwards an abort signal and keeps the partial reply in history (FR-15)', async () => {
     let seenSignal: AbortSignal | undefined;
+    const controller = new AbortController();
     const backend: ChatBackend = {
       reset: () => Promise.resolve(),
       // The interrupted backend resolves with the partial text generated so far.
       send: (text, _onDelta, signal) => {
         seenSignal = signal;
+        controller.abort();
         return Promise.resolve(signal?.aborted === true ? `partial:${text}` : `reply:${text}`);
       },
       close: () => undefined,
     };
     const session = new ChatSession({ backend, compactAtTokens: 1e9 });
-    const controller = new AbortController();
-    controller.abort();
     const reply = await session.send('hi', undefined, controller.signal);
     expect(seenSignal).toBe(controller.signal); // signal threaded through to the backend
     expect(reply).toBe('partial:hi');
@@ -107,6 +109,14 @@ describe('ChatSession.send', () => {
       { role: 'user', content: 'hi' },
       { role: 'assistant', content: 'partial:hi' }, // partial kept
     ]);
+  });
+
+  it('does not add a turn if its signal is already aborted (AFM-33D06R)', async () => {
+    const { backend, calls } = recordingBackend();
+    const session = new ChatSession({ backend });
+    await expect(session.send('skipped', undefined, AbortSignal.abort())).resolves.toBe('');
+    expect(calls).toEqual([]);
+    expect(session.history()).toEqual([]);
   });
 
   it('reseeds and retries once when the helper dies mid-turn', async () => {
@@ -345,6 +355,72 @@ describe('ChatSession compaction', () => {
 });
 
 describe('ChatSession.reset / close', () => {
+  it('cannot commit an in-flight or queued send after reset (AFM-33D06R)', async () => {
+    const { backend, calls } = recordingBackend();
+    const onDelta = vi.fn();
+    let finish: (reply: string) => void = () => undefined;
+    const held = new Promise<string>((resolve) => { finish = resolve; });
+    let started: () => void = () => undefined;
+    const entered = new Promise<void>((resolve) => { started = resolve; });
+    const originalSend = backend.send.bind(backend);
+    backend.send = (text, delta) => {
+      if (text !== 'old') return originalSend(text, delta);
+      started();
+      return held.then((reply) => { delta?.('stale delta'); return reply; });
+    };
+    const session = new ChatSession({ system: 'old system', backend });
+    const old = expect(session.send('old', onDelta)).rejects.toThrow(/session changed/);
+    await entered;
+    const queued = expect(session.send('queued')).rejects.toThrow(/session changed/);
+    session.reset('new system');
+    expect(session.history()).toEqual([]);
+    const current = session.send('new');
+    finish('stale response');
+    await Promise.all([old, queued]);
+    await expect(current).resolves.toBe('reply:new');
+    expect(onDelta).not.toHaveBeenCalled();
+    expect(calls).toContainEqual({ kind: 'reset', system: 'new system', seed: [] });
+    expect(session.history()).toEqual([{ role: 'user', content: 'new' }, { role: 'assistant', content: 'reply:new' }]);
+  });
+
+  it('serializes send, compact, save, resume and another send (AFM-33D06R)', async () => {
+    const events: string[] = [];
+    const backend: ChatBackend = {
+      reset: (system) => { events.push(`reset:${system}`); return Promise.resolve(); },
+      send: (text) => { events.push(`send:${text}`); return Promise.resolve(`reply:${text}`); },
+      exportTranscript: () => { events.push('export'); return Promise.resolve('exported'); },
+      importTranscript: (transcript) => { events.push(`import:${transcript}`); return Promise.resolve(); },
+      close: () => undefined,
+    };
+    const gen: GenerateFn = () => { events.push('compact'); return Promise.resolve('recap'); };
+    const session = new ChatSession({ backend, generateFn: gen, keepRecentTurns: 1 });
+    const one = session.send('one');
+    const compact = session.compact();
+    const snap = session.saveTranscript();
+    const resume = session.resumeTranscript({ version: 1, system: 'restored', tools: [], messages: [], transcript: 'native' });
+    const two = session.send('two');
+    await Promise.all([one, compact, resume, two]);
+    expect(events).toEqual(['reset:', 'send:one', 'compact', 'reset:Conversation so far:\nrecap', 'export', 'import:native', 'send:two']);
+    await expect(snap).resolves.toMatchObject({ summary: 'recap', messages: [{ role: 'assistant', content: 'reply:one' }] });
+    expect(session.history()).toEqual([{ role: 'user', content: 'two' }, { role: 'assistant', content: 'reply:two' }]);
+  });
+
+  it('preserves complete turns after a retry fails and reseeds a reused child (AFM-33D06R)', async () => {
+    const binPath = fileURLToPath(new URL('./fixtures/stub-helper.js', import.meta.url));
+    const session = new ChatSession({ system: 'sys', helper: { binPath } });
+    try {
+      await session.send('ok');
+      const prior = session.history();
+      await expect(session.send('CRASH')).rejects.toThrow(/sessionClosed/);
+      expect(session.history()).toEqual(prior);
+      await expect(session.send('continue')).resolves.toContain('sys [seed:2]');
+      session.close();
+      await expect(session.send('reopen')).resolves.toContain('sys [seed:4]');
+    } finally {
+      session.close();
+    }
+  });
+
   it('clears history and resets the backend with a new system prompt on the next turn', async () => {
     const { backend, calls } = recordingBackend();
     const session = new ChatSession({ system: 'old', backend, compactAtTokens: 1e9 });
