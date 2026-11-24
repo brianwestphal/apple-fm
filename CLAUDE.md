@@ -25,8 +25,7 @@ Two layers, talking NDJSON (see [docs/4-protocol.md](docs/4-protocol.md)):
 
 - **Native** — `apple-fm-helper/*.swift` (entry point in `main.swift`,
   guided-generation schema translation in `GuidedGeneration.swift`): the only code
-  importing `FoundationModels`. Modes `--probe`, `--generate`, and the long-lived
-  `--session`. All `.swift` files compile into one binary via
+  importing `FoundationModels`. Modes for probe, token counting, text and image generation, tagging, and persistent chat. All `.swift` files compile into one binary via
   `scripts/build-apple-fm-helper.sh` (guarded: no-ops on non-macOS / missing SDK).
 - **Node (`src/`)**
   - `types.ts` — shared types (`Message`, `GenerateRequest`, `ProbeResult`,
@@ -34,7 +33,7 @@ Two layers, talking NDJSON (see [docs/4-protocol.md](docs/4-protocol.md)):
   - `protocol.ts` — pure NDJSON helpers (`encodeRequest`, `splitLines`,
     `parseEvent`, `flattenMessages`, `estimateTokens`,
     `estimateConversationTokens`).
-  - `helper.ts` — process layer (`resolveHelperPath`, `probe`, `generate`):
+  - `helper.ts` — process layer (`resolveHelperPath`, `probe`, `countTokens`, `generate`):
     spawns the helper, streams deltas, bounds it with a timeout, surfaces errors.
   - `liveSession.ts` — `LiveSession` (the `ChatBackend`): one long-lived
     `apple-fm-helper --session` process held across turns (KV-cache reuse),
@@ -59,7 +58,7 @@ Two layers, talking NDJSON (see [docs/4-protocol.md](docs/4-protocol.md)):
 
 ```ts
 import {
-  probe, generate, resolveHelperPath, isPlatformSupported, HELPER_BIN_ENV,
+  probe, countTokens, generate, resolveHelperPath, isPlatformSupported, HELPER_BIN_ENV,
   ChatSession, LiveSession,
   encodeRequest, splitLines, parseEvent, flattenMessages,
   estimateTokens, estimateConversationTokens,
@@ -68,7 +67,8 @@ import {
   readTool, bashTool, PermissionPolicy,
 } from 'apple-fm';
 import type {
-  Message, Role, GenerateRequest, GenerateOptions, ProbeResult, UnavailableReason,
+  Message, Role, GenerateRequest, GenerateUseCase, GenerateOptions, ProbeResult,
+  ModelId, ModelAvailability, UnavailableReason,
   HelperEvent, HelperOptions, DeltaHandler, SnapshotHandler,
   ChatSessionConfig, GenerateFn, ChatBackend, LiveSessionConfig,
   // Tool calling (FR-14)
@@ -139,6 +139,7 @@ npm run clean       # rm -rf dist coverage node_modules/.cache
 npm run demo         # re-capture the README demo SVGs (assets/demos/) — needs the on-device model
 npm run release      # interactive release (bump, changelog, tag); CI publishes
 npm run release:beta # beta tag-only flow (npm install apple-fm@beta)
+npm run prepublishOnly # run the package build before publishing
 ```
 
 `prepublishOnly` (runs `build`) fires automatically on `npm publish`. The
@@ -159,6 +160,7 @@ release flow and its one-time CI signing setup are documented in
 - [docs/10-permissions.md](docs/10-permissions.md) — tool permission policy requirements (FR-14 / AF-5 phase 2 / AFM-32).
 - [docs/11-builtin-tools.md](docs/11-builtin-tools.md) — per-tool requirements for the built-in tools (`read`, `bash`) (FR-14 / AF-5).
 - [docs/12-models.md](docs/12-models.md) — on-device model discovery and selection.
+- [2026-11-24 code audit](docs/audits/2026-11-24-code-audit.md) — requirements, hygiene, and quality findings.
 - [docs/ai/code-summary.md](docs/ai/code-summary.md) — AI-oriented code map.
 
 > **Standing re-eval:** apple-fm's tool-support case partly rests on Apple's official

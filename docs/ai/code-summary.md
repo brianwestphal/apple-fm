@@ -9,9 +9,9 @@ changes.
 src/
   types.ts        # shared types: Message, GenerateRequest, ProbeResult, HelperEvent, HelperOptions
   protocol.ts     # pure NDJSON: encodeRequest, splitLines, parseEvent, parseProbeResult, flattenMessages, estimateTokens, estimateConversationTokens
-  helper.ts       # process layer: resolveHelperPath, probe, generate (spawn helper, stream, timeout)
-  liveSession.ts  # LiveSession: one long-lived `--session` helper; ChatBackend (turn/reset/close, id-correlated)
-  session.ts      # ChatSession (multi-turn over a LiveSession backend + auto-compaction); GenerateFn
+  helper.ts       # process layer: resolveHelperPath, probe, countTokens, generate (spawn helper, stream, timeout)
+  liveSession.ts  # LiveSession: one long-lived `--session` helper; ChatBackend (id-correlated turns, resets, usage, and save/resume)
+  session.ts      # ChatSession (multi-turn over a LiveSession backend, auto-compaction, and native transcript persistence); GenerateFn
   cliArgs.ts      # parseArgs() + USAGE
   repl.ts         # interactive chat loop (runRepl) — readline over ChatSession
   cli.ts          # apple-fm bin (thin)
