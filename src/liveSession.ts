@@ -24,8 +24,8 @@ export interface LiveSessionConfig extends HelperOptions {
   /** Generation knobs forwarded with every turn. */
   options?: GenerateOptions;
   /**
-   * Tools the model may call mid-turn (FR-14). When non-empty, their definitions
-   * are sent with each turn and the session dispatches `tool_call` events to them.
+   * Tools the model may call mid-turn (FR-14). Captured when the session is
+   * constructed. Their definitions bind on reset and transcript import.
    */
   tools?: ToolRegistry;
   /**
@@ -94,7 +94,7 @@ export class LiveSession implements ChatBackend {
     assertSupportedModel(config.model);
     this.timeoutMs = config.timeoutMs ?? DEFAULT_TURN_TIMEOUT_MS;
     this.options = config.options;
-    this.tools = config.tools !== undefined && config.tools.size > 0 ? config.tools : undefined;
+    this.tools = config.tools !== undefined && config.tools.size > 0 ? config.tools.snapshot() : undefined;
     // Safe by default (AFM-78): if tools are registered but no policy was supplied, fall
     // back to a fail-closed policy (default `ask`, no asker ⇒ deny) so tools are never
     // run ungated. An explicit policy — including a deliberate `{ default: 'allow' }` —

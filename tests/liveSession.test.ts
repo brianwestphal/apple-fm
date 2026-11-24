@@ -320,6 +320,33 @@ describe('LiveSession', () => {
       return { tool, calls };
     }
 
+    it('keeps tool implementations and definitions stable across resets and approvals (AFM-17X7T9)', async () => {
+      const { tool, calls } = spyTool();
+      const registry = new ToolRegistry([tool]);
+      const replacement = vi.fn(() => Promise.resolve('replacement'));
+      const session = new LiveSession({
+        binPath: STUB,
+        tools: registry,
+        permission: new PermissionPolicy({ asker: () => {
+          registry.register({ ...tool, run: replacement });
+          return Promise.resolve('once');
+        } }),
+      });
+      try {
+        await session.reset('');
+        registry.register({ ...tool, name: 'late' });
+        tool.run = replacement;
+        await expect(session.send('TOOL fake {"path":"original"}')).resolves.toBe('tool-saw:original');
+        await session.reset('again');
+        await expect(session.send('TOOL late {}')).rejects.toThrow(/not offered/);
+        await expect(session.send('TOOL fake {"path":"next"}')).resolves.toBe('tool-saw:next');
+        expect(calls).toEqual([{ path: 'original' }, { path: 'next' }]);
+        expect(replacement).not.toHaveBeenCalled();
+      } finally {
+        session.close();
+      }
+    });
+
     it('round-trips a model tool call: dispatch → run → feed the result back', async () => {
       const { tool, calls } = spyTool();
       // An explicit allow policy — the default with no policy is now fail-closed (AFM-78).

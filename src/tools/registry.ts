@@ -8,6 +8,18 @@
 import type { PermissionRequest } from './permissions.js';
 import type { Tool, ToolContext, ToolDefinition } from './types.js';
 
+/** Build the authorization request from the exact implementation that will run. */
+export function toolPermissionRequest(tool: Tool, args: Record<string, unknown>): PermissionRequest {
+  return {
+    tool: tool.name,
+    key: tool.permissionKey?.(args),
+    description: tool.describe?.(args) ?? `${tool.name} ${JSON.stringify(args)}`,
+    matchKey: tool.matchKey?.bind(tool),
+    dangerous: tool.dangerous,
+    args,
+  };
+}
+
 export class ToolRegistry {
   private readonly tools = new Map<string, Tool>();
 
@@ -18,6 +30,26 @@ export class ToolRegistry {
   /** Register (or replace) a tool by name. */
   register(tool: Tool): void {
     this.tools.set(tool.name, tool);
+  }
+
+  /** Look up the implementation for one call. */
+  get(name: string): Tool | undefined {
+    return this.tools.get(name);
+  }
+
+  /** Copy the wire definitions, permission hooks, and implementations for a live session. */
+  snapshot(): ToolRegistry {
+    return new ToolRegistry([...this.tools.values()].map((tool) => ({
+      name: tool.name,
+      description: tool.description,
+      parameters: structuredClone(tool.parameters),
+      run: tool.run.bind(tool),
+      permissionKey: tool.permissionKey?.bind(tool),
+      describe: tool.describe?.bind(tool),
+      matchKey: tool.matchKey?.bind(tool),
+      dangerous: tool.dangerous,
+      usageHint: tool.usageHint,
+    })));
   }
 
   /** Whether a tool with this name is registered. */
@@ -56,16 +88,7 @@ export class ToolRegistry {
   permissionRequest(name: string, args: Record<string, unknown>): PermissionRequest | undefined {
     const tool = this.tools.get(name);
     if (tool === undefined) return undefined;
-    return {
-      tool: name,
-      key: tool.permissionKey?.(args),
-      description: tool.describe?.(args) ?? `${name} ${JSON.stringify(args)}`,
-      args,
-      // Carry the tool's own key-matching + risk semantics so the policy can apply
-      // them without knowing about specific tools (AFM-63 / AFM-64 / AFM-67).
-      matchKey: tool.matchKey?.bind(tool),
-      dangerous: tool.dangerous,
-    };
+    return toolPermissionRequest(tool, args);
   }
 
   /**

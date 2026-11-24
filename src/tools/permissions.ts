@@ -149,7 +149,8 @@ export class PermissionPolicy {
    * feeds a refusal back to the model as a tool result). Never throws — an asker that
    * rejects is treated as a denial.
    */
-  async authorize(request: PermissionRequest): Promise<boolean> {
+  async authorize(request: PermissionRequest, isCurrent?: () => boolean): Promise<boolean> {
+    if (isCurrent?.() === false) return false;
     const mode = this.decide(request);
     if (mode === 'allow') return true;
     if (mode === 'deny') return false;
@@ -160,6 +161,7 @@ export class PermissionPolicy {
     } catch {
       return false;
     }
+    if (isCurrent?.() === false) return false;
     if (outcome === 'always') {
       this.remember(request);
       return true;

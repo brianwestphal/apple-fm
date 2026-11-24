@@ -75,10 +75,37 @@ describe('dispatchToolCall', () => {
     let active = true;
     const permission = new PermissionPolicy({ asker: () => {
       active = false;
-      return Promise.resolve('once');
+      return Promise.resolve('always');
     } });
     await dispatchToolCall({ callId: '5:1', name: 'echo' }, { ...deps, permission, isCurrent: () => active });
     expect(run).not.toHaveBeenCalled();
     expect(sent).toEqual([]);
+    expect(permission.decide({ tool: 'echo', description: 'echo', args: {} })).toBe('ask');
+  });
+
+  it('runs the tool that was looked up before an asynchronous approval (AFM-17X7T9)', async () => {
+    const { sent, deps } = harness(echoTool);
+    const replacement = vi.fn(() => Promise.resolve('replacement'));
+    const permission = new PermissionPolicy({ asker: () => {
+      deps.tools?.register({ ...echoTool, run: replacement });
+      return Promise.resolve('once');
+    } });
+    await dispatchToolCall({ callId: '6:1', name: 'echo', arguments: { v: 'old' } }, { ...deps, permission });
+    expect(sent).toEqual([{ type: 'tool_result', callId: '6:1', content: 'echo:old' }]);
+    expect(replacement).not.toHaveBeenCalled();
+  });
+
+  it('fails closed with a bounded result when a permission hook throws (AFM-17X7T9)', async () => {
+    const run = vi.fn(() => Promise.resolve('ran'));
+    const { sent, deps } = harness({
+      ...echoTool,
+      run,
+      permissionKey: () => 'key',
+      matchKey: () => { throw new Error('private data'.repeat(300)); },
+    });
+    const permission = new PermissionPolicy({ allow: ['echo:key'] });
+    await dispatchToolCall({ callId: '7:1', name: 'echo' }, { ...deps, permission });
+    expect(run).not.toHaveBeenCalled();
+    expect(sent).toEqual([{ type: 'tool_result', callId: '7:1', content: 'The tool could not be authorized.' }]);
   });
 });

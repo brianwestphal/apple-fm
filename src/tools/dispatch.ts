@@ -9,8 +9,9 @@
  * whole turn rather than letting the model continue without the tool (verified). See
  * docs/9-tool-calling.md.
  */
+import { capOutput } from './output.js';
 import type { PermissionPolicy } from './permissions.js';
-import type { ToolRegistry } from './registry.js';
+import { toolPermissionRequest,type ToolRegistry } from './registry.js';
 
 /** Collaborators the dispatcher needs from the owning live session. */
 export interface ToolCallDeps {
@@ -53,24 +54,29 @@ export async function dispatchToolCall(event: Record<string, unknown>, deps: Too
     deps.send({ ...command, callId });
   };
 
-  const registry = deps.tools;
-  if (registry === undefined || !registry.has(name)) {
-    reply({ type: 'tool_result', content: `Unknown tool "${name}".` });
+  const tool = deps.tools?.get(name);
+  if (tool === undefined) {
+    reply({ type: 'tool_result', content: capOutput(`Unknown tool "${name}".`) });
     return;
   }
   // Permission gate (phase 2): refuse → tell the model it was denied; it continues.
   if (deps.permission !== undefined) {
-    const request = registry.permissionRequest(name, args);
-    const allowed = request !== undefined && (await deps.permission.authorize(request));
+    let allowed: boolean;
+    try {
+      allowed = await deps.permission.authorize(toolPermissionRequest(tool, args), deps.isCurrent);
+    } catch {
+      reply({ type: 'tool_result', content: 'The tool could not be authorized.' });
+      return;
+    }
     if (deps.isCurrent?.() === false) return;
     if (!allowed) {
-      reply({ type: 'tool_result', content: `Permission to use the "${name}" tool was denied by the user.` });
+      reply({ type: 'tool_result', content: capOutput(`Permission to use the "${name}" tool was denied by the user.`) });
       return;
     }
   }
   try {
-    reply({ type: 'tool_result', content: await registry.run(name, args) });
+    reply({ type: 'tool_result', content: await tool.run(args, {}) });
   } catch (error) {
-    reply({ type: 'tool_result', content: `The "${name}" tool failed: ${error instanceof Error ? error.message : String(error)}` });
+    reply({ type: 'tool_result', content: capOutput(`The "${name}" tool failed: ${error instanceof Error ? error.message : String(error)}`) });
   }
 }
