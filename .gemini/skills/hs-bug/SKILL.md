@@ -1,0 +1,10 @@
+---
+name: hs-bug
+description: Create a new bug ticket in Hot Sheet
+---
+<!-- hotsheet-skill-version: 25 -->
+
+Read `../../../.claude/skills/hs-bug/SKILL.md` completely and follow its
+workflow. Treat Claude-specific tool names as capability labels and use the
+equivalent tools available in the current session. Follow `AGENTS.md` for
+repository-wide conventions.
