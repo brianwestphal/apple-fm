@@ -66,10 +66,11 @@ unchanged ([4-protocol.md](4-protocol.md)); what's new is that the helper is
 - If a live command reaches its timeout, Node terminates its helper and rejects the
   other commands awaiting that process. Reset the replacement helper to restore
   context. Tool approvals and replies are valid only for their originating turn.
-- **Cancel command:** `{"type":"cancel","id":"7"}` interrupts the in-flight turn
-  (FR-15, esc-to-interrupt). The helper cancels the turn's task and the turn ends by
-  emitting its normal `result` with the **partial** text so far; `LiveSession` wires
-  this to an optional `AbortSignal` on `send`, and the REPL aborts on the Esc key.
+- **Cancel command:** `{"type":"cancel","id":"7"}` interrupts the identified turn
+  (FR-15, esc-to-interrupt). An active turn returns the partial text and a queued
+  turn returns an empty result in command order. `LiveSession.send` returns an
+  empty result immediately if its `AbortSignal` already aborted. The REPL aborts
+  on the Esc key.
 
 These are additive: `--probe` / `--generate` and their wire shapes are untouched.
 

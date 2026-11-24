@@ -118,11 +118,26 @@ describe('LiveSession', () => {
     try {
       await session.reset('');
       const controller = new AbortController();
+      const remove = vi.spyOn(controller.signal, 'removeEventListener');
       const reply = await session.send('go', undefined, controller.signal); // completes immediately
       expect(reply).toBe(JSON.stringify({ instructions: '', turns: 1, prompt: 'go' }));
+      expect(remove).toHaveBeenCalledWith('abort', expect.any(Function));
       controller.abort(); // after settle — must not throw or wedge the session
       const next = parseResult(await session.send('again'));
       expect(next.turns).toBe(2);
+    } finally {
+      session.close();
+    }
+  });
+
+  it('skips a pre-aborted turn without writing to the session (AFM-61RARJ)', async () => {
+    const session = new LiveSession({ binPath: STUB });
+    try {
+      await session.reset('sys');
+      const onDelta = vi.fn();
+      await expect(session.send('skip', onDelta, AbortSignal.abort())).resolves.toBe('');
+      expect(onDelta).not.toHaveBeenCalled();
+      expect(parseResult(await session.send('next'))).toMatchObject({ instructions: 'sys', turns: 1 });
     } finally {
       session.close();
     }
@@ -211,10 +226,13 @@ describe('LiveSession', () => {
     await session.reset('');
     // STREAM_FOREVER never settles on its own, so the send is still pending when we
     // close — exercising rejectAll via the explicit close() call (not process exit).
-    const pending = session.send('STREAM_FOREVER');
+    const controller = new AbortController();
+    const remove = vi.spyOn(controller.signal, 'removeEventListener');
+    const pending = session.send('STREAM_FOREVER', undefined, controller.signal);
     await new Promise((resolve) => setTimeout(resolve, 30)); // let it register as in-flight
     session.close();
     await expect(pending).rejects.toThrow(/\[sessionClosed\] live session closed/);
+    expect(remove).toHaveBeenCalledWith('abort', expect.any(Function));
   });
 
   it('ignores malformed / non-object / mis-id-ed / unknown-type lines and still resolves', async () => {

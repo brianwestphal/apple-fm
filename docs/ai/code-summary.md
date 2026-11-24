@@ -48,13 +48,13 @@ tests/            # protocol, cliArgs, session, helper, liveSession, docs, demo 
 | --- | --- |
 | change the wire protocol (events, framing) | `protocol.ts` + `docs/4-protocol.md` + `apple-fm-helper/main.swift` |
 | change how the helper binary is found/spawned | `helper.ts` (`resolveHelperPath`, `runHelper`) |
-| change the persistent live-session process/protocol | `liveSession.ts` (`LiveSession`) + `apple-fm-helper/main.swift` (`runSession`) |
+| change the persistent live-session process/protocol | `liveSession.ts` (`LiveSession`), `apple-fm-helper/main.swift` (`runSession`, `runSessionCommands`), `apple-fm-helper/SessionTurns.swift` (cancellation ownership) |
 | change chat behavior or compaction policy | `session.ts` (`ChatSession`, `SUMMARIZE_SYSTEM`) |
 | change guided generation (`--schema` → native) | `apple-fm-helper/GuidedGeneration.swift` (`dynamicSchema`, `compileSchema`) + `main.swift` (`generate`) |
 | add/change a CLI flag | `cliArgs.ts` (+ wire in `cli.ts`) |
 | change saved chat format or restore | `src/session.ts`, `src/repl.ts`, `src/liveSession.ts`, and `apple-fm-helper/main.swift` |
 | change interactive REPL commands | `repl.ts` |
-| change Esc/interrupt of an in-flight reply (FR-15) | `repl.ts` (keypress → `AbortController`) + `session.ts`/`liveSession.ts` (`send(…, signal)` → `cancel` command) + `apple-fm-helper/main.swift` (`cancel` case + `sessionTurn` cancellation) + `docs/4-protocol.md` (`cancel`) + stub `cancel`/`STREAM_FOREVER`. |
+| change Esc/interrupt of an in-flight reply (FR-15) | `repl.ts` (keypress → `AbortController`), `session.ts`/`liveSession.ts` (`send(…, signal)` → `cancel` command), `SessionTurns.swift` (queued and active turns), `Tools.swift` (waking cancelled tool waiters), `docs/4-protocol.md` (`cancel`), and `tests/native-session-turns.swift`. |
 | change image inputs | `src/cliArgs.ts`, `src/helper.ts`, `apple-fm-helper/main.swift`, and `scripts/build-apple-fm-helper.sh` |
 | change model discovery or routing (probe/respond/stream) | `apple-fm-helper/main.swift`, `scripts/build-apple-fm-helper.sh`, [model requirements](../12-models.md) |
 | add or change a tool / the tool round-trip (FR-14) | `src/tools/` (registry + built-ins `read`/`bash`) + `liveSession.ts` (dispatcher) + `apple-fm-helper/Tools.swift` (`DynamicTool`) + `docs/4-protocol.md` + `docs/9-tool-calling.md` + `docs/11-builtin-tools.md`. (A `web` tool shipped under AFM-34 then was removed in AFM-43 — apple-fm makes no network calls.) |

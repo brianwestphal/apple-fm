@@ -50,6 +50,8 @@ interface Pending {
   onDelta: DeltaHandler | undefined;
   acc: string;
   timer?: ReturnType<typeof setTimeout>;
+  removeAbortListener?: () => void;
+  interrupted?: boolean;
 }
 
 /** The backend contract that `ChatSession` drives. */
@@ -267,7 +269,7 @@ export class LiveSession implements ChatBackend {
    */
   private handleToolCall(id: string, pending: Pending, event: Record<string, unknown>): Promise<void> {
     const isCurrent = (): boolean => this.child === pending.child && this.pending.get(id) === pending
-      && pending.child.exitCode === null && pending.child.signalCode === null;
+      && pending.interrupted !== true && pending.child.exitCode === null && pending.child.signalCode === null;
     return dispatchToolCall(event, {
       tools: this.tools,
       permission: this.permission,
@@ -296,6 +298,7 @@ export class LiveSession implements ChatBackend {
     const pending = this.pending.get(id);
     if (pending === undefined) return undefined;
     clearTimeout(pending.timer);
+    pending.removeAbortListener?.();
     this.pending.delete(id);
     return pending;
   }
@@ -313,6 +316,7 @@ export class LiveSession implements ChatBackend {
     onDelta: DeltaHandler | undefined,
     signal?: AbortSignal,
   ): Promise<string> {
+    if (signal?.aborted === true) return Promise.resolve('');
     // Off-platform the bundled macOS helper can't run — fail with a clear error
     // rather than spawning it and surfacing a raw [sessionClosed].
     if (this.bundled && !isPlatformSupported()) return Promise.reject(unsupportedPlatformError());
@@ -322,27 +326,18 @@ export class LiveSession implements ChatBackend {
       const pending: Pending = { child, resolve, reject, onDelta, acc: '' };
       this.pending.set(id, pending);
       this.restartTimer(id, pending);
+      child.stdin.write(JSON.stringify({ ...command, id }) + '\n');
       // Interrupt (FR-15): tell the helper to cancel this turn; it ends by emitting a
       // `result` with the partial text, which settles the pending promise normally.
       if (signal !== undefined) {
-        if (signal.aborted) this.cancel(id);
-        else {
-          signal.addEventListener(
-            'abort',
-            () => {
-              this.cancel(id);
-            },
-            { once: true },
-          );
-        }
+        const onAbort = (): void => {
+          if (this.pending.get(id) !== pending) return;
+          pending.interrupted = true;
+          child.stdin.write(JSON.stringify({ type: 'cancel', id }) + '\n');
+        };
+        signal.addEventListener('abort', onAbort, { once: true });
+        pending.removeAbortListener = () => { signal.removeEventListener('abort', onAbort); };
       }
-      child.stdin.write(JSON.stringify({ ...command, id }) + '\n');
     });
-  }
-
-  /** Ask the helper to cancel an in-flight turn (no-op if it already settled). */
-  private cancel(id: string): void {
-    if (!this.pending.has(id)) return;
-    this.child?.stdin.write(JSON.stringify({ type: 'cancel', id }) + '\n');
   }
 }

@@ -40,6 +40,7 @@ struct ToolCallError: Error, CustomStringConvertible {
 actor ToolBridge {
     private var turnId: String?
     private var counter = 0
+    private var cancelled = false
     private var waiters: [String: CheckedContinuation<ToolReply, Never>] = [:]
 
     /// Mark the start of a turn so emitted `tool_call` events carry its id and the
@@ -47,10 +48,22 @@ actor ToolBridge {
     func beginTurn(_ id: String?) {
         turnId = id
         counter = 0
+        cancelled = false
+    }
+
+    /// Wake calls suspended in a cancelled native turn so it can finish promptly.
+    func cancelTurn(_ id: String?) {
+        guard turnId == id else { return }
+        cancelled = true
+        for continuation in waiters.values {
+            continuation.resume(returning: .error("tool call interrupted"))
+        }
+        waiters.removeAll()
     }
 
     /// Emit a `tool_call` for `name`/`argumentsJSON` and suspend until Node replies.
     func call(name: String, argumentsJSON: String) async -> ToolReply {
+        guard !cancelled, !Task.isCancelled else { return .error("tool call interrupted") }
         counter += 1
         let callId = "\(turnId ?? "0"):\(counter)"
         return await withCheckedContinuation { continuation in

@@ -459,6 +459,7 @@ private func sessionTurn(_ session: LanguageModelSession, _ command: SessionComm
     let options = generationOptions(command.options)
     var emitted = ""
     do {
+        try Task.checkCancellation()
         if command.stream == true {
             for try await partial in session.streamResponse(to: prompt, options: options) {
                 // Cooperative cancellation: stop streaming and report the partial.
@@ -472,7 +473,7 @@ private func sessionTurn(_ session: LanguageModelSession, _ command: SessionComm
             emitResult(emitted, id: command.id)
         } else {
             let response = try await session.respond(to: prompt, options: options)
-            emitResult(response.content, id: command.id)
+            emitResult(Task.isCancelled ? emitted : response.content, id: command.id)
         }
     } catch is CancellationError {
         emitResult(emitted, id: command.id)
@@ -501,23 +502,84 @@ private func makeSession(_ command: SessionCommand, bridge: ToolBridge) -> Langu
     return LanguageModelSession(tools: tools, instructions: instructions)
 }
 
-/// Hold one `LanguageModelSession` across many turns (KV-cache reuse). Reads one
-/// command per stdin line and exits 0 on EOF. A turn error is reported per-turn and
-/// does not end the loop; a `reset` recreates the session with new instructions +
-/// seed (+ tools) and acks with `ready`.
-///
-/// Turns are serial, but the model may call a tool mid-turn — so a turn runs as a
-/// detached task while the reader keeps reading, delivering the `tool_result` /
-/// `tool_error` lines into the suspended `tool_call` via the `ToolBridge`. The next
-/// turn waits on the previous task, so only one turn is ever live. See
-/// docs/9-tool-calling.md.
+/// Mutates the held model session in command order while the reader routes
+/// cancellation and tool replies independently to the active turn.
+private func runSessionCommands(
+    _ commands: AsyncStream<SessionCommand>, bridge: ToolBridge, turns: SessionTurns
+) async {
+    var session = LanguageModelSession()
+    for await command in commands {
+        switch command.type {
+        case "export_transcript":
+            do {
+                let data = try JSONEncoder().encode(session.transcript)
+                emitResult(String(decoding: data, as: UTF8.self), id: command.id)
+            } catch {
+                emitError("transcriptError", "could not encode native transcript", id: command.id)
+            }
+        case "import_transcript":
+            guard let content = command.content,
+                  let transcript = try? JSONDecoder().decode(Transcript.self, from: Data(content.utf8))
+            else {
+                emitError("transcriptError", "invalid or incompatible native transcript", id: command.id)
+                continue
+            }
+            let tools = buildTools(command.tools ?? [], bridge: bridge)
+            let expected = Set(transcript.flatMap { entry -> [String] in
+                if case .instructions(let instructions) = entry {
+                    return instructions.toolDefinitions.map(\.name)
+                }
+                return []
+            })
+            guard expected == Set(tools.map(\.name)) else {
+                emitError("transcriptError", "enabled tools do not match the native transcript", id: command.id)
+                continue
+            }
+            session = LanguageModelSession(tools: tools, transcript: transcript)
+            emitReady(command.id)
+        case "count_tokens":
+            if #available(macOS 26.4, *) {
+                do {
+                    let model = SystemLanguageModel.default
+                    let history = try await model.tokenCount(for: session.transcript)
+                    let prompt: Int
+                    if let nextPrompt = command.prompt, !nextPrompt.isEmpty {
+                        prompt = try await model.tokenCount(for: nextPrompt)
+                    } else {
+                        prompt = 0
+                    }
+                    emitResult(String(history + prompt), id: command.id)
+                } catch {
+                    let f = failure(for: error)
+                    emitError(f.code, f.message, id: command.id)
+                }
+            } else {
+                emitError("unsupported", "native token counting requires macOS 26.4 or later", id: command.id)
+            }
+        case "reset":
+            session = makeSession(command, bridge: bridge)
+            emitReady(command.id)
+        default:
+            let active = session
+            let ran = await turns.run(command.id) {
+                await bridge.beginTurn(command.id)
+                await sessionTurn(active, command)
+            }
+            if !ran { emitResult("", id: command.id) }
+        }
+    }
+}
+
+/// Read commands until EOF. Turns and session operations stay serial. The
+/// reader can still deliver a tool result or cancel while an operation is queued.
 private func runSession() async -> Never {
     guard case .available = SystemLanguageModel.default.availability else {
         failEvent("unavailable", "Apple Foundation Models unavailable")
     }
     let bridge = ToolBridge()
-    var session = LanguageModelSession()
-    var currentTurn: Task<Void, Never>?
+    let turns = SessionTurns()
+    let (commands, input) = AsyncStream<SessionCommand>.makeStream()
+    let worker = Task { await runSessionCommands(commands, bridge: bridge, turns: turns) }
     do {
         for try await line in FileHandle.standardInput.bytes.lines {
             if line.trimmingCharacters(in: .whitespaces).isEmpty { continue }
@@ -531,70 +593,19 @@ private func runSession() async -> Never {
             case "tool_error":
                 await bridge.resolve(callId: command.callId ?? "", reply: .error(command.message ?? "tool failed"))
             case "cancel":
-                // Interrupt the in-flight turn (FR-15). Turns are serial, so the one
-                // live task is the target; it ends by emitting its partial `result`.
-                currentTurn?.cancel()
-            case "export_transcript":
-                await currentTurn?.value
-                do {
-                    let data = try JSONEncoder().encode(session.transcript)
-                    emitResult(String(decoding: data, as: UTF8.self), id: command.id)
-                } catch {
-                    emitError("transcriptError", "could not encode native transcript", id: command.id)
-                }
-            case "import_transcript":
-                await currentTurn?.value
-                guard let content = command.content,
-                      let transcript = try? JSONDecoder().decode(Transcript.self, from: Data(content.utf8))
-                else {
-                    emitError("transcriptError", "invalid or incompatible native transcript", id: command.id)
-                    continue
-                }
-                let tools = buildTools(command.tools ?? [], bridge: bridge)
-                let expected = Set(transcript.flatMap { entry -> [String] in
-                    if case .instructions(let instructions) = entry {
-                        return instructions.toolDefinitions.map(\.name)
-                    }
-                    return []
-                })
-                guard expected == Set(tools.map(\.name)) else {
-                    emitError("transcriptError", "enabled tools do not match the native transcript", id: command.id)
-                    continue
-                }
-                session = LanguageModelSession(tools: tools, transcript: transcript)
-                emitReady(command.id)
-            case "count_tokens":
-                await currentTurn?.value
-                if #available(macOS 26.4, *) {
-                    do {
-                        let model = SystemLanguageModel.default
-                        let history = try await model.tokenCount(for: session.transcript)
-                        let prompt: Int
-                        if let nextPrompt = command.prompt, !nextPrompt.isEmpty {
-                            prompt = try await model.tokenCount(for: nextPrompt)
-                        } else {
-                            prompt = 0
-                        }
-                        emitResult(String(history + prompt), id: command.id)
-                    } catch {
-                        let f = failure(for: error)
-                        emitError(f.code, f.message, id: command.id)
-                    }
-                } else {
-                    emitError("unsupported", "native token counting requires macOS 26.4 or later", id: command.id)
-                }
-            case "reset":
-                await currentTurn?.value // no turn should be in flight, but be safe
-                session = makeSession(command, bridge: bridge)
-                emitReady(command.id)
+                if await turns.cancel(command.id) { await bridge.cancelTurn(command.id) }
+            case "export_transcript", "import_transcript", "count_tokens", "reset":
+                input.yield(command)
             default:
-                await currentTurn?.value // serialize: one turn at a time
-                await bridge.beginTurn(command.id)
-                let active = session
-                currentTurn = Task { await sessionTurn(active, command) }
+                if await turns.enqueue(command.id) {
+                    input.yield(command)
+                } else {
+                    emitError("badRequest", "duplicate pending turn id", id: nil)
+                }
             }
         }
-        await currentTurn?.value
+        input.finish()
+        await worker.value
     } catch {
         failEvent("inferenceFailed", "session input error: \(String(describing: error))")
     }
