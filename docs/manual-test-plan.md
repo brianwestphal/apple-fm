@@ -19,10 +19,8 @@ npm run test:device
 
 The smoke checks probe, streamed generation, guided generation, a permission-gated
 read during streaming, native transcript restore, and ordered multi-image input
-on macOS 27. It uses temporary synthetic files and images. The GitHub Actions
-**Apple Intelligence smoke** workflow runs the same command on `main` when a
-dedicated self-hosted Apple Silicon runner has the `apple-intelligence` label
-(AFM-T4E8PE).
+on macOS 27. It uses temporary synthetic files and images. The project runs this
+suite locally on the maintainer’s Mac (AFM-T4E8PE).
 
 When a case here gains automated coverage, remove it and note it under
 **Automated Coverage Summary** below.

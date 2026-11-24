@@ -14,10 +14,9 @@ distributed via npm.
 > **Status:** the Swift helper compiles against the macOS 26 `FoundationModels`
 > API and is **smoke-verified on-device** — `probe`, `generate`, `--stream`,
 > `--schema`, and `chat` all work. Native guided generation (FR-8) and a signed +
-> notarized release binary (NFR-7) have shipped. The one remaining item tracked in
-> [docs/3-requirements.md](docs/3-requirements.md) is an **automated** on-device
-> test in CI (AF-2); the Node layer is fully unit-tested against a stub helper
-> (device-free).
+> notarized release binary (NFR-7) have shipped. Run `npm run test:device` locally
+> on the maintainer’s Apple Intelligence Mac for the real-model smoke suite
+> (AF-2, AFM-T4E8PE). The Node suite uses a device-free stub helper.
 
 ## Architecture
 

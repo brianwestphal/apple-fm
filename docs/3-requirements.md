@@ -49,10 +49,9 @@ gaps noted — including code that needs on-device verification), **Deferred**
 
 ## Open items / tracked follow-ups
 
-- **AF-2** automated on-device smoke coverage is available locally and through
-  the manual `device-smoke.yml` workflow (AFM-T8C35G). The GitHub run needs a
-  dedicated Apple Intelligence runner (AFM-T4E8PE). Hosted CI continues to build
-  and probe with both SDKs. See the [device smoke instructions](manual-test-plan.md).
+- **AF-2** automated real-model smoke tests run locally on the maintainer’s
+  Apple Intelligence Mac with `npm run test:device` (AFM-T8C35G, AFM-T4E8PE).
+  See the [device smoke instructions](manual-test-plan.md).
 - **AF-5** tool calling (FR-14). Designed under AFM-30
   ([8-tool-support.md](8-tool-support.md)); requirements in
   [9-tool-calling.md](9-tool-calling.md) + [10-permissions.md](10-permissions.md).

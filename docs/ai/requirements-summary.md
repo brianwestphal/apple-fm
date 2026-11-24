@@ -48,8 +48,8 @@ Keep status markers in sync with the implementation.
 
 ## Tracked follow-ups
 
-AF-2 (local automated device smoke and manual GitHub workflow shipped. Provisioning
-the dedicated GitHub runner is tracked by AFM-T4E8PE).
+AF-2 (automated real-model smoke runs locally on the maintainer’s Mac with
+`npm run test:device`, AFM-T8C35G and AFM-T4E8PE).
 AF-5 (tool calling, FR-14 — shipped/on-device verified under AFM-31/32/33; a `web`
 fetch tool shipped under AFM-34 then was removed in AFM-43, restoring NFR-1; reqs
 `docs/9-tool-calling.md` + `docs/10-permissions.md` + `docs/11-builtin-tools.md`).
