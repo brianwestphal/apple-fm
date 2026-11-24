@@ -71,6 +71,8 @@ export interface PermissionRequest {
    * ⇒ exact equality — a keyed rule matches only the identical key, never a prefix.
    */
   matchKey?: KeyMatcher;
+  /** Resolve configured keys off the main thread before matching the prepared resource. */
+  resolveRuleKeys?: (keys: string[]) => Promise<string[]>;
   /** High-risk tool (`Tool.dangerous`): a permissive default won't blanket-approve it. */
   dangerous?: boolean;
 }
@@ -148,12 +150,25 @@ export class PermissionPolicy {
   /**
    * Decide whether a call may proceed, prompting on `ask` and remembering an
    * "always". Resolves `true` to run the tool, `false` to refuse it (the dispatcher
-   * feeds a refusal back to the model as a tool result). Never throws — an asker that
-   * rejects is treated as a denial.
+   * feeds a refusal back to the model as a tool result). A rejected asker is treated
+   * as a denial. The dispatcher also fails closed if a tool's rule resolver throws.
    */
   async authorize(request: PermissionRequest, isCurrent?: () => boolean): Promise<boolean> {
     if (isCurrent?.() === false) return false;
-    const mode = this.decide(request);
+    let effective = request;
+    if (request.resolveRuleKeys !== undefined) {
+      const prefix = `${request.tool}:`;
+      const keys = [...new Set([...this.allow, ...this.deny]
+        .filter((rule) => rule.startsWith(prefix)).map((rule) => rule.slice(prefix.length)))];
+      if (keys.length > 0) {
+        const resolved = await request.resolveRuleKeys(keys);
+        const resolvedKeys = new Map(keys.map((key, index) => [key, resolved[index] ?? key]));
+        const compare = request.matchKey ?? exactKeyMatch;
+        effective = { ...request, matchKey: (rule, call, kind) => compare(resolvedKeys.get(rule) ?? rule, call, kind) };
+      }
+    }
+    if (isCurrent?.() === false) return false;
+    const mode = this.decide(effective);
     if (mode === 'allow') return true;
     if (mode === 'deny') return false;
     if (this.asker === undefined) return false; // non-interactive ⇒ deny

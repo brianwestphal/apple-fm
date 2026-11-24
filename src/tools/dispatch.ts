@@ -12,6 +12,7 @@
 import { capOutput } from './output.js';
 import type { PermissionPolicy } from './permissions.js';
 import { toolPermissionRequest,type ToolRegistry } from './registry.js';
+import type { PreparedToolCall } from './types.js';
 
 /** Collaborators the dispatcher needs from the owning live session. */
 export interface ToolCallDeps {
@@ -56,11 +57,20 @@ export async function dispatchToolCall(event: Record<string, unknown>, deps: Too
     reply({ type: 'tool_result', content: capOutput(`Unknown tool "${name}".`) });
     return;
   }
+  const context = { signal: deps.signal };
+  let prepared: PreparedToolCall | undefined;
+  try {
+    if (tool.prepare !== undefined) prepared = await tool.prepare(args, context);
+  } catch (error) {
+    reply({ type: 'tool_result', content: capOutput(`The "${name}" tool failed: ${error instanceof Error ? error.message : String(error)}`) });
+    return;
+  }
+  if (deps.isCurrent?.() === false) return;
   // Permission gate (phase 2): refuse → tell the model it was denied; it continues.
   if (deps.permission !== undefined) {
     let allowed: boolean;
     try {
-      const request = toolPermissionRequest(tool, args);
+      const request = prepared?.request ?? toolPermissionRequest(tool, args);
       request.signal = deps.signal;
       allowed = await deps.permission.authorize(request, deps.isCurrent);
     } catch {
@@ -74,7 +84,7 @@ export async function dispatchToolCall(event: Record<string, unknown>, deps: Too
     }
   }
   try {
-    reply({ type: 'tool_result', content: await tool.run(args, { signal: deps.signal }) });
+    reply({ type: 'tool_result', content: await (prepared?.run() ?? tool.run(args, context)) });
   } catch (error) {
     reply({ type: 'tool_result', content: capOutput(`The "${name}" tool failed: ${error instanceof Error ? error.message : String(error)}`) });
   }

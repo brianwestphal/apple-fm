@@ -6,20 +6,15 @@
  * optional `offset`/`limit` selects a line range so the model can page a large file
  * without pulling the whole thing into context.
  *
- * The read is bounded so an approved call can't hang or exhaust memory (AFM-77): a
- * `stat` refuses non-regular files (a fifo would block forever waiting for a writer; a
- * device like `/dev/zero` streams unbounded), only a bounded prefix is pulled from
- * disk (a multi-GB file can't OOM), and a timeout backstops an exotic blocking
- * filesystem. The permission boundary is enforced against the **real** (symlink-
- * resolved) path so a symlink inside an approved directory can't escape the grant
- * (AFM-76).
+ * Filesystem metadata and reads run in a disposable process. The authorized
+ * canonical path and file identity are checked against the opened descriptor.
  */
-import { realpathSync, type Stats } from 'node:fs';
-import { open, stat } from 'node:fs/promises';
-import { basename, dirname, join, resolve, sep } from 'node:path';
+import { type ChildProcess, execFile } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
-import { capOutput } from '../output.js';
-import type { Tool } from '../types.js';
+import type { PreparedToolCall, Tool, ToolContext } from '../types.js';
+import type { ReadSnapshot, ReadWorkerRequest } from './read-worker.js';
+import { canonicalPath, containsPath } from './readPaths.js';
 
 /** Coerce a model-supplied argument to a non-negative integer, or `undefined`. */
 function intArg(value: unknown): number | undefined {
@@ -63,82 +58,79 @@ export function withTimeout<T>(promise: Promise<T>, ms: number, label: string): 
   });
 }
 
-/** A human-readable name for a non-regular stat result, for the refusal message. */
-function fileKind(stats: Stats): string {
-  if (stats.isDirectory()) return 'directory';
-  if (stats.isFIFO()) return 'named pipe (fifo)';
-  if (stats.isCharacterDevice()) return 'character device';
-  if (stats.isBlockDevice()) return 'block device';
-  if (stats.isSocket()) return 'socket';
-  return 'special file';
+function runWorker<T>(request: ReadWorkerRequest, timeoutMs: number, label: string, signal?: AbortSignal): Promise<T> {
+  const source = import.meta.url.endsWith('.ts');
+  const entry = fileURLToPath(new URL(source ? './read-worker.ts' : './read-worker.js', import.meta.url));
+  const args = [...(source ? ['--import', 'tsx'] : []), entry, '--apple-fm-read-worker', JSON.stringify(request)];
+  let child: ChildProcess | undefined;
+  const work = new Promise<T>((resolve, reject) => {
+    child = execFile(process.execPath, args, { signal, killSignal: 'SIGKILL', maxBuffer: 1024 * 1024 },
+      (error, stdout) => {
+        if (error !== null) {
+          reject(new Error('read: isolated filesystem operation failed'));
+          return;
+        }
+        try {
+          const result = JSON.parse(stdout) as { value?: T; error?: string };
+          if (result.value === undefined) throw new Error(result.error ?? 'read: invalid filesystem response');
+          resolve(result.value);
+        } catch (failure) {
+          reject(failure instanceof Error ? failure : new Error(String(failure)));
+        }
+      });
+  });
+  return withTimeout(work, timeoutMs, label).finally(() => {
+    if (child === undefined || child.exitCode !== null || child.signalCode !== null) return;
+    child.kill('SIGKILL');
+    child.stdout?.destroy();
+    child.stderr?.destroy();
+    child.unref();
+  });
 }
 
-/**
- * Read at most `maxBytes` of a **regular** file as UTF-8. `stat` (which, unlike
- * `open`+`read`, never blocks on a fifo/device) rejects anything that isn't a regular
- * file, so a fifo can't hang and a device can't stream forever; the fixed-size read
- * bounds memory for a huge regular file (AFM-77).
- */
-async function readRegularFileBounded(path: string, maxBytes: number): Promise<string> {
-  const stats = await stat(path); // follows symlinks; does not block on fifo/device
-  if (!stats.isFile()) {
-    throw new Error(`read: "${path}" is a ${fileKind(stats)}, not a regular file — refusing to read it`);
-  }
-  const handle = await open(path, 'r');
-  try {
-    const buffer = Buffer.alloc(maxBytes);
-    const { bytesRead } = await handle.read(buffer, 0, maxBytes, 0);
-    return buffer.toString('utf8', 0, bytesRead);
-  } finally {
-    await handle.close();
-  }
+function readSnapshot(
+  snapshot: ReadSnapshot, range: { offset?: number; limit?: number }, options: ReadOptions, signal?: AbortSignal,
+): Promise<string> {
+  if ('error' in snapshot) return Promise.reject(new Error(snapshot.error));
+  return runWorker<string>({
+    kind: 'read', identity: snapshot.identity, maxBytes: options.maxBytes ?? READ_MAX_BYTES, ...range,
+  }, options.timeoutMs ?? READ_TIMEOUT_MS, snapshot.path, signal);
 }
 
-/**
- * Read a UTF-8 text file, bounded (byte cap + timeout) and clamped to the tool output
- * limit. `offset`/`limit` select a 0-based line range *within the bounded prefix*.
- * Exported so the bounding can be unit-tested with a small `maxBytes`.
- */
+/** Read a bounded UTF-8 prefix or line range from the authorized regular file. */
 export async function readTextFile(
   path: string,
   range: { offset?: number; limit?: number } = {},
   options: ReadOptions = {},
 ): Promise<string> {
-  const maxBytes = options.maxBytes ?? READ_MAX_BYTES;
-  const timeoutMs = options.timeoutMs ?? READ_TIMEOUT_MS;
-  const content = await withTimeout(readRegularFileBounded(path, maxBytes), timeoutMs, path);
-
-  const { offset, limit } = range;
-  // Cap the returned text so a large file can't overflow the small on-device
-  // context window; the model can page with offset/limit for more.
-  if (offset === undefined && limit === undefined) return capOutput(content);
-
-  const lines = content.split('\n');
-  const start = offset ?? 0;
-  const end = limit !== undefined ? start + limit : lines.length;
-  return capOutput(lines.slice(start, end).join('\n'));
+  const snapshot = await runWorker<ReadSnapshot>({ kind: 'inspect', path }, options.timeoutMs ?? READ_TIMEOUT_MS, path);
+  return readSnapshot(snapshot, range, options);
 }
 
-/**
- * Resolve a path to its **real** (symlink-collapsed, `..`-collapsed) form for the
- * permission boundary check. A symlink inside an approved directory would otherwise
- * pass the textual boundary yet read a file outside it (AFM-76). Both the rule key and
- * the call key are resolved the same way so a legitimately symlinked prefix (e.g.
- * macOS `/tmp` → `/private/tmp`) still matches. When the path (or a component) doesn't
- * exist — a `deny` rule may name a missing file — fall back to the deepest existing
- * ancestor's real path, then to the textual resolve.
- */
-function realResolve(path: string): string {
-  const abs = resolve(path);
-  try {
-    return realpathSync(abs);
-  } catch {
-    try {
-      return join(realpathSync(dirname(abs)), basename(abs));
-    } catch {
-      return abs;
-    }
+async function prepareRead(args: Record<string, unknown>, context: ToolContext): Promise<PreparedToolCall> {
+  const path = typeof args.path === 'string' ? args.path : '';
+  const request = { tool: 'read', key: path.length > 0 ? path : undefined, description: `read ${path || '(no path)'}`, args };
+  if (path.length === 0) {
+    return { request, run: () => Promise.reject(new Error('read: "path" (string) is required')) };
   }
+  if (/^https?:\/\//i.test(path)) {
+    return {
+      request,
+      run: () => Promise.resolve(`"${path}" is a URL, not a local file: the read tool only reads local files; apple-fm cannot fetch URLs.`),
+    };
+  }
+  const snapshot = await runWorker<ReadSnapshot>({ kind: 'inspect', path }, READ_TIMEOUT_MS, path, context.signal);
+  const range = { offset: intArg(args.offset), limit: intArg(args.limit) };
+  return {
+    request: {
+      ...request,
+      key: snapshot.path,
+      description: `read ${snapshot.path}`,
+      matchKey: containsPath,
+      resolveRuleKeys: (keys) => runWorker<string[]>({ kind: 'rules', paths: keys }, READ_TIMEOUT_MS, path, context.signal),
+    },
+    run: () => readSnapshot(snapshot, range, {}, context.signal),
+  };
 }
 
 export const readTool: Tool = {
@@ -165,27 +157,15 @@ export const readTool: Tool = {
   // symlink inside an approved dir from escaping the grant (AFM-76): `read:/proj`
   // neither leaks `/proj-secret`, lets `/proj/../.ssh/id_rsa` escape, nor lets
   // `/proj/link → /etc/shadow` read outside the boundary. Same test for allow and deny.
-  matchKey: (ruleKey, callKey) => {
-    const rulePath = realResolve(ruleKey);
-    const callPath = realResolve(callKey);
-    return callPath === rulePath || callPath.startsWith(rulePath + sep);
-  },
+  matchKey: (ruleKey, callKey) => containsPath(canonicalPath(ruleKey), canonicalPath(callKey)),
+  prepare: prepareRead,
   describe: (args) => `read ${typeof args.path === 'string' ? args.path : '(no path)'}`,
   usageHint:
     'read — read a LOCAL file by its path; use it whenever the user references a file path ' +
     '(never use bash to read a file). Local files only — apple-fm cannot fetch URLs.',
 
-  async run(args): Promise<string> {
-    const path = typeof args.path === 'string' ? args.path : '';
-    if (path.length === 0) throw new Error('read: "path" (string) is required');
-    // A URL is not a local file: reading it throws a raw `ENOENT` that the small model
-    // misreads as "the page couldn't be found". Return a clear message instead (not an
-    // error) so the model doesn't treat it as a missing file (AFM-41). apple-fm has no
-    // network tool, so a URL simply can't be fetched.
-    if (/^https?:\/\//i.test(path)) {
-      return `"${path}" is a URL, not a local file. The read tool only reads local files; apple-fm cannot fetch URLs.`;
-    }
-
-    return readTextFile(path, { offset: intArg(args.offset), limit: intArg(args.limit) });
+  async run(args, context): Promise<string> {
+    const prepared = await prepareRead(args, context);
+    return prepared.run();
   },
 };

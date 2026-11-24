@@ -439,11 +439,14 @@ describe('apple-fm CLI (e2e)', () => {
       try {
         await waitForText('apple-fm chat');
         cli.stdin.write(`TOOL_PAIR read ${JSON.stringify([{ path: '/first' }, { path: READ_SAMPLE }])}\n`);
-        await waitForText('Run read /first?');
-        expect(output).not.toContain(`Run read ${READ_SAMPLE}?`);
-        cli.stdin.write('n\n');
-        await waitForText(`Run read ${READ_SAMPLE}?`);
-        cli.stdin.write('y\n');
+        const deny = 'Run read /first?';
+        const allow = `Run read ${READ_SAMPLE}?`;
+        await vi.waitFor(() => { expect(output.includes(deny) || output.includes(allow)).toBe(true); }, { timeout: 7_000 });
+        const denyFirst = output.includes(deny);
+        expect(output).not.toContain(denyFirst ? allow : deny);
+        cli.stdin.write(denyFirst ? 'n\n' : 'y\n');
+        await waitForText(denyFirst ? allow : deny);
+        cli.stdin.write(denyFirst ? 'y\n' : 'n\n');
         await waitForText('the-eagle-has-landed');
         expect(output).toContain('was denied by the user');
         cli.stdin.write('TOOL read {"path":"/after"}\n');

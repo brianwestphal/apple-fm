@@ -44,6 +44,7 @@ export class ToolRegistry {
       description: tool.description,
       parameters: structuredClone(tool.parameters),
       run: tool.run.bind(tool),
+      prepare: tool.prepare?.bind(tool),
       permissionKey: tool.permissionKey?.bind(tool),
       describe: tool.describe?.bind(tool),
       matchKey: tool.matchKey?.bind(tool),

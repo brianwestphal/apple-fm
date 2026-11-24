@@ -7,6 +7,7 @@ import { defineConfig } from 'tsup';
  * - `cli` is the `apple-fm` bin. Its source keeps a leading
  *   `#!/usr/bin/env node` shebang, which esbuild preserves on entry points, so
  *   no banner injection is needed.
+ * - `read-worker` runs local filesystem operations in an isolated Node process.
  *
  * Zero runtime dependencies — the Node layer only spawns the Swift helper and
  * speaks line-delimited JSON to it, so nothing is bundled or marked external.
@@ -15,6 +16,7 @@ export default defineConfig({
   entry: {
     index: 'src/index.ts',
     cli: 'src/cli.ts',
+    'read-worker': 'src/tools/builtin/read-worker.ts',
   },
   format: 'esm',
   target: 'node20',

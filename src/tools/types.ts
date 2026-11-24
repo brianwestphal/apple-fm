@@ -8,6 +8,13 @@
  * checks live. Only the Node layer ever implements a tool; the helper carries the
  * call across the wire.
  */
+import type { PermissionRequest } from './permissions.js';
+
+/** A call prepared with the same resource identity for authorization and execution. */
+export interface PreparedToolCall {
+  request: PermissionRequest;
+  run(): Promise<string>;
+}
 
 /**
  * Context handed to {@link Tool.run} for cooperative cancellation.
@@ -36,6 +43,9 @@ export interface Tool {
    * the model. Throw to signal the call failed — the model is told and may continue.
    */
   run(args: Record<string, unknown>, ctx: ToolContext): Promise<string>;
+
+  /** Optionally prepare a resource identity without reading its contents. */
+  prepare?(args: Record<string, unknown>, ctx: ToolContext): Promise<PreparedToolCall>;
 
   /**
    * Optional finer-grained permission key for a call (e.g. the file path for `read`,

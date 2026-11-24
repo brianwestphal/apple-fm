@@ -1,11 +1,14 @@
 import { chmodSync } from 'node:fs';
+import { mkdir, mkdtemp, rename, rm, symlink, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { LiveSession } from '../src/liveSession.js';
 import type { AskOutcome, Tool } from '../src/tools/index.js';
-import { PermissionPolicy, ToolRegistry } from '../src/tools/index.js';
+import { PermissionPolicy, readTool, ToolRegistry } from '../src/tools/index.js';
 
 const STUB = fileURLToPath(new URL('./fixtures/stub-helper.js', import.meta.url));
 
@@ -312,6 +315,52 @@ describe('LiveSession', () => {
   });
 
   describe('tool calling (FR-14)', () => {
+    it('refuses a replaced file after interactive approval (AFM-EF4W8R)', async () => {
+      const directory = await mkdtemp(join(tmpdir(), 'apple-fm-read-replacement-'));
+      const file = join(directory, 'candidate.txt');
+      const session = new LiveSession({
+        binPath: STUB,
+        tools: new ToolRegistry([readTool]),
+        permission: new PermissionPolicy({ asker: async () => {
+          await rename(file, join(directory, 'original.txt'));
+          await writeFile(file, 'replacement fixture');
+          return 'once';
+        } }),
+      });
+      try {
+        await writeFile(file, 'original fixture');
+        await session.reset('');
+        const reply = await session.send(`TOOL read ${JSON.stringify({ path: file })}`);
+        expect(reply).toContain('approved file changed');
+        expect(reply).not.toContain('replacement fixture');
+      } finally {
+        session.close();
+        await rm(directory, { recursive: true, force: true });
+      }
+    });
+
+    it('checks the captured path against a directory grant (AFM-EF4W8R)', async () => {
+      const directory = await mkdtemp(join(tmpdir(), 'apple-fm-read-grant-'));
+      const approved = join(directory, 'approved');
+      const outside = join(directory, 'other.txt');
+      const shortcut = join(approved, 'shortcut.txt');
+      const session = new LiveSession({
+        binPath: STUB,
+        tools: new ToolRegistry([readTool]),
+        permission: new PermissionPolicy({ allow: [`read:${approved}`] }),
+      });
+      try {
+        await mkdir(approved);
+        await writeFile(outside, 'outside fixture');
+        await symlink(outside, shortcut);
+        await session.reset('');
+        await expect(session.send(`TOOL read ${JSON.stringify({ path: shortcut })}`)).resolves.toContain('was denied');
+      } finally {
+        session.close();
+        await rm(directory, { recursive: true, force: true });
+      }
+    });
+
     it('keeps one deadline across a sequence of completed tools (AFM-7JTNX9)', async () => {
       const { tool } = spyTool();
       const calls = vi.fn(async () => {

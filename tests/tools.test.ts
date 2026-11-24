@@ -12,6 +12,7 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { readTextFile, withTimeout } from '../src/tools/builtin/read.js';
+import { inspectReadPath, readAuthorizedFile } from '../src/tools/builtin/read-worker.js';
 import type { Tool } from '../src/tools/index.js';
 import { BUILTIN_TOOLS, readTool, registryFromNames, toolGuidancePrompt, ToolRegistry } from '../src/tools/index.js';
 
@@ -238,6 +239,22 @@ describe('read tool', () => {
   it('withTimeout rejects a read that never settles (AFM-77 backstop)', async () => {
     const never = new Promise<string>(() => undefined);
     await expect(withTimeout(never, 20, '/blocked')).rejects.toThrow(/timed out after 20ms/);
+  });
+
+  it('can read again after an isolated file operation times out (AFM-EF4W8R)', async () => {
+    await expect(readTextFile(file, {}, { timeoutMs: 1 })).rejects.toThrow(/timed out/);
+    await expect(readTextFile(file)).resolves.toContain('line0');
+  });
+
+  it('validates regular-file identity before reading the opened descriptor (AFM-EF4W8R)', () => {
+    const directory = inspectReadPath(dir);
+    expect('error' in directory ? directory.error : undefined).toContain('not a regular file');
+    const prepared = inspectReadPath(file);
+    if (!('identity' in prepared)) throw new Error('expected a file identity');
+    expect(readAuthorizedFile({ kind: 'read', identity: prepared.identity, maxBytes: 64, offset: 1, limit: 2 }))
+      .toBe('line1\nline2');
+    expect(() => readAuthorizedFile({ kind: 'read', identity: { ...prepared.identity, inode: '0' }, maxBytes: 64 }))
+      .toThrow(/approved file changed/);
   });
 
   it('withTimeout normalizes a non-Error rejection and clears its timer', async () => {
