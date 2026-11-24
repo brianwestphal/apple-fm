@@ -44,6 +44,7 @@ Two layers, talking NDJSON (see [docs/4-protocol.md](docs/4-protocol.md)):
     injectable (`GenerateFn`) and the backend is injectable (`ChatBackend`) for
     tests.
   - `cliArgs.ts` — `parseArgs()` + `USAGE` (pure, testable).
+  - `chatFile.ts` — atomic snapshot publishing and validated resume-file loading.
   - `repl.ts` — interactive chat loop (`runRepl`).
   - `cli.ts` — the `apple-fm` bin (thin).
   - `tools/` — tool calling (FR-14): the `Tool`/`ToolContext`/`ToolDefinition`

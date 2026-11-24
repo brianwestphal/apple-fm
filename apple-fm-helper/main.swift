@@ -576,7 +576,9 @@ private func runSession() async -> Never {
     guard case .available = SystemLanguageModel.default.availability else {
         failEvent("unavailable", "Apple Foundation Models unavailable")
     }
-    let bridge = ToolBridge()
+    let bridge = ToolBridge { name, callId, argumentsJSON, id in
+        emitToolCall(name: name, callId: callId, argumentsJSON: argumentsJSON, id: id)
+    }
     let turns = SessionTurns()
     let (commands, input) = AsyncStream<SessionCommand>.makeStream()
     let worker = Task { await runSessionCommands(commands, bridge: bridge, turns: turns) }

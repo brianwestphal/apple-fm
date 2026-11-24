@@ -134,6 +134,14 @@ clears history immediately. `close()` preserves committed history, which is rese
 if the caller reuses the session. Either call invalidates work already in flight or
 queued against the previous session state.
 
+| Event | Snapshot or turn state after the event | Regression coverage |
+| --- | --- | --- |
+| Save succeeds | A complete private file is published atomically. | `tests/chatFile.test.ts`, CLI save/resume |
+| A staged write fails or the destination already exists | Staging is removed. Any existing destination is preserved. | `tests/chatFile.test.ts` |
+| Resume cannot read or validate the file | The CLI reports the error before initializing the backend. | `tests/chatFile.test.ts`, CLI resume errors |
+| Reset or close interrupts queued chat work | The obsolete work cannot commit history or deliver deltas. | `tests/session.test.ts` |
+| A tool reply arrives after completion, cancellation, or replacement | The matching waiter has already been removed. Current turns continue independently. | `tests/native-session-turns.swift`, `tests/liveSession.test.ts` |
+
 In chat, `/save <file>` writes a new JSON snapshot containing the native
 Foundation Models transcript, the current instructions, recent turns, and the
 compaction summary (AFM-3YNEKV). The CLI creates the file with mode `0600` and

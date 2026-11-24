@@ -3,10 +3,9 @@
  * {@link ChatSession}: it streams replies to stdout and handles a few slash
  * commands. All conversation/compaction logic lives in `session.ts`.
  */
-import { link, mkdtemp, rm, writeFile } from 'node:fs/promises';
-import { dirname, join, resolve } from 'node:path';
 import { createInterface, emitKeypressEvents, type Interface as ReadlineInterface } from 'node:readline';
 
+import { writeSavedChat } from './chatFile.js';
 import { ChatSession, type SavedChat } from './session.js';
 import { type AskOutcome,type PermissionAsker, PermissionPolicy, sanitizeForPrompt, toolGuidancePrompt,type ToolRegistry } from './tools/index.js';
 import type { GenerateOptions, ModelId } from './types.js';
@@ -82,19 +81,6 @@ export function readlineAsker(rl: ReadlineInterface): PermissionAsker {
     tail = queued;
     return queued;
   };
-}
-
-async function writeSavedChat(path: string, saved: SavedChat): Promise<void> {
-  const destination = resolve(path);
-  const staging = await mkdtemp(join(dirname(destination), '.apple-fm-save-'));
-  try {
-    const file = join(staging, 'session.json');
-    await writeFile(file, `${JSON.stringify(saved)}\n`, { mode: 0o600, flag: 'wx' });
-    // Publish the complete file atomically. A pre-existing destination stays intact.
-    await link(file, destination);
-  } finally {
-    await rm(staging, { recursive: true, force: true });
-  }
 }
 
 /** Run the interactive chat loop until EOF or `/quit`. */

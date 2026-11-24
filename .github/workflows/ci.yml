@@ -82,7 +82,7 @@ jobs:
         run: bash tests/native-schema-validation.sh bin/apple-fm-helper
       - name: Check native turn cancellation and ordering
         run: |
-          swiftc apple-fm-helper/SessionTurns.swift tests/native-session-turns.swift -o "$RUNNER_TEMP/session-turns-test"
+          swiftc apple-fm-helper/{SessionTurns,ToolBridge}.swift tests/native-session-turns.swift -o "$RUNNER_TEMP/session-turns-test"
           "$RUNNER_TEMP/session-turns-test"
       - uses: actions/upload-artifact@v4
         if: matrix.runner == 'xcode-27'
