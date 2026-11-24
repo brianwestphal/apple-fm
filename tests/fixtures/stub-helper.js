@@ -210,10 +210,10 @@ if (process.env.STUB_HANG === '1') {
     }
     process.exit(0);
   });
+} else if (args.includes('--session') && process.env.STUB_STARTUP_STDERR === '1') {
+  process.stderr.write('\x1b[31mstartup message\x1b[0m\n' + 'x'.repeat(10_000));
+  process.exitCode = 2;
 } else if (args.includes('--session')) {
-  if (process.env.STUB_STARTUP_STDERR === '1') {
-    process.stderr.write('\x1b[31mstartup message\x1b[0m\n' + 'x'.repeat(10_000), () => process.exit(2));
-  }
   if (process.env.STUB_UNAVAILABLE === '1') {
     write({ type: 'error', code: 'unavailable', message: 'Apple Foundation Models unavailable' });
     process.exit(1);
