@@ -112,8 +112,8 @@ These are additive: `--probe` / `--generate` and their wire shapes are untouched
   prior turns. This preserves the selected text and any recap. Native transcript
   entries and the model's cache are reconstructed differently. Use `/save` and
   `chat --resume` to export and import the native transcript.
-- Closing a Node session tears down its helper. Native tool waiters at direct
-  protocol EOF are tracked in AFM-DSA0MZ.
+- Closing a Node session tears down its helper. Direct protocol EOF settles
+  native tool waiters and lets the queued commands finish (AFM-DSA0MZ).
 
 ## Context usage
 

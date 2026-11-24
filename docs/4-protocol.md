@@ -118,6 +118,8 @@ A **long-lived** mode (FR-12; see [7-live-session.md](7-live-session.md)) that h
 one `LanguageModelSession` across many turns so its KV-cache is reused — instead of
 replaying the whole transcript each turn. It reads **one command per stdin line**,
 processes them serially, and exits 0 on EOF.
+At EOF, pending tool callbacks receive an input-closed error and later callbacks
+fail immediately. Already queued commands can finish before the helper exits.
 The helper queues up to 16 pending session commands while a turn is running.
 Cancellation and tool replies are routed immediately, independently of the queue.
 

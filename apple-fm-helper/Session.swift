@@ -215,6 +215,7 @@ func runSession() async -> Never {
             }
         }
         if !line.isEmpty { await consume(line) }
+        await bridge.finishInput()
         input.finish()
         await worker.value
     } catch {

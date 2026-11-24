@@ -14,6 +14,7 @@ actor ToolBridge {
     private var turnId: String?
     private var counter = 0
     private var cancelled = false
+    private var inputClosed = false
     private var waiters: [String: CheckedContinuation<ToolReply, Never>] = [:]
 
     init(emit: @escaping @Sendable (String, String, String, String?) -> Void) {
@@ -32,14 +33,25 @@ actor ToolBridge {
     func cancelTurn(_ id: String?) {
         guard turnId == id else { return }
         cancelled = true
+        failWaiters("tool call interrupted")
+    }
+
+    /// No more tool results can arrive once the input stream closes.
+    func finishInput() {
+        inputClosed = true
+        failWaiters("session input closed")
+    }
+
+    private func failWaiters(_ message: String) {
         for continuation in waiters.values {
-            continuation.resume(returning: .error("tool call interrupted"))
+            continuation.resume(returning: .error(message))
         }
         waiters.removeAll()
     }
 
     /// Emit a `tool_call` for `name`/`argumentsJSON` and suspend until Node replies.
     func call(name: String, argumentsJSON: String) async -> ToolReply {
+        guard !inputClosed else { return .error("session input closed") }
         guard !cancelled, !Task.isCancelled else { return .error("tool call interrupted") }
         counter += 1
         let callId = "\(turnId ?? "0"):\(counter)"

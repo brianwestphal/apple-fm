@@ -5,6 +5,22 @@ struct NativeSessionTurnsTest {
         await testTurns()
         await testToolReplies()
         await testConcurrentToolReplies()
+        await testToolInputEOF()
+    }
+
+    static func testToolInputEOF() async {
+        let (calls, emitted) = AsyncStream<String>.makeStream()
+        let bridge = ToolBridge { _, id, _, _ in emitted.yield(id) }
+        await bridge.beginTurn("before-eof")
+        let held = Task { await bridge.call(name: "test", argumentsJSON: "{}") }
+        var wire = calls.makeAsyncIterator()
+        guard let id = await wire.next() else { fatalError("the callback should suspend before EOF") }
+        await bridge.finishInput()
+        await bridge.resolve(callId: id, reply: .result("late"))
+        guard case .error("session input closed") = await held.value else { fatalError("EOF left a waiter active") }
+        await bridge.beginTurn("after-eof")
+        let future = await bridge.call(name: "test", argumentsJSON: "{}")
+        guard case .error("session input closed") = future else { fatalError("a later turn ignored EOF") }
     }
 
     static func testConcurrentToolReplies() async {
