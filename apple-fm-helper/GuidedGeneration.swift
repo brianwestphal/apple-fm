@@ -15,21 +15,51 @@ private func stringField(_ object: [String: JSONValue], _ key: String) -> String
     return nil
 }
 
-private func intField(_ object: [String: JSONValue], _ key: String) -> Int? {
-    if case .number(let value)? = object[key] { return Int(value) }
-    return nil
+private func decimalField(_ object: [String: JSONValue], _ key: String) throws -> Double? {
+    guard let field = object[key] else { return nil }
+    guard case .number(let value) = field, value.isFinite else {
+        throw UnsupportedSchema(message: "\(key) must be a finite number")
+    }
+    return value
 }
 
-private func doubleField(_ object: [String: JSONValue], _ key: String) -> Double? {
-    if case .number(let value)? = object[key] { return value }
-    return nil
+private func integerField(
+    _ object: [String: JSONValue], _ key: String, rounding: FloatingPointRoundingRule? = nil
+) throws -> Int? {
+    guard let value = try decimalField(object, key) else { return nil }
+    let bound = rounding.map { value.rounded($0) } ?? value
+    guard let integer = Int(exactly: bound) else {
+        throw UnsupportedSchema(message: "\(key) is outside the supported integer range or is not an integer")
+    }
+    return integer
+}
+
+private let unsupportedSchemaKeywords = [
+    "$ref", "$defs", "definitions", "oneOf", "anyOf", "allOf", "not",
+    "if", "then", "else", "patternProperties", "propertyNames",
+    "dependentRequired", "dependentSchemas", "dependencies", "prefixItems",
+    "contains", "unevaluatedProperties", "unevaluatedItems", "const",
+]
+
+private func requiredKeys(_ field: JSONValue?, properties: [String: JSONValue]) throws -> Set<String> {
+    guard let field else { return [] }
+    guard case .array(let entries) = field else {
+        throw UnsupportedSchema(message: "required must be an array of property names")
+    }
+    var names: Set<String> = []
+    for entry in entries {
+        guard case .string(let name) = entry, properties[name] != nil, names.insert(name).inserted else {
+            throw UnsupportedSchema(message: "required must contain unique names declared in properties")
+        }
+    }
+    return names
 }
 
 /// `minimum` / `maximum` → integer range guides (a documented range, or an open
 /// bound). A `minimum > maximum` schema is rejected so the `ClosedRange` is valid.
 private func intGuides(_ object: [String: JSONValue]) throws -> [GenerationGuide<Int>] {
-    let lo = intField(object, "minimum")
-    let hi = intField(object, "maximum")
+    let lo = try integerField(object, "minimum", rounding: .up)
+    let hi = try integerField(object, "maximum", rounding: .down)
     if let lo, let hi {
         guard lo <= hi else { throw UnsupportedSchema(message: "minimum (\(lo)) is greater than maximum (\(hi))") }
         return [.range(lo...hi)]
@@ -41,8 +71,8 @@ private func intGuides(_ object: [String: JSONValue]) throws -> [GenerationGuide
 
 /// `minimum` / `maximum` → floating-point range guides (see `intGuides`).
 private func doubleGuides(_ object: [String: JSONValue]) throws -> [GenerationGuide<Double>] {
-    let lo = doubleField(object, "minimum")
-    let hi = doubleField(object, "maximum")
+    let lo = try decimalField(object, "minimum")
+    let hi = try decimalField(object, "maximum")
     if let lo, let hi {
         guard lo <= hi else { throw UnsupportedSchema(message: "minimum (\(lo)) is greater than maximum (\(hi))") }
         return [.range(lo...hi)]
@@ -59,19 +89,28 @@ private func dynamicSchema(_ node: JSONValue, name: String, counter: inout Int) 
     guard case .object(let object) = node else {
         throw UnsupportedSchema(message: "schema node must be a JSON object")
     }
+    if let key = unsupportedSchemaKeywords.first(where: { object[$0] != nil }) {
+        throw UnsupportedSchema(message: "unsupported JSON Schema keyword: \(key)")
+    }
+    if let additional = object["additionalProperties"] {
+        // The emitted object already contains only the declared properties.
+        guard case .bool = additional else {
+            throw UnsupportedSchema(message: "additionalProperties schemas are not supported")
+        }
+    }
     let description = stringField(object, "description")
     guard let type = stringField(object, "type") else {
         throw UnsupportedSchema(message: "schema node is missing a string \"type\" (oneOf / anyOf / allOf / $ref are not supported)")
+    }
+    if object["enum"] != nil && type != "string" {
+        throw UnsupportedSchema(message: "only string enums are supported")
     }
     switch type {
     case "object":
         guard case .object(let properties)? = object["properties"] else {
             throw UnsupportedSchema(message: "object schema is missing \"properties\"")
         }
-        var required: Set<String> = []
-        if case .array(let names)? = object["required"] {
-            for entry in names { if case .string(let key) = entry { required.insert(key) } }
-        }
+        let required = try requiredKeys(object["required"], properties: properties)
         var built: [DynamicGenerationSchema.Property] = []
         for (key, child) in properties {
             counter += 1
@@ -84,7 +123,10 @@ private func dynamicSchema(_ node: JSONValue, name: String, counter: inout Int) 
         }
         return DynamicGenerationSchema(name: name, description: description, properties: built)
     case "string":
-        if case .array(let choices)? = object["enum"] {
+        if let enumeration = object["enum"] {
+            guard case .array(let choices) = enumeration, !choices.isEmpty else {
+                throw UnsupportedSchema(message: "enum must be a non-empty array of strings")
+            }
             var values: [String] = []
             for choice in choices {
                 guard case .string(let value) = choice else {
@@ -112,10 +154,13 @@ private func dynamicSchema(_ node: JSONValue, name: String, counter: inout Int) 
         }
         counter += 1
         let itemSchema = try dynamicSchema(items, name: "\(name).item.\(counter)", counter: &counter)
-        return DynamicGenerationSchema(
-            arrayOf: itemSchema,
-            minimumElements: intField(object, "minItems"),
-            maximumElements: intField(object, "maxItems"))
+        let minimum = try integerField(object, "minItems")
+        let maximum = try integerField(object, "maxItems")
+        guard (minimum ?? 0) >= 0, (maximum ?? 0) >= 0,
+              (minimum ?? 0) <= (maximum ?? Int.max) else {
+            throw UnsupportedSchema(message: "minItems and maxItems must be non-negative and ordered")
+        }
+        return DynamicGenerationSchema(arrayOf: itemSchema, minimumElements: minimum, maximumElements: maximum)
     default:
         throw UnsupportedSchema(message: "unsupported JSON Schema type: \(type)")
     }

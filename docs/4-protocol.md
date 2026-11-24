@@ -70,7 +70,7 @@ Reads **one** request object on stdin:
   labeled turns). `system` is delivered as the session's instructions.
 - `schema`, when present, requests **native guided generation**: the helper
   compiles the JSON Schema to a `GenerationSchema` and the model output is
-  guaranteed to conform (see [6-guided-generation.md](6-guided-generation.md)).
+  guaranteed to conform to the supported subset (see [6-guided-generation.md](6-guided-generation.md)).
   A schema the native path can't express fails with `unsupportedSchema`. Combining
   `schema` with `"stream":true` streams `snapshot` events (see below) instead of
   `delta`s.

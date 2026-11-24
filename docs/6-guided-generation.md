@@ -37,13 +37,13 @@ error naming the offending construct lets the caller simplify the schema or acce
 freeform `generate`.
 
 This **replaces** FR-7: with native generation, `--schema` either returns
-schema-valid JSON or fails with a structured error. (Prompt-guiding is not kept as
+JSON conforming to the enforced subset or fails with a structured error. (Prompt-guiding is not kept as
 a fallback.)
 
 ## Supported JSON Schema subset (v1)
 
-The helper maps a documented subset to `DynamicGenerationSchema`. Anything outside
-it is rejected (see Errors). The exact constraint support must be **verified
+The helper maps a documented subset to `DynamicGenerationSchema`. Unsupported structural keywords are rejected (see Errors). Some value
+constraints are accepted for compatibility, as described below. The exact constraint support must be **verified
 against the macOS 26 SDK** during implementation; the intended mapping is:
 
 | JSON Schema | Maps to | Notes |
@@ -62,7 +62,9 @@ against the macOS 26 SDK** during implementation; the intended mapping is:
 - **Array `minItems` / `maxItems`** → `DynamicGenerationSchema(arrayOf:minimumElements:maximumElements:)` — **enforced**.
 - **Integer / number `minimum` / `maximum`** → a `GenerationGuide` range (or open
   bound) on the primitive — **enforced**. A `minimum > maximum` schema is rejected
-  with `unsupportedSchema` (the `ClosedRange` would otherwise be invalid).
+  with `unsupportedSchema` (the `ClosedRange` would otherwise be invalid). Fractional integer bounds are rounded
+  inward. Out-of-range integer bounds and malformed or negative array lengths
+  are rejected before native schema construction (AFM-KAGR8Y).
 - **String `pattern`** → **not enforced.** A `GenerationGuide.pattern(regex)` was
   tried but the on-device model's constrained decoding **errors at generation
   time** on a regex guide (`GenerativeError 1020000`), which would break *every*

@@ -16,7 +16,7 @@ Keep status markers in sync with the implementation.
 - **FR-4 Conversation input** — Shipped. `protocol.ts:flattenMessages`.
 - **FR-5 Interactive chat REPL** — Shipped. `repl.ts` (`/reset`, `/system`, `/clear`, `/compact`, `/usage`, `/save`, `/help`, `/quit`; `/exit` alias).
 - **FR-6 Auto-compaction** — Shipped. `session.ts:ChatSession` (`compactAtTokens`, `keepRecentTurns`). Unit-tested.
-- **FR-7 Guided output (`--schema`)** — Shipped. Native guided generation (schema compiled to a `GenerationSchema`); output guaranteed to conform. See FR-8.
+- **FR-7 Guided output (`--schema`)** — Shipped. Native guided generation (schema compiled to a `GenerationSchema`); output conforms to the enforced subset. See FR-8.
 - **FR-8 Native `DynamicGenerationSchema`** — Shipped. Helper compiles the JSON Schema → `GenerationSchema`, `respond(to:schema:)`; strict (`unsupportedSchema` on an unsupported construct). Numeric min/max enforced; `schema`+`stream` emits full-JSON `snapshot` events. See `docs/6-guided-generation.md`.
 - **FR-9 CLI surface** — Shipped. Commands include `probe`, `tokens`, `generate`, and `chat`. `generate` and `chat` accept `--model on-device`.
 - **FR-10 Programmatic API** — Shipped. `index.ts`.

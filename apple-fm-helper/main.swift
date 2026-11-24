@@ -55,8 +55,7 @@ struct GenerateRequest: Decodable {
     let stream: Bool?
 }
 
-/// A minimal decoder for arbitrary JSON, used to carry the optional `schema`
-/// through verbatim so it can be re-rendered into the prompt.
+/// A decoder for the raw JSON Schema carried by the wire request.
 indirect enum JSONValue: Decodable {
     case null
     case bool(Bool)
@@ -84,19 +83,6 @@ indirect enum JSONValue: Decodable {
         }
     }
 
-    var jsonString: String? {
-        switch self {
-        case .null: return "null"
-        case .bool(let b): return b ? "true" : "false"
-        case .number(let n):
-            return n == n.rounded() ? String(Int(n)) : String(n)
-        case .string(let s): return encodeString(s)
-        case .array(let a): return "[" + a.compactMap { $0.jsonString }.joined(separator: ",") + "]"
-        case .object(let o):
-            return "{" + o.map { "\(encodeString($0.key)):\($0.value.jsonString ?? "null")" }
-                .joined(separator: ",") + "}"
-        }
-    }
 }
 
 // MARK: - Output
@@ -309,23 +295,23 @@ private func generateImage(_ request: GenerateRequest) async -> Never {
 }
 
 private func generate(_ request: GenerateRequest, prompt: Prompt) async -> Never {
+    // Validate the user's schema independently of model availability.
+    let compiled: GenerationSchema?
+    do {
+        compiled = try request.schema.map { try compileSchema(from: $0) }
+    } catch let error as UnsupportedSchema {
+        failEvent("unsupportedSchema", error.message)
+    } catch {
+        failEvent("unsupportedSchema", "could not build a generation schema: \(String(describing: error))")
+    }
+
     guard case .available = SystemLanguageModel.default.availability else {
         failEvent("unavailable", "Apple Foundation Models unavailable")
     }
     let session = LanguageModelSession(instructions: instructions(for: request))
     let options = generationOptions(request.options)
 
-    // Native guided generation: guaranteed structure, or a clear error. Strict —
-    // no prompt-guided fallback (see docs/6-guided-generation.md).
-    if let schema = request.schema {
-        let compiled: GenerationSchema
-        do {
-            compiled = try compileSchema(from: schema)
-        } catch let error as UnsupportedSchema {
-            failEvent("unsupportedSchema", error.message)
-        } catch {
-            failEvent("unsupportedSchema", "could not build a generation schema: \(String(describing: error))")
-        }
+    if let compiled {
         do {
             if request.stream == true {
                 // Structured partials are NOT append-only (keys reorder, values

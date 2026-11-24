@@ -27,13 +27,28 @@ function schemaError(schema) {
   if (typeof schema !== 'object' || schema === null || Array.isArray(schema)) {
     return 'schema node must be a JSON object';
   }
+  const unsupported = [
+    '$ref', '$defs', 'definitions', 'oneOf', 'anyOf', 'allOf', 'not', 'if', 'then', 'else',
+    'patternProperties', 'propertyNames', 'dependentRequired', 'dependentSchemas', 'dependencies',
+    'prefixItems', 'contains', 'unevaluatedProperties', 'unevaluatedItems', 'const',
+  ].find((key) => key in schema);
+  if (unsupported !== undefined) return `unsupported JSON Schema keyword: ${unsupported}`;
+  if ('additionalProperties' in schema && typeof schema.additionalProperties !== 'boolean') {
+    return 'additionalProperties schemas are not supported';
+  }
+  if ('enum' in schema && schema.type !== 'string') return 'only string enums are supported';
   if (typeof schema.type !== 'string') {
     return 'schema node is missing a string "type" (oneOf / anyOf / allOf / $ref are not supported)';
   }
   switch (schema.type) {
     case 'object': {
-      if (typeof schema.properties !== 'object' || schema.properties === null) {
+      if (typeof schema.properties !== 'object' || schema.properties === null || Array.isArray(schema.properties)) {
         return 'object schema is missing "properties"';
+      }
+      if ('required' in schema && (!Array.isArray(schema.required) ||
+          new Set(schema.required).size !== schema.required.length ||
+          !schema.required.every((key) => typeof key === 'string' && Object.hasOwn(schema.properties, key)))) {
+        return 'required must contain unique names declared in properties';
       }
       for (const child of Object.values(schema.properties)) {
         const err = schemaError(child);
@@ -45,20 +60,36 @@ function schemaError(schema) {
       if (typeof schema.items !== 'object' || schema.items === null) {
         return 'array schema is missing "items"';
       }
+      for (const field of ['minItems', 'maxItems']) {
+        if (field in schema && (!Number.isInteger(schema[field]) ||
+            schema[field] < 0 || schema[field] >= 2 ** 63)) {
+          return `${field} must be a non-negative representable integer`;
+        }
+      }
+      if ((schema.minItems ?? 0) > (schema.maxItems ?? Infinity)) return 'minItems must not exceed maxItems';
       return schemaError(schema.items);
     }
     case 'string': {
-      if (schema.enum !== undefined && (!Array.isArray(schema.enum) || schema.enum.some((c) => typeof c !== 'string'))) {
+      if (schema.enum !== undefined && (!Array.isArray(schema.enum) || schema.enum.length === 0 || schema.enum.some((c) => typeof c !== 'string'))) {
         return 'only string enum values are supported';
       }
       return null;
     }
     case 'integer':
     case 'number': {
-      // Numeric minimum/maximum map to a GenerationGuide range; min > max would
-      // be an invalid range (mirrors the Swift helper's rejection).
-      if (typeof schema.minimum === 'number' && typeof schema.maximum === 'number' && schema.minimum > schema.maximum) {
-        return `minimum (${schema.minimum}) is greater than maximum (${schema.maximum})`;
+      for (const field of ['minimum', 'maximum']) {
+        if (field in schema && !Number.isFinite(schema[field])) return `${field} must be a finite number`;
+      }
+      let { minimum, maximum } = schema;
+      if (schema.type === 'integer') {
+        minimum = minimum === undefined ? undefined : Math.ceil(minimum);
+        maximum = maximum === undefined ? undefined : Math.floor(maximum);
+        if ([minimum, maximum].some((n) => n !== undefined && (n < -(2 ** 63) || n >= 2 ** 63))) {
+          return 'bounds are outside the supported integer range';
+        }
+      }
+      if (minimum !== undefined && maximum !== undefined && minimum > maximum) {
+        return `minimum (${minimum}) is greater than maximum (${maximum})`;
       }
       return null;
     }

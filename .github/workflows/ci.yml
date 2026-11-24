@@ -78,6 +78,8 @@ jobs:
             (.models | map(.id)) == ["on-device"] and
             .available == .models[0].available
           '
+      - name: Check native guided schema validation
+        run: bash tests/native-schema-validation.sh bin/apple-fm-helper
       - uses: actions/upload-artifact@v4
         if: matrix.runner == 'xcode-27'
         with:
