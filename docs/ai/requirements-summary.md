@@ -31,7 +31,7 @@ Keep status markers in sync with the implementation.
 
 - **FR-17 Native token counting** — Shipped on macOS 26.4+. Chat uses native accounting when available. `/usage` reports context occupancy or a labeled estimate.
 
-- **FR-18 On-device image input** — Shipped on macOS 27+ with the SDK 27 helper. Supports text prompts, streaming, and guided output.
+- **FR-18 On-device image input** — Shipped on macOS 27+ with the SDK 27 helper. Supports multiple local attachments, streaming, and guided output.
 
 - **FR-19 Greedy sampling** — Shipped. `generate --sampling greedy` opts into Apple’s greedy mode.
 

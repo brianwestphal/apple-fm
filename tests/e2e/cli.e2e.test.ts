@@ -245,6 +245,15 @@ describe('apple-fm CLI (e2e)', () => {
       expect(JSON.parse(stdout)).toMatchObject({ imagePath: 'photo.png', prompt: 'Describe it' });
     }, T);
 
+    it('passes repeatable image flags in order', async () => {
+      const { stdout, stderr, code } = await runCli([
+        'generate', '--image', 'first.png', '--image', 'second.png', 'Compare them',
+      ]);
+      expect(code).toBe(0);
+      expect(stderr).toBe('');
+      expect(JSON.parse(stdout)).toMatchObject({ imagePaths: ['first.png', 'second.png'], prompt: 'Compare them' });
+    }, T);
+
     it('supports guided output with an image', async () => {
       const { stdout, code } = await runCli(['generate', '--image', 'photo.png', '--schema', SCHEMA, 'Describe it']);
       expect(code).toBe(0);

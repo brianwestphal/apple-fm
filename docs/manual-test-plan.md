@@ -49,7 +49,8 @@ one-shot reply and a chat reply after `/clear`. Run `generate --use-case
 content-tagging "We had a picnic at the beach"` and verify stdout parses as a
 JSON array of relevant tags. With an SDK 27 helper on macOS 27, run
 `generate --image` against a known image with and without `--schema`.
-Confirm that an unreadable image produces an error and that macOS 26 reports
+Repeat `--image` with two distinct images and verify the response refers to both
+in order. Confirm that an unreadable image produces an error and that macOS 26 reports
 the image mode as unsupported.
 
 Run `/usage` in a new chat, after a reply, and after `/clear`. On a native

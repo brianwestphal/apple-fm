@@ -43,6 +43,7 @@ struct WireOptions: Decodable {
 
 struct GenerateRequest: Decodable {
     let imagePath: String?
+    let imagePaths: [String]?
     let system: String?
     let prompt: String?
     let messages: [WireMessage]?
@@ -283,17 +284,23 @@ private func tagContent(_ request: GenerateRequest) async -> Never {
 private func generateImage(_ request: GenerateRequest) async -> Never {
     #if APPLE_FM_IMAGES
     if #available(macOS 27.0, *) {
-        guard let path = request.imagePath, !path.isEmpty else {
-            failEvent("badRequest", "expected a local image path")
+        let paths = request.imagePaths ?? request.imagePath.map { [$0] } ?? []
+        guard !paths.isEmpty, paths.allSatisfy({ !$0.isEmpty }) else {
+            failEvent("badRequest", "expected at least one local image path")
         }
-        let url = URL(fileURLWithPath: path)
-        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
-              CGImageSourceGetCount(source) > 0 else {
-            failEvent("invalidImage", "could not read an image at \(path)")
+        let urls = paths.map { path in
+            let url = URL(fileURLWithPath: path)
+            guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+                  CGImageSourceGetCount(source) > 0 else {
+                failEvent("invalidImage", "could not read an image at \(path)")
+            }
+            return url
         }
         let prompt = Prompt {
             userPrompt(for: request)
-            Attachment(imageURL: url)
+            for url in urls {
+                Attachment(imageURL: url)
+            }
         }
         await generate(request, prompt: prompt)
     }
@@ -391,6 +398,13 @@ private func errorChain(_ error: Error) -> [NSError] {
 /// chain to its innermost `domain Code=n` rather than emitting the whole multi-level
 /// NSError dump. See docs/4-protocol.md (error codes).
 private func failure(for error: Error) -> (code: String, message: String) {
+    #if APPLE_FM_IMAGES
+    if #available(macOS 27.0, *),
+       let modelError = error as? LanguageModelError,
+       case .contextSizeExceeded = modelError {
+        return ("contextWindowExceeded", "the model's context window was exceeded")
+    }
+    #endif
     let chain = errorChain(error)
     if chain.contains(where: { $0.domain.contains("ModelManagerError") && $0.code == 1008 }) {
         return ("modelNotReady", "the on-device model is still provisioning; try again shortly")
@@ -622,7 +636,7 @@ if args.contains("--probe") {
     let request = readRequest()
     Task { await generate(request, prompt: Prompt(userPrompt(for: request))) }
     dispatchMain()
-} else if args.contains("--generate-image") {
+} else if args.contains("--generate-image") || args.contains("--generate-images") {
     let request = readRequest()
     Task { await generateImage(request) }
     dispatchMain()
@@ -634,6 +648,6 @@ if args.contains("--probe") {
     Task { await runSession() }
     dispatchMain()
 } else {
-    FileHandle.standardError.write(Data("usage: apple-fm-helper --probe | --tokens | --generate | --generate-image | --tag-content | --session\n".utf8))
+    FileHandle.standardError.write(Data("usage: apple-fm-helper --probe | --tokens | --generate | --generate-image | --generate-images | --tag-content | --session\n".utf8))
     exit(64)
 }

@@ -70,8 +70,10 @@ describe('parseArgs', () => {
 
   it('parses image input and rejects it in other use cases', () => {
     expect(parseArgs(['generate', '--image', 'photo.png', 'Describe it'])).toMatchObject({
-      imagePath: 'photo.png', prompt: 'Describe it',
+      imagePaths: ['photo.png'], prompt: 'Describe it',
     });
+    expect(parseArgs(['generate', '--image', 'one.png', '--image', 'two.png', 'Compare']))
+      .toMatchObject({ imagePaths: ['one.png', 'two.png'], prompt: 'Compare' });
     expect(() => parseArgs(['generate', '--image'])).toThrow(/requires a value/);
     expect(() => parseArgs(['generate', '--image', '--stream'])).toThrow(/requires a file path/);
     expect(() => parseArgs(['generate', '--image', 'photo.png', '--use-case', 'content-tagging']))

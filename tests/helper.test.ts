@@ -142,6 +142,21 @@ describe('generate', () => {
   });
 });
 
+describe('generate with image attachments', () => {
+  it('routes ordered image paths to the multi-image helper', async () => {
+    const imagePaths = ['first.png', 'second.png'];
+    const result = await generate({ prompt: 'compare', imagePaths }, { binPath: STUB });
+    expect(JSON.parse(result)).toMatchObject({ imagePaths });
+  });
+
+  it('rejects an empty list or conflicting image options', async () => {
+    await expect(generate({ prompt: 'compare', imagePaths: [] }, { binPath: STUB }))
+      .rejects.toThrow(/at least one/);
+    await expect(generate({ prompt: 'compare', imagePaths: ['first.png'], imagePath: 'second.png' }, { binPath: STUB }))
+      .rejects.toThrow(/either imagePath or imagePaths/);
+  });
+});
+
 describe('generate with content tagging', () => {
   it('routes to the tagging helper mode and returns its array', async () => {
     const result = await generate({ prompt: 'Travel', useCase: 'content-tagging' }, { binPath: STUB });

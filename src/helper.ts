@@ -194,7 +194,8 @@ export async function generate(
 ): Promise<string> {
   if (usingBundledHelper(options) && !isPlatformSupported()) throw unsupportedPlatformError();
   let content: string | undefined;
-  const { model, useCase, ...wireRequest } = request;
+  const { model, useCase, imagePath, imagePaths, ...rest } = request;
+  const wireRequest: GenerateRequest = rest;
   assertSupportedModel(model);
   const tagging = useCase === 'content-tagging';
   if (useCase !== undefined && useCase !== 'general' && !tagging) {
@@ -203,8 +204,20 @@ export async function generate(
   if (tagging && (request.stream === true || request.schema !== undefined)) {
     throw new Error('content-tagging cannot be combined with streaming or a custom schema');
   }
-  if (tagging && request.imagePath !== undefined) throw new Error('image input requires the general use case');
-  const mode = tagging ? '--tag-content' : request.imagePath !== undefined ? '--generate-image' : '--generate';
+  if (imagePath !== undefined && imagePaths !== undefined) throw new Error('provide either imagePath or imagePaths');
+  if (imagePaths?.length === 0) throw new Error('imagePaths requires at least one local image path');
+  const paths = imagePaths ?? (imagePath === undefined ? [] : [imagePath]);
+  if (tagging && paths.length > 0) throw new Error('image input requires the general use case');
+
+  let mode = tagging ? '--tag-content' : '--generate';
+  const [first] = paths;
+  if (paths.length > 1) {
+    mode = '--generate-images';
+    wireRequest.imagePaths = paths;
+  } else if (first !== undefined) {
+    mode = '--generate-image';
+    wireRequest.imagePath = first;
+  }
   await runHelper([mode], options, encodeRequest(wireRequest), (line) => {
     const event = parseEvent(line);
     switch (event.type) {

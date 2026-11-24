@@ -38,6 +38,8 @@ export type GenerateUseCase = 'general' | 'content-tagging';
 export interface GenerateRequest {
   /** Local image file for general generation on macOS 27 and later. */
   imagePath?: string;
+  /** Ordered local images for general generation. Use this or imagePath. */
+  imagePaths?: string[];
   /** Specialization for one-shot generation. Content tagging returns a JSON array of strings. */
   useCase?: GenerateUseCase;
   /** Model to use. Defaults to on-device. */

@@ -29,7 +29,16 @@ length-based estimate (AFM-RT2FK2).
 Use `generate --image <file> "Describe this image"` on macOS 27 and later
 (AFM-K4DHM0). A prompt can also come from stdin. Image input works with the
 general use case, streaming, and guided JSON output. The library accepts a
-local path in `GenerateRequest.imagePath`. The helper must be built with the
+local path in `GenerateRequest.imagePath` or an ordered list in
+`GenerateRequest.imagePaths`. To attach multiple images, repeat `--image` in
+the desired order (AFM-WR7TKT):
+
+```sh
+apple-fm generate --image first.png --image second.png "Compare the two images"
+```
+
+The model's context budget applies to the complete prompt, including all
+attachments. The helper must be built with the
 macOS 27 SDK. Its deployment target remains macOS 26.
 
 ## Sampling

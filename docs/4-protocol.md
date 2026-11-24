@@ -2,7 +2,7 @@
 
 The Node layer and the Swift helper communicate over **line-delimited JSON
 (NDJSON)** on stdin/stdout. Select a helper mode with a flag:
-`--probe`, one-shot `--tokens`, `--generate`, `--generate-image`, and `--tag-content`, and the long-lived `--session`.
+`--probe`, one-shot `--tokens`, `--generate`, `--generate-image`, `--generate-images`, and `--tag-content`, and the long-lived `--session`.
 See [model discovery and selection](12-models.md).
 
 ## `--probe`
@@ -40,11 +40,14 @@ specialization. A successful `result.content` is a JSON-encoded array of strings
 this mode for `GenerateRequest.useCase: "content-tagging"`. An older helper
 rejects the mode as an unknown flag.
 
-## `--generate-image`
+## `--generate-image` and `--generate-images`
 
 Use the same request and event framing as `--generate`, with the additional
-`imagePath` field for a local file. This mode accepts a general text prompt and
-supports the same schema and streaming behavior as text generation. It emits
+`imagePath` field for one local file or `imagePaths` for an ordered list of
+local files. The Node layer uses `--generate-image` and `imagePath` for one file
+and `--generate-images` and `imagePaths` for multiple files. These modes accept
+a general text prompt and support the same schema and streaming behavior as
+text generation. The helper emits
 `unsupported` before inference when the SDK or runtime lacks image inputs.
 
 ## `--generate`
