@@ -63,6 +63,9 @@ unchanged ([4-protocol.md](4-protocol.md)); what's new is that the helper is
   concurrent-looking traffic (in practice turns are serial).
 - `contextWindowExceeded` is surfaced per turn so Node can compact + reset + reseed
   and retry (the compaction policy stays in Node).
+- If a live command reaches its timeout, Node terminates its helper and rejects the
+  other commands awaiting that process. Reset the replacement helper to restore
+  context. Tool approvals and replies are valid only for their originating turn.
 - **Cancel command:** `{"type":"cancel","id":"7"}` interrupts the in-flight turn
   (FR-15, esc-to-interrupt). The helper cancels the turn's task and the turn ends by
   emitting its normal `result` with the **partial** text so far; `LiveSession` wires

@@ -240,7 +240,53 @@ describe('LiveSession', () => {
     }
   });
 
+  it('kills a stalled child and rejects its other pending commands (AFM-KP3NY0)', async () => {
+    const session = new LiveSession({ binPath: STUB, timeoutMs: 400 });
+    try {
+      await session.reset('old');
+      const pid = Number(await session.send('PID'));
+      let sawDelta: () => void = () => undefined;
+      const started = new Promise<void>((resolve) => { sawDelta = resolve; });
+      const first = expect(session.send('STREAM_FOREVER', sawDelta)).rejects.toThrow(/timed out/);
+      await started;
+      const second = expect(session.send('STREAM_FOREVER')).rejects.toThrow(/sessionClosed/);
+      await Promise.all([first, second]);
+      await vi.waitFor(() => { expect(() => { process.kill(pid, 0); }).toThrow(/ESRCH/); });
+      await session.reset('new');
+      expect(parseResult(await session.send('ok'))).toMatchObject({ instructions: 'new', turns: 1 });
+    } finally {
+      session.close();
+    }
+  });
+
   describe('tool calling (FR-14)', () => {
+    it.each(['close', 'timeout'] as const)('drops a tool reply that outlives a child after %s (AFM-KP3NY0)', async (end) => {
+      const { tool } = spyTool();
+      const calls: Array<(content: string) => void> = [];
+      const session = new LiveSession({
+        binPath: STUB,
+        timeoutMs: 400,
+        tools: new ToolRegistry([{ ...tool, run: () => new Promise<string>((resolve) => { calls.push(resolve); }) }]),
+        permission: new PermissionPolicy({ default: 'allow' }),
+      });
+      try {
+        await session.reset('old');
+        const first = expect(session.send('TOOL fake {}')).rejects.toThrow(end === 'close' ? /sessionClosed/ : /timed out/);
+        await vi.waitFor(() => { expect(calls).toHaveLength(1); });
+        if (end === 'close') session.close();
+        await first;
+        await session.reset('new');
+        const second = expect(session.send('TOOL fake {}')).resolves.toBe('new result');
+        await vi.waitFor(() => { expect(calls).toHaveLength(2); });
+        calls[0]?.('stale result');
+        await new Promise<void>((resolve) => { setImmediate(resolve); });
+        calls[1]?.('new result');
+        await second;
+      } finally {
+        session.close();
+      }
+    });
+
     /** A tool that records its calls and echoes the args back as its result. */
     function spyTool(): { tool: Tool; calls: Array<Record<string, unknown>> } {
       const calls: Array<Record<string, unknown>> = [];

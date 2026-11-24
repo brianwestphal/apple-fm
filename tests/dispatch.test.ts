@@ -68,4 +68,17 @@ describe('dispatchToolCall', () => {
     expect(run).not.toHaveBeenCalled();
     expect(String(sent[0]?.content)).toMatch(/denied by the user/);
   });
+
+  it('drops a pending approval after its original turn ends (AFM-KP3NY0)', async () => {
+    const run = vi.fn(() => Promise.resolve('ran'));
+    const { sent, deps } = harness({ ...echoTool, run });
+    let active = true;
+    const permission = new PermissionPolicy({ asker: () => {
+      active = false;
+      return Promise.resolve('once');
+    } });
+    await dispatchToolCall({ callId: '5:1', name: 'echo' }, { ...deps, permission, isCurrent: () => active });
+    expect(run).not.toHaveBeenCalled();
+    expect(sent).toEqual([]);
+  });
 });

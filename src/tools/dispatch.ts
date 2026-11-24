@@ -23,6 +23,8 @@ export interface ToolCallDeps {
    * ungated path is only reached by a caller that deliberately passes `undefined` (AFM-78).
    */
   permission: PermissionPolicy | undefined;
+  /** Whether the originating turn can still use this tool call. */
+  isCurrent?: () => boolean;
   /** Send a command line back to the helper (the `callId` is added by the caller). */
   send: (command: Record<string, unknown>) => void;
   /** Keep the in-flight turn alive while a (possibly slow) tool / prompt runs. */
@@ -41,11 +43,12 @@ export async function dispatchToolCall(event: Record<string, unknown>, deps: Too
     typeof event.arguments === 'object' && event.arguments !== null
       ? (event.arguments as Record<string, unknown>)
       : {};
-  if (callId === undefined || name === undefined) return; // malformed; ignore
+  if (callId === undefined || name === undefined || deps.isCurrent?.() === false) return;
 
   // Hold the turn open while the tool (and any permission prompt) runs.
   deps.keepAlive();
   const reply = (command: Record<string, unknown>): void => {
+    if (deps.isCurrent?.() === false) return;
     deps.keepAlive();
     deps.send({ ...command, callId });
   };
@@ -59,6 +62,7 @@ export async function dispatchToolCall(event: Record<string, unknown>, deps: Too
   if (deps.permission !== undefined) {
     const request = registry.permissionRequest(name, args);
     const allowed = request !== undefined && (await deps.permission.authorize(request));
+    if (deps.isCurrent?.() === false) return;
     if (!allowed) {
       reply({ type: 'tool_result', content: `Permission to use the "${name}" tool was denied by the user.` });
       return;

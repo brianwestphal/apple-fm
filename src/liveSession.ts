@@ -44,11 +44,12 @@ export interface LiveSessionConfig extends HelperOptions {
 }
 
 interface Pending {
+  child: ChildProcessWithoutNullStreams;
   resolve: (content: string) => void;
   reject: (error: Error) => void;
   onDelta: DeltaHandler | undefined;
   acc: string;
-  timer: ReturnType<typeof setTimeout>;
+  timer?: ReturnType<typeof setTimeout>;
 }
 
 /** The backend contract that `ChatSession` drives. */
@@ -163,36 +164,33 @@ export class LiveSession implements ChatBackend {
   /** Tear down the helper process and reject any in-flight commands. */
   close(): void {
     const child = this.child;
-    this.child = undefined;
-    if (child !== undefined) child.kill('SIGKILL');
-    this.rejectAll(new Error('[sessionClosed] live session closed'));
+    if (child !== undefined) this.retireChild(child, new Error('[sessionClosed] live session closed'));
   }
 
-  private rejectAll(error: Error): void {
-    for (const pending of this.pending.values()) {
-      clearTimeout(pending.timer);
-      pending.reject(error);
+  private retireChild(child: ChildProcessWithoutNullStreams, error: Error): void {
+    if (this.child !== child) return;
+    this.child = undefined;
+    this.contextSize = undefined;
+    this.transcriptPersistence = false;
+    child.kill('SIGKILL');
+    for (const id of this.pending.keys()) {
+      this.takePending(id)?.reject(error);
     }
-    this.pending.clear();
   }
 
   private ensureChild(): ChildProcessWithoutNullStreams {
     const existing = this.child;
     if (existing !== undefined && existing.exitCode === null && !existing.killed) return existing;
-    if (existing !== undefined) this.rejectAll(new Error('[sessionClosed] live session helper exited'));
-    this.contextSize = undefined;
-    this.transcriptPersistence = false;
+    if (existing !== undefined) this.retireChild(existing, new Error('[sessionClosed] live session helper exited'));
     const child = spawn(this.command, ['--session'], { stdio: ['pipe', 'pipe', 'pipe'] });
     this.buffer = '';
     child.stdout.setEncoding('utf8');
     child.stdout.on('data', (chunk: string) => {
-      if (this.child === child) this.onStdout(chunk);
+      if (this.child === child) this.onStdout(child, chunk);
     });
     child.stdin.on('error', () => undefined); // swallow EPIPE if the helper exits early
     const onGone = (): void => {
-      if (this.child !== child) return;
-      this.child = undefined;
-      this.rejectAll(new Error('[sessionClosed] live session helper exited'));
+      this.retireChild(child, new Error('[sessionClosed] live session helper exited'));
     };
     child.on('close', onGone);
     child.on('error', onGone);
@@ -200,14 +198,17 @@ export class LiveSession implements ChatBackend {
     return child;
   }
 
-  private onStdout(chunk: string): void {
+  private onStdout(child: ChildProcessWithoutNullStreams, chunk: string): void {
     this.buffer += chunk;
     const { lines, rest } = splitLines(this.buffer);
     this.buffer = rest;
-    for (const line of lines) this.onLine(line);
+    for (const line of lines) {
+      if (this.child !== child) return;
+      this.onLine(child, line);
+    }
   }
 
-  private onLine(line: string): void {
+  private onLine(child: ChildProcessWithoutNullStreams, line: string): void {
     let value: unknown;
     try {
       value = JSON.parse(line);
@@ -219,7 +220,7 @@ export class LiveSession implements ChatBackend {
     if (typeof event.id !== 'string') {
       // Startup can fail before the helper reads a command ID.
       if (event.type === 'error' && typeof event.code === 'string' && typeof event.message === 'string') {
-        this.rejectAll(new Error(`[${event.code}] ${event.message}`));
+        this.retireChild(child, new Error(`[${event.code}] ${event.message}`));
       }
       return;
     }
@@ -265,15 +266,18 @@ export class LiveSession implements ChatBackend {
    * to the session's child process and the pending turn's timeout.
    */
   private handleToolCall(id: string, pending: Pending, event: Record<string, unknown>): Promise<void> {
+    const isCurrent = (): boolean => this.child === pending.child && this.pending.get(id) === pending
+      && pending.child.exitCode === null && pending.child.signalCode === null;
     return dispatchToolCall(event, {
       tools: this.tools,
       permission: this.permission,
+      isCurrent,
       send: (command) => {
-        this.child?.stdin.write(JSON.stringify(command) + '\n');
+        if (isCurrent()) pending.child.stdin.write(JSON.stringify(command) + '\n');
       },
       // Hold the turn open while the tool (and any permission prompt) runs.
       keepAlive: () => {
-        this.restartTimer(id, pending);
+        if (isCurrent()) this.restartTimer(id, pending);
       },
     });
   }
@@ -282,24 +286,26 @@ export class LiveSession implements ChatBackend {
   private restartTimer(id: string, pending: Pending): void {
     clearTimeout(pending.timer);
     pending.timer = setTimeout(() => {
+      if (this.child !== pending.child || this.pending.get(id) !== pending) return;
       this.fail(id, `live session timed out after ${String(this.timeoutMs)}ms`);
+      this.retireChild(pending.child, new Error('[sessionClosed] live session helper terminated after a command timed out'));
     }, this.timeoutMs);
   }
 
-  private settle(id: string, content: string): void {
+  private takePending(id: string): Pending | undefined {
     const pending = this.pending.get(id);
-    if (pending === undefined) return;
+    if (pending === undefined) return undefined;
     clearTimeout(pending.timer);
     this.pending.delete(id);
-    pending.resolve(content);
+    return pending;
+  }
+
+  private settle(id: string, content: string): void {
+    this.takePending(id)?.resolve(content);
   }
 
   private fail(id: string, message: string): void {
-    const pending = this.pending.get(id);
-    if (pending === undefined) return;
-    clearTimeout(pending.timer);
-    this.pending.delete(id);
-    pending.reject(new Error(message));
+    this.takePending(id)?.reject(new Error(message));
   }
 
   private dispatch(
@@ -313,11 +319,9 @@ export class LiveSession implements ChatBackend {
     const child = this.ensureChild();
     const id = String(this.nextId++);
     return new Promise<string>((resolve, reject) => {
-      const timer = setTimeout(() => {
-        this.pending.delete(id);
-        reject(new Error(`live session timed out after ${String(this.timeoutMs)}ms`));
-      }, this.timeoutMs);
-      this.pending.set(id, { resolve, reject, onDelta, acc: '', timer });
+      const pending: Pending = { child, resolve, reject, onDelta, acc: '' };
+      this.pending.set(id, pending);
+      this.restartTimer(id, pending);
       // Interrupt (FR-15): tell the helper to cancel this turn; it ends by emitting a
       // `result` with the partial text, which settles the pending promise normally.
       if (signal !== undefined) {

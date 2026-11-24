@@ -223,6 +223,7 @@ if (process.env.STUB_HANG === '1') {
   let offeredTools = [];
   // callId -> turn id, for tool calls awaiting their tool_result/tool_error.
   const pendingTools = new Map();
+  let nextCallId = 0;
   // id -> partial text, for streaming turns awaiting a `cancel` (esc-to-interrupt,
   // FR-15): the turn emits a delta then waits, and a cancel ends it with the partial.
   const pendingCancel = new Map();
@@ -303,6 +304,10 @@ if (process.env.STUB_HANG === '1') {
       return;
     }
     if (prompt === 'CRASH') process.exit(1);
+    if (prompt === 'PID') {
+      write({ type: 'result', id: cmd.id, content: String(process.pid) });
+      return;
+    }
     if (prompt === 'EMPTY') {
       // Model produced no text (e.g. it stopped right after a tool call). Lets the
       // REPL's empty-reply feedback be exercised end-to-end (AFM-42).
@@ -327,7 +332,7 @@ if (process.env.STUB_HANG === '1') {
         write({ type: 'error', id: cmd.id, code: 'inferenceFailed', message: `tool ${name} not offered` });
         return;
       }
-      const callId = `${cmd.id}:1`;
+      const callId = String(++nextCallId);
       pendingTools.set(callId, cmd.id);
       let args;
       try {
