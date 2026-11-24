@@ -152,7 +152,7 @@ const SCI_FI_SCHEMA = {
     title: { type: 'string' },
     author: { type: 'string' },
     year: { type: 'integer' },
-    why: { type: 'string', description: 'one sentence on why it is a classic' },
+    why: { type: 'string', description: 'a phrase of up to five words on why it is a classic' },
   },
   required: ['title', 'author', 'year', 'why'],
 };
