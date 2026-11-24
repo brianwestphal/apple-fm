@@ -4,6 +4,28 @@ All notable changes to apple-fm are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/); this project adheres to
 semantic versioning.
 
+## [1.3.0] - 2026-11-25
+
+
+### Features
+
+- Discover the available on-device Foundation Models and choose which one to use.
+- Count tokens with the model's own tokenizer. Chat now budgets its context with these counts and shows live context usage.
+- Save native chat transcripts and resume them later.
+- Attach one or more local images to generation prompts (macOS 27).
+- Tag content on-device with a new content-tagging use case.
+- Option to use greedy sampling for deterministic output.
+- Interactive chat shows sanitized tool activity as it happens.
+
+### Fixes
+
+- Builds on macOS 26 with the system Bash 3.2.
+- Validates guided-generation schemas before generation starts. Validates command arguments and numeric flags up front.
+- Chat runs one operation at a time and saves only complete turns. Cancellation now reaches the turn that is running or queued.
+- Tool calls are more reliable: one deadline covers each live tool call, stalled helpers are replaced, late or stale replies are ignored, and pending calls are settled when input ends.
+- Tool approvals stay tied to the tool and file that were approved. Permission prompts appear one at a time and handle end of input cleanly.
+- Helper messages and diagnostics have size limits.
+
 ## [1.2.0] - 2026-07-22
 
 
