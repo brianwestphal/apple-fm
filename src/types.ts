@@ -108,7 +108,7 @@ export type HelperEvent =
 export interface HelperOptions {
   /** Explicit path to the helper binary. Overrides discovery. */
   binPath?: string;
-  /** Milliseconds before a one-shot generation is aborted (default 120_000). */
+  /** Overall timeout for a helper command, including live tools and permission prompts (default 120_000 ms). */
   timeoutMs?: number;
 }
 

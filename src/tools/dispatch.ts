@@ -26,10 +26,10 @@ export interface ToolCallDeps {
   permission: PermissionPolicy | undefined;
   /** Whether the originating turn can still use this tool call. */
   isCurrent?: () => boolean;
+  /** Signaled when the originating turn settles or is interrupted. */
+  signal?: AbortSignal;
   /** Send a command line back to the helper (the `callId` is added by the caller). */
   send: (command: Record<string, unknown>) => void;
-  /** Keep the in-flight turn alive while a (possibly slow) tool / prompt runs. */
-  keepAlive: () => void;
 }
 
 /**
@@ -46,11 +46,8 @@ export async function dispatchToolCall(event: Record<string, unknown>, deps: Too
       : {};
   if (callId === undefined || name === undefined || deps.isCurrent?.() === false) return;
 
-  // Hold the turn open while the tool (and any permission prompt) runs.
-  deps.keepAlive();
   const reply = (command: Record<string, unknown>): void => {
     if (deps.isCurrent?.() === false) return;
-    deps.keepAlive();
     deps.send({ ...command, callId });
   };
 
@@ -63,7 +60,9 @@ export async function dispatchToolCall(event: Record<string, unknown>, deps: Too
   if (deps.permission !== undefined) {
     let allowed: boolean;
     try {
-      allowed = await deps.permission.authorize(toolPermissionRequest(tool, args), deps.isCurrent);
+      const request = toolPermissionRequest(tool, args);
+      request.signal = deps.signal;
+      allowed = await deps.permission.authorize(request, deps.isCurrent);
     } catch {
       reply({ type: 'tool_result', content: 'The tool could not be authorized.' });
       return;
@@ -75,7 +74,7 @@ export async function dispatchToolCall(event: Record<string, unknown>, deps: Too
     }
   }
   try {
-    reply({ type: 'tool_result', content: await tool.run(args, {}) });
+    reply({ type: 'tool_result', content: await tool.run(args, { signal: deps.signal }) });
   } catch (error) {
     reply({ type: 'tool_result', content: capOutput(`The "${name}" tool failed: ${error instanceof Error ? error.message : String(error)}`) });
   }

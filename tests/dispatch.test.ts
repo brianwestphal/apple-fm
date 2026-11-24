@@ -9,19 +9,15 @@ import { describe, expect, it, vi } from 'vitest';
 import { dispatchToolCall } from '../src/tools/dispatch.js';
 import { PermissionPolicy, type Tool, ToolRegistry } from '../src/tools/index.js';
 
-/** A registry with one echo tool, plus a `sent`/`keepAlive` recorder for the deps. */
+/** A registry with one echo tool, plus a `sent` recorder for the deps. */
 function harness(tool?: Tool) {
   const sent: Array<Record<string, unknown>> = [];
-  let keepAlive = 0;
   const deps = {
     tools: tool !== undefined ? new ToolRegistry([tool]) : undefined,
     permission: undefined,
     send: (command: Record<string, unknown>) => sent.push(command),
-    keepAlive: () => {
-      keepAlive += 1;
-    },
   };
-  return { sent, deps, calls: () => keepAlive };
+  return { sent, deps };
 }
 
 const echoTool: Tool = {
@@ -46,10 +42,9 @@ describe('dispatchToolCall', () => {
   });
 
   it('runs the tool and replies with its result (callId echoed)', async () => {
-    const { sent, deps, calls } = harness(echoTool);
+    const { sent, deps } = harness(echoTool);
     await dispatchToolCall({ callId: '2:1', name: 'echo', arguments: { v: 'hi' } }, deps);
     expect(sent).toEqual([{ type: 'tool_result', content: 'echo:hi', callId: '2:1' }]);
-    expect(calls()).toBeGreaterThan(0); // keepAlive fired (turn held open)
   });
 
   it('feeds a tool failure back as a result (not thrown)', async () => {

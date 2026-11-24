@@ -278,6 +278,54 @@ describe('LiveSession', () => {
   });
 
   describe('tool calling (FR-14)', () => {
+    it('keeps one deadline across a sequence of completed tools (AFM-7JTNX9)', async () => {
+      const { tool } = spyTool();
+      const calls = vi.fn(async () => {
+        await new Promise<void>((resolve) => { setTimeout(resolve, 100); });
+        return 'tool result';
+      });
+      const session = new LiveSession({
+        binPath: STUB,
+        timeoutMs: 600,
+        tools: new ToolRegistry([{ ...tool, run: calls }]),
+        permission: new PermissionPolicy({ default: 'allow' }),
+      });
+      try {
+        await session.reset('');
+        await expect(session.send('TOOL_CHAIN 12 fake {}')).rejects.toThrow(/timed out after 600ms/);
+        expect(calls.mock.calls.length).toBeGreaterThan(1);
+        expect(calls.mock.calls.length).toBeLessThan(12);
+      } finally {
+        session.close();
+      }
+    });
+
+    it('signals a pending approval when its turn times out (AFM-7JTNX9)', async () => {
+      const { tool, calls } = spyTool();
+      let signal: AbortSignal | undefined;
+      const asker = vi.fn((request: { signal?: AbortSignal }) => {
+        signal = request.signal;
+        return new Promise<AskOutcome>((resolve) => {
+          signal?.addEventListener('abort', () => { resolve('deny'); }, { once: true });
+        });
+      });
+      const session = new LiveSession({
+        binPath: STUB,
+        timeoutMs: 400,
+        tools: new ToolRegistry([tool]),
+        permission: new PermissionPolicy({ asker }),
+      });
+      try {
+        await session.reset('');
+        await expect(session.send('TOOL fake {}')).rejects.toThrow(/timed out/);
+        expect(asker).toHaveBeenCalledOnce();
+        expect(signal?.aborted).toBe(true);
+        expect(calls).toHaveLength(0);
+      } finally {
+        session.close();
+      }
+    });
+
     it.each(['close', 'timeout'] as const)('drops a tool reply that outlives a child after %s (AFM-KP3NY0)', async (end) => {
       const { tool } = spyTool();
       const calls: Array<(content: string) => void> = [];

@@ -224,6 +224,11 @@ if (process.env.STUB_HANG === '1') {
   // callId -> turn id, for tool calls awaiting their tool_result/tool_error.
   const pendingTools = new Map();
   let nextCallId = 0;
+  function startTool(turn) {
+    const callId = String(++nextCallId);
+    pendingTools.set(callId, turn);
+    write({ type: 'tool_call', id: turn.id, callId, name: turn.name, arguments: turn.args });
+  }
   // id -> partial text, for streaming turns awaiting a `cancel` (esc-to-interrupt,
   // FR-15): the turn emits a delta then waits, and a cancel ends it with the partial.
   const pendingCancel = new Map();
@@ -244,10 +249,15 @@ if (process.env.STUB_HANG === '1') {
     }
     // Node -> helper tool outcomes resume a paused turn (matched by callId).
     if (cmd.type === 'tool_result' || cmd.type === 'tool_error') {
-      const id = pendingTools.get(cmd.callId);
-      if (id === undefined) return;
+      const tool = pendingTools.get(cmd.callId);
+      if (tool === undefined) return;
       pendingTools.delete(cmd.callId);
+      const { id } = tool;
       if (cmd.type === 'tool_result') {
+        if (tool.remaining > 1) {
+          startTool({ ...tool, remaining: tool.remaining - 1 });
+          return;
+        }
         turns += 1;
         write({ type: 'result', id, content: String(cmd.content) });
       } else {
@@ -322,25 +332,23 @@ if (process.env.STUB_HANG === '1') {
       pendingCancel.set(cmd.id, 'partial ');
       return;
     }
-    const toolMatch = /^TOOL (\S+) (.*)$/.exec(prompt);
+    const toolMatch = /^TOOL(?:_CHAIN (\d+))? (\S+) (.*)$/.exec(prompt);
     if (toolMatch) {
       // Only call a tool the turn actually offered (mirrors the helper building the
       // session with exactly the turn's `tools[]`).
-      const [, name, argsJson] = toolMatch;
+      const [, count, name, argsJson] = toolMatch;
       const offered = offeredTools.includes(name);
       if (!offered) {
         write({ type: 'error', id: cmd.id, code: 'inferenceFailed', message: `tool ${name} not offered` });
         return;
       }
-      const callId = String(++nextCallId);
-      pendingTools.set(callId, cmd.id);
       let args;
       try {
         args = JSON.parse(argsJson);
       } catch {
         args = {};
       }
-      write({ type: 'tool_call', id: cmd.id, callId, name, arguments: args });
+      startTool({ id: cmd.id, name, args, remaining: count === undefined ? 1 : Number(count) });
       return; // turn stays open until the tool_result/tool_error arrives
     }
     if (prompt === 'JUNK') {

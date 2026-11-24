@@ -49,9 +49,9 @@ interface Pending {
   reject: (error: Error) => void;
   onDelta: DeltaHandler | undefined;
   acc: string;
-  timer?: ReturnType<typeof setTimeout>;
+  timer: ReturnType<typeof setTimeout>;
   removeAbortListener?: () => void;
-  interrupted?: boolean;
+  toolLifetime?: AbortController;
 }
 
 /** The backend contract that `ChatSession` drives. */
@@ -169,14 +169,16 @@ export class LiveSession implements ChatBackend {
     if (child !== undefined) this.retireChild(child, new Error('[sessionClosed] live session closed'));
   }
 
-  private retireChild(child: ChildProcessWithoutNullStreams, error: Error): void {
+  private retireChild(child: ChildProcessWithoutNullStreams, error: Error, timedOutId?: string): void {
     if (this.child !== child) return;
     this.child = undefined;
     this.contextSize = undefined;
     this.transcriptPersistence = false;
     child.kill('SIGKILL');
-    for (const id of this.pending.keys()) {
-      this.takePending(id)?.reject(error);
+    for (const [id, pending] of this.pending) {
+      if (pending.child !== child) continue;
+      const failure = id === timedOutId ? new Error(`live session timed out after ${String(this.timeoutMs)}ms`) : error;
+      this.takePending(id)?.reject(failure);
     }
   }
 
@@ -265,33 +267,20 @@ export class LiveSession implements ChatBackend {
    * Dispatch a `tool_call` to the registered tool and write the outcome back to the
    * helper, keyed by `callId`. Runs concurrently with the still-open turn; the tool
    * policy lives in {@link dispatchToolCall} (`src/tools/dispatch.ts`) — this wires it
-   * to the session's child process and the pending turn's timeout.
+   * to the session's child process and the pending turn's lifetime.
    */
   private handleToolCall(id: string, pending: Pending, event: Record<string, unknown>): Promise<void> {
     const isCurrent = (): boolean => this.child === pending.child && this.pending.get(id) === pending
-      && pending.interrupted !== true && pending.child.exitCode === null && pending.child.signalCode === null;
+      && pending.toolLifetime?.signal.aborted !== true && pending.child.exitCode === null && pending.child.signalCode === null;
     return dispatchToolCall(event, {
       tools: this.tools,
       permission: this.permission,
       isCurrent,
+      signal: pending.toolLifetime?.signal,
       send: (command) => {
         if (isCurrent()) pending.child.stdin.write(JSON.stringify(command) + '\n');
       },
-      // Hold the turn open while the tool (and any permission prompt) runs.
-      keepAlive: () => {
-        if (isCurrent()) this.restartTimer(id, pending);
-      },
     });
-  }
-
-  /** Restart a pending turn's timeout (e.g. across a tool call). */
-  private restartTimer(id: string, pending: Pending): void {
-    clearTimeout(pending.timer);
-    pending.timer = setTimeout(() => {
-      if (this.child !== pending.child || this.pending.get(id) !== pending) return;
-      this.fail(id, `live session timed out after ${String(this.timeoutMs)}ms`);
-      this.retireChild(pending.child, new Error('[sessionClosed] live session helper terminated after a command timed out'));
-    }, this.timeoutMs);
   }
 
   private takePending(id: string): Pending | undefined {
@@ -300,6 +289,7 @@ export class LiveSession implements ChatBackend {
     clearTimeout(pending.timer);
     pending.removeAbortListener?.();
     this.pending.delete(id);
+    pending.toolLifetime?.abort();
     return pending;
   }
 
@@ -323,17 +313,21 @@ export class LiveSession implements ChatBackend {
     const child = this.ensureChild();
     const id = String(this.nextId++);
     return new Promise<string>((resolve, reject) => {
-      const pending: Pending = { child, resolve, reject, onDelta, acc: '' };
+      const timer = setTimeout(() => {
+        if (this.child !== child || !this.pending.has(id)) return;
+        this.retireChild(child, new Error('[sessionClosed] live session helper terminated after a command timed out'), id);
+      }, this.timeoutMs);
+      const toolLifetime = this.tools !== undefined ? new AbortController() : undefined;
+      const pending: Pending = { child, resolve, reject, onDelta, acc: '', timer, toolLifetime };
       this.pending.set(id, pending);
-      this.restartTimer(id, pending);
       child.stdin.write(JSON.stringify({ ...command, id }) + '\n');
       // Interrupt (FR-15): tell the helper to cancel this turn; it ends by emitting a
       // `result` with the partial text, which settles the pending promise normally.
       if (signal !== undefined) {
         const onAbort = (): void => {
           if (this.pending.get(id) !== pending) return;
-          pending.interrupted = true;
           child.stdin.write(JSON.stringify({ type: 'cancel', id }) + '\n');
+          toolLifetime?.abort();
         };
         signal.addEventListener('abort', onAbort, { once: true });
         pending.removeAbortListener = () => { signal.removeEventListener('abort', onAbort); };

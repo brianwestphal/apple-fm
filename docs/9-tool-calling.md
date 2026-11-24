@@ -48,8 +48,9 @@ TypeScript.
   `tool_result` is delivered while a turn is suspended.
 - **Node** (`src/tools/`): `Tool` / `ToolContext` / `ToolDefinition` types,
   `ToolRegistry`, `registryFromNames`, the `read` built-in, and the dispatcher
-  (`tools/dispatch.ts`, wired by `liveSession.ts` with a per-turn timeout restart
-  across tool calls).
+  (`tools/dispatch.ts`, wired by `liveSession.ts`). A live turn has one overall
+  deadline, including all tool calls and permission prompts. It defaults to 120
+  seconds and can be configured with `LiveSessionConfig.timeoutMs`.
 - **Public API** (`src/index.ts`): `Tool`, `ToolContext`, `ToolDefinition`,
   `ToolRegistry`, `registryFromNames`, `readTool`, `BUILTIN_TOOLS`.
 - **CLI**: `apple-fm chat --tools read` (`cliArgs.ts` → `cli.ts` → `repl.ts`). When
@@ -99,5 +100,3 @@ TypeScript.
   approved, only the final answer.
 - Persist "always" permission grants beyond the process lifetime (PERM-9 in
   [10-permissions.md](10-permissions.md)).
-- A slow tool restarts the turn timeout per call; a global cap on total tool time is
-  not yet enforced.

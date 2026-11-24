@@ -64,6 +64,8 @@ export interface PermissionRequest {
   description: string;
   /** The raw arguments the model generated. */
   args: Record<string, unknown>;
+  /** Aborted when the originating live turn settles or is interrupted. */
+  signal?: AbortSignal;
   /**
    * How this tool compares a rule's key to {@link key} (from `Tool.matchKey`). Omitted
    * ⇒ exact equality — a keyed rule matches only the identical key, never a prefix.

@@ -10,11 +10,10 @@
  */
 
 /**
- * Context handed to {@link Tool.run}. Intentionally minimal in phase 1; phase 2
- * threads the permission decision and (later) cancellation through here.
+ * Context handed to {@link Tool.run} for cooperative cancellation.
  */
 export interface ToolContext {
-  /** Aborts the in-flight tool when the turn is torn down (reserved; unused in phase 1). */
+  /** Aborted when the originating turn settles or is interrupted. */
   signal?: AbortSignal;
 }
 
