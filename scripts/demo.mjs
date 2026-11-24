@@ -37,7 +37,7 @@ import { decorateWindow, WINDOW_BAR } from './lib/window.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const CLI = join(ROOT, 'dist', 'cli.js');
-const HELPER = join(ROOT, 'bin', 'apple-fm-helper');
+const HELPER = process.env.APPLE_FM_BIN || join(ROOT, 'bin', 'apple-fm-helper');
 const DOMOTION = join(ROOT, 'node_modules', '.bin', 'domotion');
 const OUT_DIR = join(ROOT, 'assets', 'demos');
 
@@ -57,13 +57,16 @@ function wrap(text, width = COLS - 2) {
       out.push(para);
       continue;
     }
-    let line = '';
-    for (const word of para.split(' ')) {
-      if (line.length > 0 && (line + ' ' + word).length > width) {
+    const prefix = /^\s+\/.*?\s{2,}/.exec(para)?.[0] ?? /^\s*/.exec(para)[0];
+    const continuation = ' '.repeat(prefix.length);
+    let line = prefix;
+    for (const word of para.slice(prefix.length).split(/\s+/)) {
+      const candidate = line.length === 0 || line.endsWith(' ') ? line + word : `${line} ${word}`;
+      if (line.length > prefix.length && candidate.length > width) {
         out.push(line);
-        line = word;
+        line = continuation + word;
       } else {
-        line = line.length > 0 ? `${line} ${word}` : word;
+        line = candidate;
       }
     }
     if (line.length > 0) out.push(line);
@@ -85,9 +88,9 @@ function runCli(argv, input) {
   return `${r.stdout}`.replace(/\n+$/, '');
 }
 
-/** probe → the single availability line. */
+/** Render the real probe payload without clipping the model list. */
 function captureProbe() {
-  return [runCli(['probe'])];
+  return JSON.stringify(JSON.parse(runCli(['probe'])), null, 2).split('\n');
 }
 
 /** generate → wrapped model prose. */
@@ -219,6 +222,7 @@ const DEMOS = [
       chatCast({
         ...captureChatSteps([
           { input: 'Give me a two-word tagline for an on-device AI CLI.' },
+          { input: '/usage' },
           { input: '/help' },
           { input: '/quit' },
         ]),

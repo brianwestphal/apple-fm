@@ -4,9 +4,8 @@
 Apple's **Foundation Models** on **macOS 26+ / Apple Silicon**. By default,
 inference runs on-device and works offline without an API key.
 
-Apple ships these models as a Swift-only framework with no command-line
-front-end. apple-fm provides one — a fast, lightweight CLI and a TypeScript
-library, so you can use the on-device model from your terminal or your code.
+apple-fm provides a lightweight CLI and TypeScript library for the Foundation
+Models framework, including persistent, permission-gated chat.
 
 <p align="center">
   <img src="assets/demos/generate.svg" alt="apple-fm generate &quot;Explain a closure in one sentence.&quot; runs Apple's on-device model and prints the answer — fully offline, no API key." width="880">
@@ -16,9 +15,8 @@ library, so you can use the on-device model from your terminal or your code.
 
 - **On-device by default.** Uses the model installed by Apple Intelligence and
   keeps prompts on your Mac.
-- **One binary, three shapes.** `probe`, one-shot `generate` (freeform, guided,
-  or streamed), and an interactive `chat` — all over a single
-  [NDJSON protocol](docs/4-protocol.md).
+- **One native helper.** Model discovery, token counting, generation, content
+  tagging, and chat share the same [NDJSON protocol](docs/4-protocol.md).
 - **Guaranteed structured output.** Hand it a JSON Schema and the output is
   *guaranteed* to conform — native guided generation built on Apple's
   `DynamicGenerationSchema`, not best-effort prompting. Stream it, too.
@@ -30,8 +28,8 @@ library, so you can use the on-device model from your terminal or your code.
   and `bash` tools (`--tools read,bash`) so the model can read a file or run a
   command to answer you. Every call is approved per-use, and it's all on your
   machine. Register your own `Tool` from the library, too.
-- **Lightweight, nothing to audit.** Zero runtime dependencies — apple-fm just
-  talks to the native Foundation Models helper.
+- **Zero Node runtime dependencies.** The package uses the native Foundation Models
+  helper for inference.
 - **Future-proof.** The helper resolves the current on-device model at runtime,
   so OS and model updates are picked up without a rebuild.
 
@@ -71,9 +69,12 @@ npm install -g apple-fm     # CLI
 npm install apple-fm        # library
 ```
 
-Requires macOS 26+ on Apple Silicon with Apple Intelligence enabled. Every
-release is Developer-ID signed and notarized, so it runs without security
-prompts.
+Requires Node.js 20+ for the package and macOS 26+ on Apple Silicon with Apple
+Intelligence enabled for inference. The published package normally bundles a
+Developer ID-signed, notarized helper. A source checkout or a package published
+without the helper needs a local Swift build. In the checkout, run `npm ci`,
+`npm run build:helper`, then `npm run build` and use `node dist/cli.js probe`.
+Use Xcode 27 for an image-capable build. See [release details](docs/5-releasing.md).
 
 ### Platform support
 
@@ -98,6 +99,7 @@ if ((await probe()).available) {
 
 ```bash
 apple-fm probe                       # list models and availability
+apple-fm tokens "Count this text"     # native prompt token count on macOS 26.4+
 apple-fm generate "Summarize: …"     # one-shot text
 cat notes.md | apple-fm generate     # read the prompt from stdin
 apple-fm generate "…" --stream       # stream tokens as they arrive
@@ -113,7 +115,7 @@ Run `apple-fm --help` for the full flag list.
 Before generating, confirm Apple Intelligence is ready on this machine.
 
 <p align="center">
-  <img src="assets/demos/probe.svg" alt="apple-fm probe prints {&quot;available&quot;:true} when the on-device model is ready, or a reason like appleIntelligenceNotEnabled when it isn't." width="880">
+  <img src="assets/demos/probe.svg" alt="apple-fm probe lists the on-device model, availability, and the context capacity when supported." width="880">
 </p>
 
 ### Structured output
@@ -129,12 +131,12 @@ into the rest of your tooling.
 ### Interactive chat
 
 `chat` is a multi-turn REPL that streams replies and compacts the transcript
-automatically near the context window. Built-in slash commands: `/reset`,
-`/system`, `/clear`, `/compact`, `/help`, `/quit`. Press **Esc** while the model is
-replying to interrupt it (the partial reply is kept in context).
+automatically near the context window. Use `/usage` to see context occupancy,
+`/save` to save a chat, `/tools` to list enabled tools, and `/help` for all
+commands. Press **Esc** while the model is replying to keep the partial reply.
 
 <p align="center">
-  <img src="assets/demos/chat.svg" alt="apple-fm chat answers a prompt, then /help lists the slash commands (/reset, /system, /clear, /compact, /help, /quit) and notes that Esc interrupts a reply." width="880">
+  <img src="assets/demos/chat.svg" alt="apple-fm chat answers a prompt and /help lists chat commands, including usage, save, and tools." width="880">
 </p>
 
 ### Tool calling

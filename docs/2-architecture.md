@@ -3,15 +3,15 @@
 Two layers: a **native helper** that owns all contact with `FoundationModels`,
 and a **Node layer** that drives it over line-delimited JSON (NDJSON).
 
-```
-apple-fm (bin)  ── parseArgs (cliArgs.ts)
-   │
-   ├─ probe     → probe()    ─┐
-   ├─ generate  → generate() ─┤ helper.ts ──(spawn + NDJSON)──▶ apple-fm-helper (Swift)
-   └─ chat      → runRepl()   │                                   └─ FoundationModels
-                  └ ChatSession (session.ts)                          (SystemLanguageModel)
-                     ├ LiveSession (liveSession.ts) ─(--session, persistent)─┘
-                     └ auto-compaction → generate() (one-shot summary) ──────┘
+```mermaid
+flowchart LR
+    cli[apple-fm CLI] --> one[Probe, tokens, generation]
+    cli --> chat[ChatSession]
+    chat --> live[LiveSession]
+    chat -->|Compaction summary| one
+    one -->|One-shot JSON| swift[Swift helper]
+    live <-->|Persistent NDJSON| swift
+    swift --> models[Foundation Models]
 ```
 
 ## Modules (`src/`)
@@ -20,9 +20,10 @@ apple-fm (bin)  ── parseArgs (cliArgs.ts)
 | --- | --- |
 | `types.ts` | Shared types: `Message`, `GenerateRequest`, `ProbeResult`, `HelperEvent`, `HelperOptions`. |
 | `protocol.ts` | Pure NDJSON helpers: `encodeRequest`, `splitLines`, `parseEvent`, `flattenMessages`, `estimateTokens`, `estimateConversationTokens`. |
-| `helper.ts` | Process layer: `resolveHelperPath`, `probe`, `generate`, `isPlatformSupported` (spawn the helper, stream deltas, surface errors/timeouts). |
+| `helper.ts` | Helper discovery, model probe, native token counting and one-shot generation. |
 | `liveSession.ts` | `LiveSession` — one long-lived `--session` helper process (KV-cache reuse) implementing the `ChatBackend` contract; id-correlated turn/reset/close. |
 | `session.ts` | `ChatSession` — multi-turn history + automatic context compaction over a `LiveSession` backend. |
+| `chatFile.ts` | Atomic snapshot writes and validation of resume files. |
 | `cliArgs.ts` | `parseArgs()` + `USAGE` (pure, testable). |
 | `repl.ts` | Interactive chat loop (readline around `ChatSession`). |
 | `cli.ts` | The `apple-fm` bin (thin: parse → I/O → delegate). |
@@ -30,24 +31,24 @@ apple-fm (bin)  ── parseArgs (cliArgs.ts)
 
 ## Native helper (`apple-fm-helper/*.swift`)
 
-A standalone Swift executable (built by `scripts/build-apple-fm-helper.sh`, not by
-any package manager). Its sources are split for readability — `main.swift` (entry
-point, probe, generate, the session loop) and `GuidedGeneration.swift` (JSON
-Schema → `GenerationSchema`) — and compiled together into one binary. It exposes
-three modes — `--probe`, `--generate`, and the long-lived `--session` — over the
-NDJSON protocol in [4-protocol.md](4-protocol.md). It is the only code that imports
-`FoundationModels`, so the rest of the system is testable without a macOS 26
-device.
+`scripts/build-apple-fm-helper.sh` compiles the Swift sources into one executable.
+`main.swift` dispatches the one-shot probe, token count, generation, image and
+content tagging requests, and runs the persistent session. `GuidedGeneration.swift`
+translates JSON Schema, `Tools.swift` adapts the model's tools, and `ToolBridge.swift`
+tracks replies. The [protocol reference](4-protocol.md) lists every mode and
+its availability. The Node suite runs without a model asset using the stub helper.
 
 ## Data flow
 
 1. `cli.ts` parses argv into a `ParsedArgs`.
 2. **probe** → `helper.probe()` spawns `--probe`, reads the single availability
    line.
-3. **generate** → `helper.generate()` spawns `--generate`, writes the request
-   JSON on stdin, reads `delta`/`result`/`error` events; `--schema` adds guided
-   output, `--stream` forwards deltas.
-4. **chat** → `repl.ts` drives a `ChatSession`. Each turn runs against a
+3. **tokens** → `helper.countTokens()` sends a prompt to `--tokens` for native
+   accounting on macOS 26.4+.
+4. **generate** → `helper.generate()` selects the Swift mode for the requested
+   input and use case. Guided streams produce JSON snapshot events. Text streams
+   produce deltas.
+5. **chat** → `repl.ts` drives a `ChatSession`. Each turn runs against a
    persistent `LiveSession` (`liveSession.ts`) — one `--session` helper process
    holding a single `LanguageModelSession` across turns (KV-cache reuse) rather
    than replaying the transcript each turn. When the estimated size crosses
@@ -58,16 +59,16 @@ device.
 
 - **Helper subprocess** — bounded by a timeout; stderr captured and surfaced on
   failure; stdin EPIPE swallowed if the helper exits early.
-- **Helper output** — every line is parsed as a known NDJSON event; unknown
-  shapes throw rather than being silently dropped.
+- **Helper output** — one-shot calls validate response events. The live session
+  correlates events to its pending command IDs and ignores unrelated events.
 - **On-device model** — runs locally; no network egress. Availability and failure
   reasons (`appleIntelligenceNotEnabled`, `contextWindowExceeded`, …) are
   reported as structured codes.
 
 ## Distribution
 
-- **npm** — `apple-fm` ships the compiled `bin/apple-fm-helper` (force-included in
-  package `files`); the Node layer resolves it relative to the package, or via
-  `APPLE_FM_BIN`, or from `PATH`. This is the sole distribution channel (a
-  Homebrew tap was considered and dropped — see FR-13 in
-  [3-requirements.md](3-requirements.md)).
+The npm package includes `bin/apple-fm-helper` when the signing workflow produces
+it, and includes Swift source and the build script for local builds. Discovery
+checks explicit `binPath`, then `APPLE_FM_BIN`, then the bundled absolute path.
+Overrides explicitly trust the chosen executable. See [requirements](3-requirements.md)
+and [releasing](5-releasing.md).

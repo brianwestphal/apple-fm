@@ -166,7 +166,7 @@ Then watch <https://github.com/brianwestphal/apple-fm/actions>.
 ## What CI does on the tag
 
 1. **Validate** — `test` / `lint` / `typecheck` / `npm pack --dry-run` (macOS).
-2. **`apple-fm` job (Xcode 27)** — imports the Developer ID cert into a temporary
+2. **`apple-fm` job (Xcode 27, macOS 26+ deployment)** — imports the Developer ID cert into a temporary
    keychain, `npm run build:helper` with `CODESIGN_IDENTITY` set (so the helper
    is signed), verifies the signature, notarizes via `notarytool --wait`, and
    uploads the binary as an artifact.
@@ -175,10 +175,10 @@ Then watch <https://github.com/brianwestphal/apple-fm/actions>.
 4. **`npm-publish`** — downloads the notarized helper into `bin/`, builds, and
    `npm publish --provenance` (`--tag beta` for betas).
 
-If the signing job fails or its secrets are missing, the publish still proceeds —
-the package always ships the helper **source** plus
-`scripts/build-apple-fm-helper.sh`, so installers can `npm run build:helper`
-locally. Notarization is an enhancement, never a release blocker.
+If the signing job fails or its secrets are missing, the publish still proceeds.
+The package includes the helper source and build script. Run `npm run build:helper`
+from the package directory to build it locally. Use Xcode 27 to include image input;
+the other modes can also be built with the macOS 26 SDK.
 
 ## Troubleshooting
 

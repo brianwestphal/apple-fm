@@ -183,6 +183,15 @@ describe('parseChatTranscript', () => {
     ]);
     expect(out[2]!.replyLines).toEqual([]); // /quit prints nothing
   });
+
+  it('aligns continuation lines under their help description (AFM-FAFE08)', () => {
+    const label = '  /clear            ';
+    const result = parse(`welcome\n> ${label}Clear the conversation context (keep system instructions)\n> `, [{ input: '/help' }]);
+    expect(result.turns[0]?.replyLines).toEqual([
+      `${label}Clear the conversation context (keep system`,
+      `${' '.repeat(label.length)}instructions)`,
+    ]);
+  });
 });
 
 describe('decorateWindow', () => {
