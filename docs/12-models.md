@@ -32,6 +32,14 @@ general use case, streaming, and guided JSON output. The library accepts a
 local path in `GenerateRequest.imagePath`. The helper must be built with the
 macOS 27 SDK. Its deployment target remains macOS 26.
 
+## Sampling
+
+Pass `generate --sampling greedy` to choose the most likely token at each
+step (AFM-C7EA41). The library accepts `GenerateOptions.sampling: 'greedy'`.
+Omit the option to use the system default. Greedy sampling also works with
+guided generation. A manually overridden helper should be rebuilt to pick up
+the new option.
+
 ## Content tagging
 
 With `generate --use-case content-tagging`, apple-fm uses the on-device

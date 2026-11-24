@@ -17,6 +17,8 @@ export interface Message {
 
 /** Per-request generation knobs, passed through to the on-device session. */
 export interface GenerateOptions {
+  /** Choose the highest-probability token at each step. Omitted uses system sampling. */
+  sampling?: 'greedy';
   /** Sampling temperature (0–2). Omitted ⇒ the model's default. */
   temperature?: number;
   /** Cap on the response length, in tokens. Omitted ⇒ the model's default. */

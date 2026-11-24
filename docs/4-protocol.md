@@ -62,11 +62,12 @@ Reads **one** request object on stdin:
   "prompt":   "a single user turn",
   "messages": [{"role":"user","content":"…"}],
   "schema":   { "...": "optional JSON Schema for guided output" },
-  "options":  { "temperature": 0.7, "maxTokens": 512 },
+  "options":  { "sampling": "greedy", "temperature": 0.7, "maxTokens": 512 },
   "stream":   false
 }
 ```
 
+- Omit `options.sampling` for system sampling. With `greedy`, the helper explicitly selects Apple’s greedy sampling mode.
 - Provide **either** `prompt` **or** `messages` (a conversation, replayed as
   labeled turns). `system` is delivered as the session's instructions.
 - `schema`, when present, requests **native guided generation**: the helper

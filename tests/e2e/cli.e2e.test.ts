@@ -134,6 +134,12 @@ describe('apple-fm CLI (e2e)', () => {
   });
 
   describe('generate', () => {
+    it('forwards greedy sampling alongside the token cap', async () => {
+      const { stdout, code } = await runCli(['generate', '--sampling', 'greedy', '--max-tokens', '8', 'test']);
+      expect(code).toBe(0);
+      expect(JSON.parse(stdout)).toMatchObject({ options: { sampling: 'greedy', maxTokens: 8 } });
+    }, T);
+
     it('passes a local image path to the image helper', async () => {
       const { stdout, stderr, code } = await runCli(['generate', '--image', 'photo.png', 'Describe it']);
       expect(code).toBe(0);

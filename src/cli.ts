@@ -56,6 +56,7 @@ async function main(): Promise<void> {
       const prompt = args.prompt ?? (await readStdin());
       if (prompt.length === 0) throw new Error('generate: no prompt given (pass an argument or pipe stdin)');
       const options: GenerateOptions = {};
+      if (args.sampling !== undefined) options.sampling = args.sampling;
       if (args.temperature !== undefined) options.temperature = args.temperature;
       if (args.maxTokens !== undefined) options.maxTokens = args.maxTokens;
       const request: GenerateRequest = {

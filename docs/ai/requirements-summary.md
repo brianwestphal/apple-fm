@@ -33,6 +33,8 @@ Keep status markers in sync with the implementation.
 
 - **FR-18 On-device image input** — Shipped on macOS 27+ with the SDK 27 helper. Supports text prompts, streaming, and guided output.
 
+- **FR-19 Greedy sampling** — Shipped. `generate --sampling greedy` opts into Apple’s greedy mode.
+
 ## Non-functional
 
 - **NFR-1 Offline and on-device** — Shipped. Inference and built-in tools run locally without an API key.

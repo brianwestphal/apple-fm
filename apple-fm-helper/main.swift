@@ -31,7 +31,12 @@ struct WireMessage: Decodable {
     let content: String
 }
 
+enum WireSampling: String, Decodable {
+    case greedy
+}
+
 struct WireOptions: Decodable {
+    let sampling: WireSampling?
     let temperature: Double?
     let maxTokens: Int?
 }
@@ -237,6 +242,7 @@ private func countPromptTokens(_ request: GenerateRequest) async -> Never {
 private func generationOptions(_ options: WireOptions?) -> GenerationOptions {
     guard let options else { return GenerationOptions() }
     return GenerationOptions(
+        sampling: options.sampling == .greedy ? .greedy : nil,
         temperature: options.temperature,
         maximumResponseTokens: options.maxTokens)
 }

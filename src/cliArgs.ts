@@ -20,6 +20,7 @@ export type ParsedArgs =
       system?: string;
       schemaFile?: string;
       stream: boolean;
+      sampling?: 'greedy';
       temperature?: number;
       maxTokens?: number;
     }
@@ -51,6 +52,7 @@ Generate flags:
   -s, --system <text>     System instructions
       --schema <file>     JSON Schema file for guided/structured output
       --stream            Stream output as it is produced
+      --sampling greedy  Choose the highest-probability token at each step
       --temp <n>          Sampling temperature
       --max-tokens <n>    Maximum response tokens
 
@@ -157,6 +159,12 @@ function parseGenerate(argv: string[]): ParsedArgs {
       case '--stream':
         result.stream = true;
         break;
+      case '--sampling': {
+        const sampling = takeValue(argv, i++, arg);
+        if (sampling !== 'greedy') throw new Error(`unknown sampling mode "${sampling}" (choose greedy)`);
+        result.sampling = sampling;
+        break;
+      }
       case '--temp':
         result.temperature = parseNumber(arg, takeValue(argv, i++, arg));
         break;

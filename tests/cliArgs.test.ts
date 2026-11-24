@@ -78,6 +78,12 @@ describe('parseArgs', () => {
       .toThrow(/general use case/);
   });
 
+  it('accepts greedy sampling and validates the flag', () => {
+    expect(parseArgs(['generate', '--sampling', 'greedy', 'test'])).toMatchObject({ sampling: 'greedy' });
+    expect(() => parseArgs(['generate', '--sampling', 'random'])).toThrow(/unknown sampling mode/);
+    expect(() => parseArgs(['generate', '--sampling'])).toThrow(/requires a value/);
+  });
+
   it('parses generate --schema', () => {
     const parsed = parseArgs(['generate', 'x', '--schema', 'shape.json']);
     expect(parsed).toMatchObject({ command: 'generate', prompt: 'x', schemaFile: 'shape.json', stream: false });
