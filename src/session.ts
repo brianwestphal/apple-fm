@@ -94,6 +94,7 @@ export interface ChatSessionConfig {
 
 const DEFAULT_COMPACT_AT = 3000;
 const DEFAULT_KEEP_RECENT = 4;
+const CONTEXT_COMPACTION_FRACTION = 0.75;
 
 const SUMMARIZE_SYSTEM =
   'You compress conversations. Given a transcript, produce a terse third-person ' +
@@ -200,7 +201,7 @@ export class ChatSession {
       this.assertCurrent(revision);
       const shouldCompact = budget === undefined
         ? this.shouldCompact()
-        : budget.tokens > Math.min(this.compactAtTokens, Math.floor(budget.contextSize * 0.75));
+        : budget.tokens > Math.min(this.compactAtTokens, Math.floor(budget.contextSize * CONTEXT_COMPACTION_FRACTION));
       if (shouldCompact) await this.compactHistory(revision);
     }
     // Re-establish the backend's context (first turn, or after a compaction

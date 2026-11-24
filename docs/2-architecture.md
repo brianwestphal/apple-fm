@@ -25,7 +25,7 @@ flowchart LR
 | `session.ts` | `ChatSession` — multi-turn history + automatic context compaction over a `LiveSession` backend. |
 | `chatFile.ts` | Atomic snapshot writes and validation of resume files. |
 | `cliArgs.ts` | `parseArgs()` + `USAGE` (pure, testable). |
-| `repl.ts` | Interactive chat loop (readline around `ChatSession`). |
+| `repl.ts`, `chat/commands.ts` | Terminal input and streaming in the REPL, with independently testable slash commands. |
 | `cli.ts` | The `apple-fm` bin (thin: parse → I/O → delegate). |
 | `index.ts` | Public API surface. |
 
@@ -33,7 +33,8 @@ flowchart LR
 
 `scripts/build-apple-fm-helper.sh` compiles the Swift sources into one executable.
 `main.swift` dispatches the one-shot probe, token count, generation, image and
-content tagging requests, and runs the persistent session. `GuidedGeneration.swift`
+content tagging requests. `Session.swift` owns the persistent session protocol.
+`GuidedGeneration.swift`
 translates JSON Schema, `Tools.swift` adapts the model's tools, and `ToolBridge.swift`
 tracks replies. The [protocol reference](4-protocol.md) lists every mode and
 its availability. The Node suite runs without a model asset using the stub helper.

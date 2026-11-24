@@ -5,7 +5,7 @@
  */
 import { createInterface, emitKeypressEvents, type Interface as ReadlineInterface } from 'node:readline';
 
-import { writeSavedChat } from './chatFile.js';
+import { handleChatCommand } from './chat/commands.js';
 import { ChatSession, type SavedChat } from './session.js';
 import { type AskOutcome,type PermissionAsker, PermissionPolicy, sanitizeForPrompt, toolGuidancePrompt,type ToolRegistry } from './tools/index.js';
 import type { GenerateOptions, ModelId } from './types.js';
@@ -27,19 +27,6 @@ export interface ReplOptions {
   /** Auto-approve every tool call — `--yes` (use with care). */
   yes?: boolean;
 }
-
-const HELP = `Commands:
-  /reset [system]   Start over (optionally set new system instructions)
-  /system <text>    Replace the system instructions and reset
-  /clear            Clear the conversation context (keep system instructions)
-  /compact          Compact the conversation context now
-  /usage            Show the current context token count
-  /save <file>      Save the native transcript to a new file
-  /tools            List the tools the model may call
-  /help             Show this help
-  /quit             Quit (alias /exit, or Ctrl-D)
-
-  Press Esc while the model is replying to interrupt it (keeps the partial reply).`;
 
 /**
  * A permission prompt bound to readline: `Run <description>? [y/N/a(lways)]`.
@@ -132,7 +119,8 @@ export async function runRepl(opts: ReplOptions): Promise<void> {
   // is simply inactive there. `active` is set only while a turn is streaming.
   let active: AbortController | undefined;
   const terminal = { closed: false };
-  const prompt = (): void => { if (!terminal.closed) rl.prompt(); };
+  const terminalClosed = (): boolean => terminal.closed;
+  const prompt = (): void => { if (!terminalClosed()) rl.prompt(); };
   const onKeypress = (_str: string | undefined, key: { name?: string } | undefined): void => {
     if (key?.name === 'escape') active?.abort();
   };
@@ -148,81 +136,25 @@ export async function runRepl(opts: ReplOptions): Promise<void> {
   rl.setPrompt('> ');
   prompt();
 
+  const commands = {
+    session,
+    withGuidance,
+    toolNames: opts.tools?.names() ?? [],
+    write: (text: string): void => { process.stdout.write(text); },
+  };
   for await (const line of rl) {
-    if (terminal.closed) break;
+    if (terminalClosed()) break;
     const text = line.trim();
     if (text.length === 0) {
       prompt();
       continue;
     }
     if (text === '/quit' || text === '/exit') break;
-    if (text === '/help') {
-      process.stdout.write(`${HELP}\n`);
+    if (await handleChatCommand(text, commands)) {
       prompt();
       continue;
     }
-    if (text === '/clear') {
-      session.reset();
-      process.stdout.write('(context cleared)\n');
-      prompt();
-      continue;
-    }
-    if (text === '/usage') {
-      try {
-        const { tokens, contextSize } = await session.usage();
-        if (contextSize === undefined) {
-          process.stdout.write(`Context: ~${String(tokens)} tokens (estimate)\n`);
-        } else {
-          const percent = Math.round(tokens / contextSize * 100);
-          process.stdout.write(`Context: ${String(tokens)} / ${String(contextSize)} tokens (${String(percent)}%)\n`);
-        }
-      } catch (error) {
-        process.stdout.write(`error: ${error instanceof Error ? error.message : String(error)}\n`);
-      }
-      prompt();
-      continue;
-    }
-    if (text === '/compact') {
-      try {
-        await session.compact();
-        process.stdout.write('(compacted)\n');
-      } catch (error) {
-        process.stdout.write(`error: ${error instanceof Error ? error.message : String(error)}\n`);
-      }
-      prompt();
-      continue;
-    }
-    if (text === '/save' || text.startsWith('/save ')) {
-      const path = text.slice('/save'.length).trim();
-      try {
-        if (path.length === 0) throw new Error('/save requires a file path');
-        await writeSavedChat(path, await session.saveTranscript());
-        process.stdout.write('(saved)\n');
-      } catch (error) {
-        process.stdout.write(`error: ${error instanceof Error ? error.message : String(error)}\n`);
-      }
-      prompt();
-      continue;
-    }
-    if (text === '/tools') {
-      const names = opts.tools?.names() ?? [];
-      process.stdout.write(names.length > 0 ? `tools: ${names.join(', ')}\n` : '(no tools enabled)\n');
-      prompt();
-      continue;
-    }
-    if (text === '/reset' || text.startsWith('/reset ')) {
-      const arg = text.slice('/reset'.length).trim();
-      session.reset(arg.length > 0 ? withGuidance(arg) : undefined);
-      process.stdout.write('(reset)\n');
-      prompt();
-      continue;
-    }
-    if (text.startsWith('/system ')) {
-      session.reset(withGuidance(text.slice('/system '.length).trim()));
-      process.stdout.write('(system updated, conversation reset)\n');
-      prompt();
-      continue;
-    }
+    if (terminalClosed()) break;
 
     const controller = new AbortController();
     active = controller;

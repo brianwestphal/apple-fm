@@ -48,11 +48,12 @@ tests/            # protocol, cliArgs, session, helper, liveSession, docs, demo 
 | --- | --- |
 | change the wire protocol (events, framing) | `protocol.ts` + `docs/4-protocol.md` + `apple-fm-helper/main.swift` |
 | change how the helper binary is found/spawned | `helper.ts` (`resolveHelperPath`, `runHelper`) |
-| change the persistent live-session process/protocol | `liveSession.ts` (`LiveSession`), `apple-fm-helper/main.swift` (`runSession`, `runSessionCommands`), `apple-fm-helper/SessionTurns.swift` (cancellation ownership) |
+| change the persistent live-session process/protocol | `liveSession.ts` (`LiveSession`), `apple-fm-helper/Session.swift` (command reader and execution), `apple-fm-helper/SessionTurns.swift` (cancellation ownership) |
 | change chat behavior or compaction policy | `session.ts` (`ChatSession`, `SUMMARIZE_SYSTEM`) |
 | change guided generation (`--schema` → native) | `apple-fm-helper/GuidedGeneration.swift` (`dynamicSchema`, `compileSchema`) + `main.swift` (`generate`) |
 | add/change a CLI flag | `cliArgs.ts` (+ wire in `cli.ts`) |
-| change saved chat format or restore | `src/chatFile.ts` (disk I/O), `src/session.ts` (snapshot format and chat state), `src/liveSession.ts` and `apple-fm-helper/main.swift` (native transcript) |
+| change saved chat format or restore | `src/chatFile.ts` (disk I/O), `src/session.ts` (snapshot format and chat state), `src/liveSession.ts` and `apple-fm-helper/Session.swift` (native transcript) |
+| change an interactive slash command | `src/chat/commands.ts`, `tests/replCommands.test.ts`, and the CLI integration suite |
 | change bounded local reads | `src/tools/builtin/read.ts` (permission preparation), `readPaths.ts` (canonical path matching), `read-worker.ts` (isolated filesystem operations) |
 | change interactive REPL commands | `repl.ts` |
 | change Esc/interrupt of an in-flight reply (FR-15) | `repl.ts` (keypress → `AbortController`), `session.ts`/`liveSession.ts` (`send(…, signal)` → `cancel` command), `SessionTurns.swift` (queued and active turns), `ToolBridge.swift` (waking cancelled tool waiters), `docs/4-protocol.md` (`cancel`), and `tests/native-session-turns.swift`. |
