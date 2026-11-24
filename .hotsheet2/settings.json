@@ -1,0 +1,34 @@
+{
+  "$hotsheetSchema": 1,
+  "auto_context": [
+    {
+      "key": "feature",
+      "text": "Read docs/ai/code-summary.md and docs/ai/requirements-summary.md if you haven't yet or if you feel you might be out-of-date.\n\nAdd a new requirements document.\n\nAsk clarifying questions as needed.\n\nBe sure to create follow up tickets as needed as well.\n",
+      "type": "category"
+    },
+    {
+      "key": "requirement_change",
+      "text": "Read docs/ai/code-summary.md and docs/ai/requirements-summary.md if you haven't yet or if you feel you might be out-of-date.\n\nUpdate requirements documents as appropriate.\n\nAsk clarifying questions as needed.\n",
+      "type": "category"
+    },
+    {
+      "key": "bug",
+      "text": "Read docs/ai/code-summary.md and docs/ai/requirements-summary.md if you haven't yet or if you feel you might be out-of-date.\n\nEvaluate current tests and add unit tests or test automation to protected against this kind of bug going forward, if applicable.\n",
+      "type": "category"
+    }
+  ],
+  "push_policy": "push-per-ticket",
+  "secret": "429bb9fb7cd449fadf56b613b725e252",
+  "secretPathHash": "a423bfe8f580e01f",
+  "terminals": [
+    {
+      "command": "{{claudeCommand}}",
+      "fontFamily": "system",
+      "fontSize": 17,
+      "id": "claude",
+      "lazy": false,
+      "name": "Claude",
+      "theme": "github-dark"
+    }
+  ]
+}
