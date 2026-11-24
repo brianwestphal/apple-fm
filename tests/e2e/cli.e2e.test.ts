@@ -20,7 +20,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
 
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
 const CLI = fileURLToPath(new URL('../../src/cli.ts', import.meta.url));
@@ -28,6 +28,7 @@ const STUB = fileURLToPath(new URL('../fixtures/stub-helper.js', import.meta.url
 const SCHEMA = fileURLToPath(new URL('../fixtures/cli-schema.json', import.meta.url));
 const BAD_SCHEMA = fileURLToPath(new URL('../fixtures/cli-bad-schema.json', import.meta.url));
 const READ_SAMPLE = fileURLToPath(new URL('../fixtures/read-sample.txt', import.meta.url));
+const INTERACTIVE_STDIN = fileURLToPath(new URL('../fixtures/interactive-stdin.mjs', import.meta.url));
 
 /** Each case spawns node+tsx; allow generous headroom over the cold-start cost. */
 const T = 20_000;
@@ -418,6 +419,42 @@ describe('apple-fm CLI (e2e)', () => {
   });
 
   describe('chat (REPL)', () => {
+    it('routes answers to each displayed permission request and exits on EOF (AFM-FT19DR)', async () => {
+      const cli = spawn(process.execPath, ['--import', 'tsx', '--import', INTERACTIVE_STDIN, CLI,
+        'chat', '--no-stream', '--tools', 'read'], {
+        cwd: ROOT,
+        env: { ...process.env, APPLE_FM_BIN: STUB },
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
+      let output = '';
+      cli.stdout.setEncoding('utf8');
+      cli.stdout.on('data', (chunk: string) => { output += chunk; });
+      const exited = new Promise<number | null>((resolve, reject) => {
+        cli.once('close', resolve);
+        cli.once('error', reject);
+      });
+      const waitForText = async (value: string): Promise<void> => {
+        await vi.waitFor(() => { expect(output).toContain(value); }, { timeout: 7_000 });
+      };
+      try {
+        await waitForText('apple-fm chat');
+        cli.stdin.write(`TOOL_PAIR read ${JSON.stringify([{ path: '/first' }, { path: READ_SAMPLE }])}\n`);
+        await waitForText('Run read /first?');
+        expect(output).not.toContain(`Run read ${READ_SAMPLE}?`);
+        cli.stdin.write('n\n');
+        await waitForText(`Run read ${READ_SAMPLE}?`);
+        cli.stdin.write('y\n');
+        await waitForText('the-eagle-has-landed');
+        expect(output).toContain('was denied by the user');
+        cli.stdin.write('TOOL read {"path":"/after"}\n');
+        await waitForText('Run read /after?');
+        cli.stdin.end();
+        await expect(exited).resolves.toBe(0);
+      } finally {
+        cli.stdin.end();
+        if (cli.exitCode === null) cli.kill();
+      }
+    }, T);
     it(
       'runs a turn, handles slash commands, and exits 0 on EOF',
       async () => {

@@ -4,6 +4,9 @@
  * REPL's `readlineAsker` answer parsing. The gate's integration with the live
  * session is covered in `liveSession.test.ts`.
  */
+import { createInterface } from 'node:readline';
+import { PassThrough } from 'node:stream';
+
 import { describe, expect, it, vi } from 'vitest';
 
 import { readlineAsker } from '../src/repl.js';
@@ -186,9 +189,14 @@ describe('PermissionPolicy.authorize', () => {
 });
 
 describe('readlineAsker', () => {
-  /** A fake readline whose `question` immediately answers with `answer`. */
-  function fakeRl(answer: string): Parameters<typeof readlineAsker>[0] {
-    return { question: (_q: string, cb: (a: string) => void) => { cb(answer); } } as Parameters<typeof readlineAsker>[0];
+  function promptHarness() {
+    const input = new PassThrough();
+    const output = new PassThrough();
+    const rl = createInterface({ input, output });
+    let rendered = '';
+    output.setEncoding('utf8');
+    output.on('data', (chunk: string) => { rendered += chunk; });
+    return { input, rl, ask: readlineAsker(rl), rendered: () => rendered };
   }
 
   it.each([
@@ -201,6 +209,61 @@ describe('readlineAsker', () => {
     ['n', 'deny'],
     ['nonsense', 'deny'],
   ])('maps %j to %j', async (answer, expected) => {
-    await expect(readlineAsker(fakeRl(answer))(req('read', '/x'))).resolves.toBe(expected);
+    const { ask, input, rl, rendered } = promptHarness();
+    try {
+      const outcome = ask(req('read', '/x'));
+      await vi.waitFor(() => { expect(rendered()).toContain('Run read /x?'); });
+      input.write(`${answer}\n`);
+      await expect(outcome).resolves.toBe(expected);
+    } finally {
+      rl.close();
+    }
+  });
+
+  it('prompts in order and applies each answer to the displayed request (AFM-FT19DR)', async () => {
+    const { ask, input, rl, rendered } = promptHarness();
+    try {
+      const first = ask(req('read', '/first'));
+      const second = ask(req('read', '/second'));
+      const third = ask(req('read', '/third'));
+      await vi.waitFor(() => { expect(rendered()).toContain('Run read /first?'); });
+      expect(rendered()).not.toContain('/second');
+      input.write('n\n');
+      await expect(first).resolves.toBe('deny');
+      await vi.waitFor(() => { expect(rendered()).toContain('Run read /second?'); });
+      expect(rendered()).not.toContain('/third');
+      input.write('y\n');
+      await expect(second).resolves.toBe('once');
+      await vi.waitFor(() => { expect(rendered()).toContain('Run read /third?'); });
+      input.write('a\n');
+      await expect(third).resolves.toBe('always');
+    } finally {
+      rl.close();
+    }
+  });
+
+  it('discards aborted prompts and denies the remaining queue on EOF (AFM-FT19DR)', async () => {
+    const { ask, input, rl, rendered } = promptHarness();
+    const active = new AbortController();
+    const queued = new AbortController();
+    try {
+      const first = ask({ ...req('read', '/active'), signal: active.signal });
+      const second = ask({ ...req('read', '/skipped'), signal: queued.signal });
+      const third = ask(req('read', '/eof'));
+      const fourth = ask(req('read', '/after-eof'));
+      await vi.waitFor(() => { expect(rendered()).toContain('/active'); });
+      queued.abort();
+      active.abort();
+      await expect(first).resolves.toBe('deny');
+      await expect(second).resolves.toBe('deny');
+      await vi.waitFor(() => { expect(rendered()).toContain('/eof'); });
+      input.end();
+      await expect(third).resolves.toBe('deny');
+      await expect(fourth).resolves.toBe('deny');
+      expect(rendered()).not.toContain('/skipped');
+      expect(rendered()).not.toContain('/after-eof');
+    } finally {
+      rl.close();
+    }
   });
 });

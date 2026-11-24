@@ -8,7 +8,7 @@ import { dirname, join, resolve } from 'node:path';
 import { createInterface, emitKeypressEvents, type Interface as ReadlineInterface } from 'node:readline';
 
 import { ChatSession, type SavedChat } from './session.js';
-import { type PermissionAsker, PermissionPolicy, sanitizeForPrompt, toolGuidancePrompt,type ToolRegistry } from './tools/index.js';
+import { type AskOutcome,type PermissionAsker, PermissionPolicy, sanitizeForPrompt, toolGuidancePrompt,type ToolRegistry } from './tools/index.js';
 import type { GenerateOptions, ModelId } from './types.js';
 
 /** Options for {@link runRepl}. */
@@ -48,16 +48,40 @@ const HELP = `Commands:
  * (the REPL itself is exercised via the e2e suite).
  */
 export function readlineAsker(rl: ReadlineInterface): PermissionAsker {
-  return (request) =>
-    new Promise((resolve) => {
-      // Sanitize the model-controlled description so it can't spoof or scroll the
-      // approval prompt with control chars / ANSI (AFM-68).
-      rl.question(`\nRun ${sanitizeForPrompt(request.description)}? [y/N/a(lways)] `, (answer) => {
-        const a = answer.trim().toLowerCase();
-        if (a === 'a' || a === 'always') resolve('always');
-        else resolve(a === 'y' || a === 'yes' ? 'once' : 'deny');
-      });
+  let tail = Promise.resolve<unknown>(undefined);
+  let closed = false;
+  let activeQuestion: AbortController | undefined;
+  rl.once('close', () => {
+    closed = true;
+    activeQuestion?.abort();
+  });
+  return (request) => {
+    const queued = tail.then<AskOutcome>(async () => {
+      if (closed || request.signal?.aborted === true) return 'deny';
+      const controller = new AbortController();
+      activeQuestion = controller;
+      const cancel = (): void => { controller.abort(); };
+      request.signal?.addEventListener('abort', cancel, { once: true });
+      try {
+        return await new Promise<AskOutcome>((resolve) => {
+          controller.signal.addEventListener('abort', () => { resolve('deny'); }, { once: true });
+          const prompt = `\nRun ${sanitizeForPrompt(request.description)}? [y/N/a(lways)] `;
+          rl.question(prompt, { signal: controller.signal }, (answer) => {
+            const a = answer.trim().toLowerCase();
+            if (a === 'a' || a === 'always') resolve('always');
+            else resolve(a === 'y' || a === 'yes' ? 'once' : 'deny');
+          });
+        });
+      } catch {
+        return 'deny';
+      } finally {
+        activeQuestion = undefined;
+        request.signal?.removeEventListener('abort', cancel);
+      }
     });
+    tail = queued;
+    return queued;
+  };
 }
 
 async function writeSavedChat(path: string, saved: SavedChat): Promise<void> {
@@ -121,33 +145,40 @@ export async function runRepl(opts: ReplOptions): Promise<void> {
   // need raw mode); piped/non-interactive input has no keypress stream, so interrupt
   // is simply inactive there. `active` is set only while a turn is streaming.
   let active: AbortController | undefined;
+  const terminal = { closed: false };
+  const prompt = (): void => { if (!terminal.closed) rl.prompt(); };
   const onKeypress = (_str: string | undefined, key: { name?: string } | undefined): void => {
     if (key?.name === 'escape') active?.abort();
   };
   if (process.stdin.isTTY) {
     emitKeypressEvents(process.stdin, rl);
     process.stdin.on('keypress', onKeypress);
+    rl.once('close', () => {
+      terminal.closed = true;
+      active?.abort();
+    });
   }
 
   rl.setPrompt('> ');
-  rl.prompt();
+  prompt();
 
   for await (const line of rl) {
+    if (terminal.closed) break;
     const text = line.trim();
     if (text.length === 0) {
-      rl.prompt();
+      prompt();
       continue;
     }
     if (text === '/quit' || text === '/exit') break;
     if (text === '/help') {
       process.stdout.write(`${HELP}\n`);
-      rl.prompt();
+      prompt();
       continue;
     }
     if (text === '/clear') {
       session.reset();
       process.stdout.write('(context cleared)\n');
-      rl.prompt();
+      prompt();
       continue;
     }
     if (text === '/usage') {
@@ -162,7 +193,7 @@ export async function runRepl(opts: ReplOptions): Promise<void> {
       } catch (error) {
         process.stdout.write(`error: ${error instanceof Error ? error.message : String(error)}\n`);
       }
-      rl.prompt();
+      prompt();
       continue;
     }
     if (text === '/compact') {
@@ -172,7 +203,7 @@ export async function runRepl(opts: ReplOptions): Promise<void> {
       } catch (error) {
         process.stdout.write(`error: ${error instanceof Error ? error.message : String(error)}\n`);
       }
-      rl.prompt();
+      prompt();
       continue;
     }
     if (text === '/save' || text.startsWith('/save ')) {
@@ -184,26 +215,26 @@ export async function runRepl(opts: ReplOptions): Promise<void> {
       } catch (error) {
         process.stdout.write(`error: ${error instanceof Error ? error.message : String(error)}\n`);
       }
-      rl.prompt();
+      prompt();
       continue;
     }
     if (text === '/tools') {
       const names = opts.tools?.names() ?? [];
       process.stdout.write(names.length > 0 ? `tools: ${names.join(', ')}\n` : '(no tools enabled)\n');
-      rl.prompt();
+      prompt();
       continue;
     }
     if (text === '/reset' || text.startsWith('/reset ')) {
       const arg = text.slice('/reset'.length).trim();
       session.reset(arg.length > 0 ? withGuidance(arg) : undefined);
       process.stdout.write('(reset)\n');
-      rl.prompt();
+      prompt();
       continue;
     }
     if (text.startsWith('/system ')) {
       session.reset(withGuidance(text.slice('/system '.length).trim()));
       process.stdout.write('(system updated, conversation reset)\n');
-      rl.prompt();
+      prompt();
       continue;
     }
 
@@ -229,7 +260,7 @@ export async function runRepl(opts: ReplOptions): Promise<void> {
     } finally {
       active = undefined;
     }
-    rl.prompt();
+    prompt();
   }
 
   if (process.stdin.isTTY) process.stdin.off('keypress', onKeypress);

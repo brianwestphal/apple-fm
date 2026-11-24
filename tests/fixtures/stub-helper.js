@@ -254,6 +254,15 @@ if (process.env.STUB_HANG === '1') {
       pendingTools.delete(cmd.callId);
       const { id } = tool;
       if (cmd.type === 'tool_result') {
+        if (tool.pair !== undefined) {
+          tool.pair.results[tool.index] = String(cmd.content);
+          tool.pair.remaining -= 1;
+          if (tool.pair.remaining === 0) {
+            turns += 1;
+            write({ type: 'result', id, content: tool.pair.results.join('\n') });
+          }
+          return;
+        }
         if (tool.remaining > 1) {
           startTool({ ...tool, remaining: tool.remaining - 1 });
           return;
@@ -273,6 +282,14 @@ if (process.env.STUB_HANG === '1') {
         pendingCancel.delete(cmd.id);
         turns += 1;
         write({ type: 'result', id: cmd.id, content: partial });
+      } else {
+        let didCancel = false;
+        for (const [callId, tool] of pendingTools) {
+          if (tool.id !== cmd.id) continue;
+          pendingTools.delete(callId);
+          didCancel = true;
+        }
+        if (didCancel) write({ type: 'result', id: cmd.id, content: '' });
       }
       return;
     }
@@ -332,11 +349,11 @@ if (process.env.STUB_HANG === '1') {
       pendingCancel.set(cmd.id, 'partial ');
       return;
     }
-    const toolMatch = /^TOOL(?:_CHAIN (\d+))? (\S+) (.*)$/.exec(prompt);
+    const toolMatch = /^TOOL(_PAIR|_CHAIN (\d+))? (\S+) (.*)$/.exec(prompt);
     if (toolMatch) {
       // Only call a tool the turn actually offered (mirrors the helper building the
       // session with exactly the turn's `tools[]`).
-      const [, count, name, argsJson] = toolMatch;
+      const [, mode, count, name, argsJson] = toolMatch;
       const offered = offeredTools.includes(name);
       if (!offered) {
         write({ type: 'error', id: cmd.id, code: 'inferenceFailed', message: `tool ${name} not offered` });
@@ -348,7 +365,12 @@ if (process.env.STUB_HANG === '1') {
       } catch {
         args = {};
       }
-      startTool({ id: cmd.id, name, args, remaining: count === undefined ? 1 : Number(count) });
+      if (mode === '_PAIR' && Array.isArray(args) && args.length === 2) {
+        const pair = { remaining: 2, results: [] };
+        args.forEach((arg, index) => startTool({ id: cmd.id, name, args: arg, pair, index }));
+      } else {
+        startTool({ id: cmd.id, name, args, remaining: count === undefined ? 1 : Number(count) });
+      }
       return; // turn stays open until the tool_result/tool_error arrives
     }
     if (prompt === 'JUNK') {
