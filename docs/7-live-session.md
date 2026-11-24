@@ -114,6 +114,13 @@ These are additive: `--probe` / `--generate` and their wire shapes are untouched
 Implementation is tracked separately so this doc can land first — see the tickets
 created from AFM-12.
 
+## Context usage
+
+`/usage` prints the current context token count, context capacity, and percentage
+on macOS 26.4 and later when the helper advertises native counting (AFM-MBMXY7).
+Older helpers and failed native counts produce a labeled estimate. The count can
+drop after `/clear` or `/compact` because it measures the active transcript.
+
 ## Save and resume
 
 In chat, `/save <file>` writes a new JSON snapshot containing the native

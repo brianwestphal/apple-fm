@@ -569,7 +569,12 @@ private func runSession() async -> Never {
                     do {
                         let model = SystemLanguageModel.default
                         let history = try await model.tokenCount(for: session.transcript)
-                        let prompt = try await model.tokenCount(for: command.prompt ?? "")
+                        let prompt: Int
+                        if let nextPrompt = command.prompt, !nextPrompt.isEmpty {
+                            prompt = try await model.tokenCount(for: nextPrompt)
+                        } else {
+                            prompt = 0
+                        }
                         emitResult(String(history + prompt), id: command.id)
                     } catch {
                         let f = failure(for: error)

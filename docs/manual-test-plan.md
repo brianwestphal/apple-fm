@@ -52,6 +52,9 @@ JSON array of relevant tags. With an SDK 27 helper on macOS 27, run
 Confirm that an unreadable image produces an error and that macOS 26 reports
 the image mode as unsupported.
 
+Run `/usage` in a new chat, after a reply, and after `/clear`. On a native
+counting helper, verify the count rises after the reply and drops after clearing.
+
 ## MT-3 Save and resume
 
 In the rebuilt CLI, ask chat to remember a short phrase and save with

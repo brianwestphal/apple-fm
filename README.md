@@ -47,7 +47,8 @@ apple-fm chat --model on-device
 later. The model ID is `on-device`, which is also the default for generation and chat.
 On macOS 26.4 and later, `apple-fm tokens 'text'` prints the native prompt token
 count. It also reads text from stdin. `probe` reports the model's `contextSize`
-where available.
+where available. In chat, `/usage` shows the current context count and capacity when
+native counting is available, or a labeled estimate on older helpers.
 
 On macOS 27 and later, `apple-fm generate --image photo.png "Describe this image"`
 analyzes a local image. It also supports guided JSON output with `--schema`.

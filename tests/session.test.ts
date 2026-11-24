@@ -208,6 +208,27 @@ describe('saved chats', () => {
   });
 });
 
+describe('ChatSession usage', () => {
+  it('measures the current context after compaction and reset', async () => {
+    const { backend, calls } = recordingBackend();
+    const prompts: string[] = [];
+    backend.tokenBudget = (prompt) => {
+      prompts.push(prompt);
+      return Promise.resolve({ tokens: 10, contextSize: 100 });
+    };
+    const session = new ChatSession({ backend, generateFn: recordingSummarizer().gen, keepRecentTurns: 1 });
+    await session.send('first');
+    await session.compact();
+    expect(await session.usage()).toEqual({ tokens: 10, contextSize: 100 });
+    expect(calls.filter((call) => call.kind === 'reset').at(-1)?.seed)
+      .toEqual([{ role: 'assistant', content: 'reply:first' }]);
+    session.reset();
+    expect(await session.usage()).toEqual({ tokens: 10, contextSize: 100 });
+    expect(calls.filter((call) => call.kind === 'reset').at(-1)?.seed).toEqual([]);
+    expect(prompts).toEqual(['', '']);
+  });
+});
+
 describe('ChatSession compaction', () => {
   it('uses native history and next-prompt counts before the estimate reaches the threshold', async () => {
     const { backend } = recordingBackend();

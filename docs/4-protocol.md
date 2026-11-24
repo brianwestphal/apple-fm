@@ -150,7 +150,8 @@ Clients only send these commands after the helper advertises support.
 A session helper that supports native accounting advertises `contextSize` in
 its `ready` reply. Clients can then send a correlated `count_tokens` command with
 the next `prompt`. Its `result.content` reports the transcript and prompt counts
-combined. Clients use the existing estimate when the advertisement is absent.
+combined. An empty or omitted prompt counts the active transcript alone. Clients
+use the existing estimate when the advertisement is absent.
 
 ### Tool calling (FR-14)
 

@@ -158,6 +158,13 @@ export class ChatSession {
     return this.messages.map((message) => ({ ...message }));
   }
 
+  /** Report the active context in tokens. A missing capacity indicates an estimate. */
+  async usage(): Promise<{ tokens: number; contextSize?: number }> {
+    await this.ensureStarted();
+    const budget = await this.backend.tokenBudget?.('');
+    return budget ?? { tokens: estimateConversationTokens(this.effectiveSystem(), this.messages) };
+  }
+
   /** Whether the next turn would push the transcript past the compaction bound. */
   shouldCompact(): boolean {
     return estimateConversationTokens(this.effectiveSystem(), this.messages) > this.compactAtTokens;

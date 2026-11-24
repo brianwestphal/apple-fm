@@ -112,6 +112,27 @@ describe('apple-fm CLI (e2e)', () => {
     }, T);
   });
 
+  describe('chat context usage', () => {
+    it('reports native usage before and after a turn and clear', async () => {
+      const { stdout, code } = await runCli(['chat', '--no-stream'], {
+        env: { STUB_TOKEN_BUDGET: '1' },
+        input: '/usage\nfirst\n/usage\n/clear\n/usage\n/quit\n',
+      });
+      expect(code).toBe(0);
+      expect(stdout.match(/Context: \d+ \/ 4096 tokens/g)).toEqual([
+        'Context: 100 / 4096 tokens',
+        'Context: 110 / 4096 tokens',
+        'Context: 100 / 4096 tokens',
+      ]);
+    }, T);
+
+    it('labels usage as an estimate when the helper has no native counter', async () => {
+      const { stdout, code } = await runCli(['chat', '--no-stream'], { input: '/usage\n/quit\n' });
+      expect(code).toBe(0);
+      expect(stdout).toMatch(/Context: ~\d+ tokens \(estimate\)/);
+    }, T);
+  });
+
   describe('chat persistence', () => {
     it('saves privately, resumes in a new process, and refuses to overwrite', async () => {
       const directory = await mkdtemp(join(tmpdir(), 'apple-fm-chat-'));
@@ -125,10 +146,12 @@ describe('apple-fm CLI (e2e)', () => {
         expect(first.stdout).toContain('EEXIST');
         expect((await stat(file)).mode & 0o777).toBe(0o600);
         const second = await runCli(['chat', '--no-stream', '--resume', file], {
-          input: 'second\n/quit\n',
+          env: { STUB_TOKEN_BUDGET: '1' },
+          input: '/usage\nsecond\n/quit\n',
         });
         expect(second.stderr).toBe('');
         expect(second.code).toBe(0);
+        expect(second.stdout).toContain('Context: 110 / 4096 tokens');
         expect(second.stdout).toContain('"instructions":"sys","turns":2,"prompt":"second"');
       } finally {
         await rm(directory, { recursive: true, force: true });

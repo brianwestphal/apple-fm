@@ -34,6 +34,7 @@ const HELP = `Commands:
   /system <text>    Replace the system instructions and reset
   /clear            Clear the conversation context (keep system instructions)
   /compact          Compact the conversation context now
+  /usage            Show the current context token count
   /save <file>      Save the native transcript to a new file
   /tools            List the tools the model may call
   /help             Show this help
@@ -146,6 +147,21 @@ export async function runRepl(opts: ReplOptions): Promise<void> {
     if (text === '/clear') {
       session.reset();
       process.stdout.write('(context cleared)\n');
+      rl.prompt();
+      continue;
+    }
+    if (text === '/usage') {
+      try {
+        const { tokens, contextSize } = await session.usage();
+        if (contextSize === undefined) {
+          process.stdout.write(`Context: ~${String(tokens)} tokens (estimate)\n`);
+        } else {
+          const percent = Math.round(tokens / contextSize * 100);
+          process.stdout.write(`Context: ${String(tokens)} / ${String(contextSize)} tokens (${String(percent)}%)\n`);
+        }
+      } catch (error) {
+        process.stdout.write(`error: ${error instanceof Error ? error.message : String(error)}\n`);
+      }
       rl.prompt();
       continue;
     }

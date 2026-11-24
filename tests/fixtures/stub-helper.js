@@ -194,6 +194,12 @@ if (process.env.STUB_HANG === '1') {
   // id -> partial text, for streaming turns awaiting a `cancel` (esc-to-interrupt,
   // FR-15): the turn emits a delta then waits, and a cancel ends it with the partial.
   const pendingCancel = new Map();
+  const ready = (id) => write({
+    type: 'ready',
+    id,
+    transcriptPersistence: process.env.STUB_LEGACY_TRANSCRIPT !== '1',
+    ...(process.env.STUB_TOKEN_BUDGET === '1' ? { contextSize: 4096 } : {}),
+  });
   const handleLine = (line) => {
     if (line.trim() === '') return;
     let cmd;
@@ -237,14 +243,14 @@ if (process.env.STUB_HANG === '1') {
         if (typeof snapshot.instructions !== 'string' || !Number.isInteger(snapshot.turns)) throw new Error('invalid');
         ({ instructions, turns } = snapshot);
         offeredTools = (cmd.tools ?? []).map((tool) => tool.name);
-        write({ type: 'ready', id: cmd.id, transcriptPersistence: true });
+        ready(cmd.id);
       } catch {
         write({ type: 'error', id: cmd.id, code: 'transcriptError', message: 'invalid native transcript' });
       }
       return;
     }
     if (cmd.type === 'count_tokens') {
-      write({ type: 'result', id: cmd.id, content: String(100 + cmd.prompt.length) });
+      write({ type: 'result', id: cmd.id, content: String(100 + turns * 10 + cmd.prompt.length) });
       return;
     }
     if (cmd.type === 'reset') {
@@ -252,7 +258,7 @@ if (process.env.STUB_HANG === '1') {
       instructions = (cmd.system ?? '') + (seed.length > 0 ? ` [seed:${seed.length}]` : '');
       offeredTools = Array.isArray(cmd.tools) ? cmd.tools.map((t) => t && t.name).filter(Boolean) : [];
       turns = 0;
-      write({ type: 'ready', id: cmd.id, transcriptPersistence: process.env.STUB_LEGACY_TRANSCRIPT !== '1', ...(process.env.STUB_TOKEN_BUDGET === '1' ? { contextSize: 4096 } : {}) });
+      ready(cmd.id);
       return;
     }
     const prompt = cmd.prompt ?? '';

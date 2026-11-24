@@ -29,7 +29,7 @@ Keep status markers in sync with the implementation.
 
 - **FR-16 On-device content tagging** — Shipped. `generate --use-case content-tagging` reads argument or stdin text and emits a JSON array of tags. See [model use cases](../12-models.md).
 
-- **FR-17 Native token counting** — Shipped on macOS 26.4+. Chat uses native accounting when available and retains its estimate fallback.
+- **FR-17 Native token counting** — Shipped on macOS 26.4+. Chat uses native accounting when available. `/usage` reports context occupancy or a labeled estimate.
 
 - **FR-18 On-device image input** — Shipped on macOS 27+ with the SDK 27 helper. Supports text prompts, streaming, and guided output.
 
