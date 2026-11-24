@@ -76,12 +76,10 @@ These are additive: `--probe` / `--generate` and their wire shapes are untouched
 
 ## Implementation surface
 
-- **`apple-fm-helper/main.swift`** — add `--session`: hold one
-  `LanguageModelSession`, read commands in a loop, dispatch turn vs reset, emit
-  id-tagged events, exit on EOF.
-- **`src/helper.ts`** (or a new `liveSession.ts`) — a `LiveSession` that spawns the
-  `--session` helper once, writes commands, parses id-correlated events, and
-  exposes `send(input, onDelta?) → Promise<string>` and `reset(system, seed)`.
+- **`apple-fm-helper/Session.swift`** holds the native session, processes commands
+  in order, and routes tool replies and cancellation independently of the queue.
+- **`src/liveSession.ts`** spawns the `--session` helper, writes commands, parses
+  ID-correlated events, and exposes `send` and `reset`.
   Owns process lifecycle (timeout per turn, cleanup on close, restart-on-crash).
 - **`src/session.ts`** — `ChatSession` uses `LiveSession` as its backend instead of
   replaying via `generate`. `GenerateFn` injection stays for device-free tests.
@@ -104,19 +102,18 @@ These are additive: `--probe` / `--generate` and their wire shapes are untouched
 - On-device smoke (AF-2): a real multi-turn session is coherent and faster than
   replay.
 
-## Open questions / risks
+## Recovery and accounting (AFM-0SG6FT)
 
-- Long-lived process hygiene: zombie helpers if Node exits abnormally — ensure
-  cleanup (kill on `close`/process exit).
-- Does the SDK expose per-turn token usage / a reliable context-overflow signal on
-  a live session? Drives when Node triggers compaction.
-- Re-seed fidelity: confirm a reset+seed reproduces the same context a fresh replay
-  would, so recovery is transparent.
-
-## Follow-up tickets
-
-Implementation is tracked separately so this doc can land first — see the tickets
-created from AFM-12.
+- A native context overflow is reported as `contextWindowExceeded`. Chat can
+  compact and retry once. Native accounting measures the active transcript and,
+  during a preflight check, the next prompt. The reported count represents current
+  context occupancy. It has no cumulative session total.
+- A crash, reset, or compaction rebuilds a session from instructions and labeled
+  prior turns. This preserves the selected text and any recap. Native transcript
+  entries and the model's cache are reconstructed differently. Use `/save` and
+  `chat --resume` to export and import the native transcript.
+- Closing a Node session tears down its helper. Native tool waiters at direct
+  protocol EOF are tracked in AFM-DSA0MZ.
 
 ## Context usage
 

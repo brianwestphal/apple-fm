@@ -4,6 +4,25 @@ struct NativeSessionTurnsTest {
     static func main() async {
         await testTurns()
         await testToolReplies()
+        await testConcurrentToolReplies()
+    }
+
+    static func testConcurrentToolReplies() async {
+        let (calls, emitted) = AsyncStream<(name: String, id: String)>.makeStream()
+        let bridge = ToolBridge { name, id, _, _ in emitted.yield((name, id)) }
+        await bridge.beginTurn("parallel")
+        let left = Task { await bridge.call(name: "left", argumentsJSON: "{}") }
+        let right = Task { await bridge.call(name: "right", argumentsJSON: "{}") }
+        var wire = calls.makeAsyncIterator()
+        guard let first = await wire.next(), let second = await wire.next() else {
+            fatalError("expected two requests before sending a reply")
+        }
+        require(first.id != second.id)
+        await bridge.resolve(callId: second.id, reply: .result(second.name))
+        await bridge.resolve(callId: first.id, reply: .result(first.name))
+        guard case .result("left") = await left.value, case .result("right") = await right.value else {
+            fatalError("out-of-order replies completed the wrong tool calls")
+        }
     }
 
     static func testTurns() async {

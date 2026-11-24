@@ -5,12 +5,9 @@ Investigation + design for letting the on-device model **call tools** mid-genera
 with a **permission** gate on each call. Tracked by **FR-14** in
 [3-requirements.md](3-requirements.md); investigated under **AFM-30**.
 
-> **Status: phase 1 shipped; rest designed.** This document is the outcome of the
-> AFM-30 investigation — feasibility, architecture, the protocol extension, and the
-> phased build. **Phase 1 (generic plumbing + `read`) has since shipped under AFM-31
-> and is on-device verified** (see [9-tool-calling.md](9-tool-calling.md) for the
-> requirements view and current status). Permissions, `bash`, and `web` (phases 2–4)
-> remain designed-only here.
+> This document records the AFM-30 design and the resulting decisions. The generic
+> adapter, permissions, `read`, and `bash` shipped. The experimental `web` tool was
+> removed in AFM-43. See [tool requirements](9-tool-calling.md) for current behavior.
 
 ## The question (AFM-30)
 
@@ -188,9 +185,8 @@ one-shot tools, `--generate`) wire:
 
 - `callId` is unique per invocation within a turn (`"<turnId>:<n>"`), distinct from the
   turn `id`, because one turn may spawn several tool calls.
-- Everything stays single-process and serial *except* that a `tool_call`/`tool_result`
-  exchange is nested inside an open turn. No new modes; `--probe` / `--generate` /
-  `--session` are unchanged for callers that pass no `tools`.
+- The helper runs one turn at a time. Several tool calls can be pending within a
+  turn, and each result resumes the waiter with the matching `callId`.
 
 ## Permission model
 
@@ -199,17 +195,15 @@ agent CLIs, kept entirely in Node (the helper never decides policy):
 
 - **Per-call gate.** Before `tool.run`, the dispatcher consults a `PermissionPolicy`:
   `ask` (default — prompt the user), `allow` (auto-approve), or `deny`.
-- **Granularity.** Policy is keyed by tool name, and a tool may expose a finer key
-  (e.g. bash by command prefix, read by path glob) so "always allow `git status`"
-  is possible without "always allow all bash."
+- **Granularity.** Policy is keyed by tool name, exact commands for Bash allow rules,
+  or scoped canonical filesystem paths for reads.
 - **Interactive prompt.** In the REPL, a `tool_call` pauses the turn and asks
   `Run bash: \`ls\`? [y/N/a(lways)]`. Non-interactive (`generate`, piped) defaults to
   **deny unless pre-authorized** via flag/config — never silently run bash from a
   script.
-- **Session memory.** "Always" answers persist for the process lifetime (and
-  optionally to a config file).
-- A denied call returns `tool_error` → the model is told the tool was refused and can
-  continue without it.
+- **Session memory.** Interactive "Always" answers expire with the policy.
+- A denied call returns a normal `tool_result` explaining the refusal so the model
+  can continue.
 
 This keeps the **dangerous-by-default** tools (bash, write-capable file ops) behind an
 explicit, visible gate, consistent with the project's "confirm outward-facing or
@@ -241,13 +235,11 @@ This is the one genuine **decision for the user**, captured as an open question 
 
 ## CLI / API surface
 
-- **Library:** `ChatSession` / `LiveSession` gain an optional `tools: Tool[]` (and a
-  `permission` policy). Fully programmatic — a consumer registers their own tools.
-- **CLI:** `chat --tools bash,read` (or `--tool` repeated) enables built-ins;
-  `--allow-tool bash` / `--deny-tool web` set policy; a REPL `/tools` command lists
-  what's enabled. `--yes` pre-authorizes for non-interactive runs.
-- One-shot `generate` *can* support tools too, but the interactive `chat` path is the
-  natural first target (permission prompts need a human).
+- **Library:** `ChatSession` and `LiveSession` accept a `ToolRegistry` and permission policy.
+- **CLI:** `chat --tools bash,read` enables built-ins. `/tools` lists them.
+  [Tool permission flags](10-permissions.md) control which invocations can run.
+- Tools are available in `chat` and live library sessions. One-shot generation
+  uses the one-shot protocol for text, guided answers, images, and tagging.
 
 ## Testing
 
@@ -279,7 +271,7 @@ Per the project's double-coverage rule:
    [4-protocol.md](4-protocol.md), [2-architecture.md](2-architecture.md), and the AI
    summaries.
 
-## Open questions / decisions
+## Decisions (AFM-0SG6FT)
 
 - **NFR-1 vs. a `web` tool** — **Resolved (AFM-34), then reversed (AFM-43).** The
   opt-in, permission-gated `web` *fetch* tool shipped under AFM-34 (NFR-1 reworded to
@@ -288,14 +280,13 @@ Per the project's double-coverage rule:
   and NFR-1 is restored to "on-device model; no network". The analysis below is kept as
   the historical record of why a `web` tool was considered. (The `web` *search* backend,
   TC-9, was dropped with it.)
-- **One-shot tools?** Do we want tools on `generate`, or keep them chat-only where a
-  human can approve them? (Leaning chat-only first.)
-- **Streaming + tools** — confirm `streamResponse` interleaves tool calls cleanly with
-  `delta`s on-device; the design assumes the framework pauses the stream across a
-  tool call. Needs on-device verification (AF-2).
-- **Parallel tool calls** — the framework may request several at once; the dispatcher
-  should handle concurrent `callId`s, but first cut can serialize.
-- **Persistence of "always" grants** — process-lifetime only, or a written config?
+- Keep tools in chat and live sessions, where the bidirectional wire protocol carries
+  results and interactive approval is available.
+- The real-model device smoke checks a streamed turn that calls `read` and uses its
+  output. The native bridge harness covers simultaneous pending callbacks with
+  replies in reverse order. The model controls when it starts each call.
+- Interactive grants expire with the permission policy. See
+  [approval lifetime](10-permissions.md#approval-lifetime-afm-4195v2).
 
 ## Sources
 
